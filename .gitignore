@@ -4,3 +4,4 @@ __pycache__/
 /dist
 MInDes-UI.exe
 *.activate
+/solver
