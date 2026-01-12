@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QWidget, QHBoxLayout
 )
 import vtk
-from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from vts_viewer.ui_vtk_view import VTKViewMixin
 from vts_viewer.ui_control_panel import ControlPanelMixin
 from vts_viewer.data_loader import VTSDataLoaderMixin
@@ -20,6 +20,7 @@ class VTSViewerWidget(
     PlotOverLineMixin
     ):
     def __init__(self):
+        vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow()) # 禁用vts的自动弹窗
         super().__init__()
         # ✅ 只在这里设置主布局
         main_layout = QHBoxLayout(self)

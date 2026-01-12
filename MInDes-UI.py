@@ -16,8 +16,7 @@ from file_browser_widget import FileBrowserWidget
 from build_simulation_widget import BuildSimulationWidget  
 from log_statistics_widget import LogStatisticsWidget
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-def get_app_icon():
+def resource_path(relative_path):
     """获取应用图标，兼容开发和 PyInstaller 打包"""
     try:
         # PyInstaller 运行时
@@ -25,8 +24,10 @@ def get_app_icon():
     except AttributeError:
         # 正常 Python 运行
         base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    icon_path = os.path.join(base_path, "icon", "mid.ico")
+    return os.path.join(base_path, relative_path)
+
+def get_app_icon():
+    icon_path = resource_path(os.path.join('icon', 'mid.ico'))
     if os.path.exists(icon_path):
         return QIcon(icon_path)
     else:
@@ -46,7 +47,7 @@ class AboutDialog(QDialog):
 
         # 使用图标（无外部依赖）
         logo_label = QLabel()
-        logo_path = os.path.join(script_dir, "icon", "logo.png")
+        logo_path = resource_path(os.path.join('icon', 'logo.png'))
         pixmap = QPixmap(logo_path).scaled(
             256, 173, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
@@ -236,7 +237,6 @@ class MainWindow(QMainWindow):
         """显示自定义求解器帮助信息"""
         help_text = (
             "How to add custom solvers:\n\n"
-            "MInDes-UI/\n"
             "├── solver/\n"
             "│   ├── Solver_v1.0/\n"
             "│   │   └── MInDes.exe\n"
@@ -248,7 +248,7 @@ class MainWindow(QMainWindow):
             "│   │   └── MInDes.exe\n"
             "│   │   └── ...\n"
             "│   └── .../\n"
-            "└── MInDes-UI.py\n"
+            "└── MInDes-UI.exe\n"
             "└── ..."
         )
         QMessageBox.information(self, "Custom Solver Guide", help_text)

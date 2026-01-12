@@ -19,6 +19,16 @@ from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject
 
 EDITOR_BACKGROUND = "#f0f0f0"
 
+def get_solver_dir() -> Path:
+    """ 获取 solver 文件夹路径（返回 pathlib.Path 对象） """
+    if getattr(sys, 'frozen', False):
+        # 打包后：基于 .exe 路径
+        base_dir = Path(sys.executable).parent
+    else:
+        # 开发时：基于 .py 文件路径
+        base_dir = Path(__file__).parent.resolve()
+    return base_dir / "solver"
+
 class SolverRunner(QObject):
     started = Signal()
     finished = Signal()
@@ -51,6 +61,13 @@ class SolverRunner(QObject):
 
             self.started.emit()
 
+            # === 隐藏控制台窗口（仅 Windows）===
+            startupinfo = None
+            if sys.platform == "win32":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = subprocess.SW_HIDE  # 隐藏窗口
+
             # 使用 Popen 而非 run，以便支持 cancel 和实时输出
             self._proc = subprocess.Popen(
                 cmd,
@@ -60,7 +77,8 @@ class SolverRunner(QObject):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,  # 行缓冲
-                universal_newlines=True
+                universal_newlines=True,
+                startupinfo=startupinfo,
             )
 
             # 实时读取输出（可选）
@@ -546,7 +564,7 @@ class BuildSimulationWidget(QWidget):
         super().__init__(parent)
         self.current_mindes_file = None  # 当前加载的 .mindes 文件绝对路径
         self.selected_solver_path = None  # 当前选中的求解器 exe 的绝对路径
-        self.solver_dir = Path(__file__).parent / "solver"  # 求解器根目录（相对主程序）
+        self.solver_dir = get_solver_dir()  # 求解器根目录（相对主程序）
 
         # 高亮器管理
         self.mindes_highlighter = None  # .mindes 文件高亮器
@@ -886,7 +904,11 @@ class BuildSimulationWidget(QWidget):
             QMessageBox.warning(self, "No Solver", "Please select a solver.")
             return
         if self.is_running:
+            QMessageBox.information(self, "Busy", "A solver is already running.")
             return  # 防止重复点击
+        if self.solver_worker:
+            self.update_status("Terminating previous task...", warning=True)
+            self.solver_worker.cancel()
         # 保存 .mindes 文件
         if not self.save_current_content():
             return
@@ -940,13 +962,11 @@ class BuildSimulationWidget(QWidget):
         self.solver_worker.error.connect(self.on_solver_error)
         self.solver_worker.canceled.connect(self.on_solver_canceled)
         # === 连接 Cancel 按钮到 worker 的 cancel 槽 ===
-        self.cancel_btn.clicked.connect(self.solver_worker.cancel)
+        # self.cancel_btn.clicked.connect(self.solver_worker.cancel)
         # 清理
-        def on_worker_done():
-            self.solver_thread.quit()
-            self.cancel_btn.clicked.disconnect(self.solver_worker.cancel)  # 防止重复 disconnect
-        self.solver_worker.finished.connect(on_worker_done)
-        self.solver_worker.error.connect(on_worker_done)
+        self.solver_worker.finished.connect(self.on_worker_done)
+        self.solver_worker.error.connect(self.on_worker_done)
+        self.solver_worker.canceled.connect(self.on_worker_done)
         self.solver_thread.finished.connect(self.solver_thread.deleteLater)
         self.solver_worker.deleteLater()
         # 启动前启用 Cancel（现在可以点了）
@@ -956,6 +976,20 @@ class BuildSimulationWidget(QWidget):
         self.is_running = True
 
         self.solver_thread.start()
+
+    def on_worker_done(self):
+        # 确保线程退出
+        if self.solver_thread and self.solver_thread.isRunning():
+            self.solver_thread.quit()
+            self.solver_thread.wait(2000)  # 最多等 2 秒
+        # 清理引用
+        self.solver_thread = None
+        self.solver_worker = None
+        self.is_running = False
+        # 恢复按钮状态
+        self.build_btn.setEnabled(True)
+        self.run_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
 
     def show_context_menu(self, pos):
         """右键菜单处理"""

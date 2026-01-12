@@ -5,7 +5,9 @@ a = Analysis(
     ['MInDes-UI.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        ('icon/', 'icon/'),   # ✅ 打包图标资源
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
