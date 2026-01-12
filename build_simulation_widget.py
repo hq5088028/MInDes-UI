@@ -3,6 +3,7 @@ import os
 import sys
 import re
 import subprocess
+import threading
 from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox,
@@ -14,9 +15,97 @@ from PySide6.QtGui import (
     QAction, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QPainter, 
     QColor, QTextBlock, QFont, QKeySequence, QShortcut, QClipboard, QTextFormat
 )
-from PySide6.QtCore import Qt, Signal, QRect, QSize
+from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject
 
 EDITOR_BACKGROUND = "#f0f0f0"
+
+class SolverRunner(QObject):
+    started = Signal()
+    finished = Signal()
+    canceled = Signal()
+    error = Signal(str)
+    output_received = Signal(str)  # 可选：用于实时日志
+
+    def __init__(self, solver_path, input_base, cwd, cleanup_files=None, omp_threads=4):
+        super().__init__()
+        self.solver_path = solver_path
+        self.input_base = input_base
+        self.cwd = cwd
+        self.cleanup_files = cleanup_files or []
+        self.omp_threads = str(omp_threads)
+        self._proc = None  # 保存 Popen 对象，用于 cancel
+        self._canceled = False
+
+    def run(self):
+        try:
+            # 设置环境变量：限制 OpenMP 线程数
+            env = os.environ.copy()
+            env["OMP_NUM_THREADS"] = self.omp_threads
+            # 可选：Intel OpenMP 亲和性（提升性能）
+            env["KMP_AFFINITY"] = "granularity=fine,compact,1,0"
+
+            # 构建命令
+            cmd = [self.solver_path]
+            if self.input_base is not None:
+                cmd.append(self.input_base)
+
+            self.started.emit()
+
+            # 使用 Popen 而非 run，以便支持 cancel 和实时输出
+            self._proc = subprocess.Popen(
+                cmd,
+                cwd=self.cwd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,  # 行缓冲
+                universal_newlines=True
+            )
+
+            # 实时读取输出（可选）
+            for line in self._proc.stdout:
+                if self._canceled:
+                    break
+                self.output_received.emit(line.rstrip())
+
+            self._proc.wait()  # 等待进程结束
+
+            if self._canceled:
+                return
+
+            # 清理临时文件
+            for f in self.cleanup_files:
+                try:
+                    os.remove(f)
+                except OSError:
+                    pass
+
+            if self._proc.returncode != 0:
+                raise RuntimeError(f"Solver exited with code {self._proc.returncode}")
+
+            self.finished.emit()
+
+        except Exception as e:
+            if not self._canceled:
+                # 出错时也清理文件
+                for f in self.cleanup_files:
+                    try:
+                        os.remove(f)
+                    except OSError:
+                        pass
+                self.error.emit(str(e))
+
+    def cancel(self):
+        """槽函数：被主线程调用以取消任务"""
+        self._canceled = True
+        if self._proc and self._proc.poll() is None:  # 进程仍在运行
+            self._proc.terminate()  # 发送 SIGTERM（Windows 是 TerminateProcess）
+            try:
+                self._proc.wait(timeout=3)  # 等待 3 秒
+            except subprocess.TimeoutExpired:
+                self._proc.kill()  # 强制杀死
+        self.canceled.emit()
 
 class LineNumberArea(QFrame):
     def __init__(self, editor):
@@ -510,6 +599,10 @@ class BuildSimulationWidget(QWidget):
             QPushButton:pressed {
                 background-color: #66BB6A;
             }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
         """)
         top_layout.addWidget(self.save_btn)
 
@@ -532,8 +625,38 @@ class BuildSimulationWidget(QWidget):
             QPushButton:pressed {
                 background-color: #42A5F5;
             }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
         """)
         top_layout.addWidget(self.build_btn)
+
+        # === 新增：Debug/Edit 按钮 ===
+        self.debug_edit_btn = QPushButton("Debug/Edit")
+        self.debug_edit_btn.clicked.connect(self._switch_to_input_report_if_needed)
+        self.debug_edit_btn.setShortcut(QKeySequence("Ctrl+D"))  # 与右键一致
+        self.debug_edit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFECB3;  /* 淡黄色，区别于其他按钮 */
+                color: black;
+                font-weight: bold;
+                padding: 4px 8px;
+                border: 1px solid #FFD54F;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #FFD54F;
+            }
+            QPushButton:pressed {
+                background-color: #FFC107;
+            }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
+        """)
+        top_layout.addWidget(self.debug_edit_btn)
 
         # Run 按钮
         self.run_btn = QPushButton("Run")
@@ -554,8 +677,43 @@ class BuildSimulationWidget(QWidget):
             QPushButton:pressed {
                 background-color: #EF5350;
             }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
         """)
         top_layout.addWidget(self.run_btn)
+
+        # === 新增：取消按钮和运行状态 ===
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setEnabled(False)
+        self.cancel_btn.clicked.connect(self.cancel_solver)
+        self.cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FFAB91;
+                color: black;
+                font-weight: bold;
+                padding: 4px 8px;
+                border: 1px solid #FF8A65;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #FF8A65;
+            }
+            QPushButton:pressed {
+                background-color: #FF7043;
+            }
+            QPushButton:disabled {
+                background-color: #e0e0e0;
+                color: #a0a0a0;
+            }
+        """)
+        top_layout.addWidget(self.cancel_btn)  # 插入到 Run 按钮之后
+
+        # 运行状态管理
+        self.solver_thread = None
+        self.solver_worker = None
+        self.is_running = False
 
         top_layout.addStretch()
         layout.addLayout(top_layout)
@@ -685,6 +843,41 @@ class BuildSimulationWidget(QWidget):
         # TODO: 可在此处添加语法高亮/着色逻辑（预留）
         # self.highlight_text()
 
+    def on_solver_started(self):
+        """进程已成功启动，启用 Cancel 按钮"""
+        self.is_running = True
+        self.update_status("Solver start.", success=True)
+        self.build_btn.setEnabled(False)
+        self.run_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)
+
+    def on_solver_finished(self):
+        self.is_running = False
+        self.update_status("Solver finished.", success=True)
+        self.build_btn.setEnabled(True)
+        self.run_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+
+    def on_solver_error(self, error_msg):
+        self.is_running = False
+        self.update_status(f"Error: {error_msg}", error=True)
+        QMessageBox.critical(self, "Solver Error", error_msg)
+        self.build_btn.setEnabled(True)
+        self.run_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+
+    def _reset_buttons(self):
+        """恢复按钮状态"""
+        self.build_btn.setEnabled(True)
+        self.run_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
+
+    def cancel_solver(self):
+        """取消正在运行的求解器"""
+        if self.solver_worker and self.is_running:
+            self.update_status("Terminating solver...", warning=True)
+            self.solver_worker.cancel()
+
     def execute_solver(self, mode: str):
         if not self.current_mindes_file:
             QMessageBox.warning(self, "No File", "Please load a .mindes file first.")
@@ -692,66 +885,77 @@ class BuildSimulationWidget(QWidget):
         if not self.selected_solver_path:
             QMessageBox.warning(self, "No Solver", "Please select a solver.")
             return
+        if self.is_running:
+            return  # 防止重复点击
         # 保存 .mindes 文件
-        self.save_current_content()
+        if not self.save_current_content():
+            return
         mindes_abs = os.path.abspath(self.current_mindes_file)
         solver_dir = os.path.dirname(self.selected_solver_path)
-        start_in_path = os.path.join(solver_dir, "start.in")
 
-        # 准备 start.in 内容
-        lines = [mindes_abs]
-        if mode == "run":
-            lines.append("SOLVER_RUN")
-        
-        try:
-            # 写入 start.in（使用 LF 换行符）
-            with open(start_in_path, 'w', newline='\n', encoding='utf-8') as f:
-                f.write('\n'.join(lines))
+        self.update_status(f"Executing {mode}...", info=True)
+        omp_threads = max(1, os.cpu_count() - 1)
             
-            # 计算结果文件夹路径（.mindes 文件同名文件夹）
-            mindes_base = os.path.splitext(mindes_abs)[0]  # 去掉 .mindes 扩展名
-            result_folder = mindes_base  # 这就是求解器会创建的结果文件夹
-            
-            self.update_status(f"Executing {mode}...", info=True)
-            
-            # 执行求解器
-            startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
-            
-            process = subprocess.Popen(
-                [self.selected_solver_path],
-                cwd=solver_dir,
-                startupinfo=startupinfo,   # 用于隐藏窗口
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            
-            stdout, stderr = process.communicate()
-            
-            if process.returncode == 0:
-                self.update_status(f"{mode.capitalize()} completed successfully.", success=True)
-                mindes_base = os.path.splitext(mindes_abs)[0]
-                report_path = os.path.join(mindes_base, "input_report.txt")
-                if os.path.exists(report_path):
-                    try:
-                        self._refresh_parsed_definitions()
-                        # 可选：打印调试信息
-                        print(f"Parsed: {len(self.parsed_definitions['variables'])} vars, "
-                              f"{len(self.parsed_definitions['functions'])} funcs")
-                    except Exception as e:
-                        self.update_status(f"Warning: Failed to parse input_report.txt: {e}", warning=True)
-                        self.parsed_definitions = None
-                else:
-                    self.parsed_definitions = None
-                # 发射信号通知主窗口结果文件夹路径
-                self.simulationFinished.emit(result_folder)
-            else:
-                error_msg = stderr.decode('utf-8', errors='ignore') if stderr else "Unknown error"
-                self.update_status(f"{mode.capitalize()} failed: {error_msg}", error=True)
-                
-        except Exception as e:
-            self.update_status(f"Execution error: {str(e)}", error=True)
+        # === 禁用 Build/Run，启用 Cancel（稍后由 started 信号确认）===
+        self.build_btn.setEnabled(False)
+        self.run_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)  # 先禁用，等进程真正启动后再启用
+        self.is_running = True
+
+        # === 根据 mode 准备参数 ===
+        cleanup_files = []  # 要在 solver 结束后删除的文件列表
+
+        if mode == "build":
+            # 生成 start.in（CRLF）
+            start_in = os.path.join(solver_dir, "start.in")
+            with open(start_in, 'w', newline='\r\n', encoding='utf-8') as f:
+                f.write(mindes_abs + '\n')  # 注意：这里仍写 '\n'，但 newline='\r\n' 会将其转为 \r\n
+            # 生成 path.in（CRLF）
+            path_in = os.path.join(solver_dir, "path.in")
+            with open(path_in, 'w', newline='\r\n', encoding='utf-8') as f:
+                f.write(mindes_abs + '\n')
+                f.write("-B\n")
+            cleanup_files = [start_in, path_in]
+            input_base_for_worker = None
+            should_cleanup = True
+        elif mode == "run":
+            # Run 模式：直接传 .mindes 路径作为参数
+            input_base_for_worker = mindes_abs
+            should_cleanup = False
+            cleanup_files = []
+        # === 启动后台线程 ===
+        self.solver_thread = QThread()
+        self.solver_worker = SolverRunner(
+            solver_path=self.selected_solver_path,
+            input_base=input_base_for_worker,      # 可能为 None
+            cwd=solver_dir,
+            cleanup_files=cleanup_files if should_cleanup else [],
+            omp_threads=omp_threads
+        )
+        self.solver_worker.moveToThread(self.solver_thread)
+        # 连接信号
+        self.solver_thread.started.connect(self.solver_worker.run)
+        self.solver_worker.started.connect(self.on_solver_started)
+        self.solver_worker.finished.connect(self.on_solver_finished)
+        self.solver_worker.error.connect(self.on_solver_error)
+        self.solver_worker.canceled.connect(self.on_solver_canceled)
+        # === 连接 Cancel 按钮到 worker 的 cancel 槽 ===
+        self.cancel_btn.clicked.connect(self.solver_worker.cancel)
+        # 清理
+        def on_worker_done():
+            self.solver_thread.quit()
+            self.cancel_btn.clicked.disconnect(self.solver_worker.cancel)  # 防止重复 disconnect
+        self.solver_worker.finished.connect(on_worker_done)
+        self.solver_worker.error.connect(on_worker_done)
+        self.solver_thread.finished.connect(self.solver_thread.deleteLater)
+        self.solver_worker.deleteLater()
+        # 启动前启用 Cancel（现在可以点了）
+        self.build_btn.setEnabled(False)
+        self.run_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(True)  # ← 现在启用！
+        self.is_running = True
+
+        self.solver_thread.start()
 
     def show_context_menu(self, pos):
         """右键菜单处理"""
@@ -763,7 +967,9 @@ class BuildSimulationWidget(QWidget):
             # 显示 .mindes 文件时的菜单
             save_action = menu.addAction("Save (Ctrl+S)")
             Build_action = menu.addAction("Build (Ctrl+B)")
+            read_report_action = menu.addAction("Debug Infile (Ctrl+D)")
             Run_action = menu.addAction("Run (Ctrl+R)")
+            Cancel_action = menu.addAction("Cancel (Ctrl+E)")
             menu.addSeparator()
             if has_selection:
                 copy_action = menu.addAction("Copy (Ctrl+C)")
@@ -784,17 +990,17 @@ class BuildSimulationWidget(QWidget):
                     input_helper_action.setEnabled(False)
             else:
                 input_helper_action.setEnabled(False)
-            read_report_action = menu.addAction("Switch to Input Report (Ctrl+D)")
             action = menu.exec(self.text_edit.mapToGlobal(pos))
             if action == read_report_action:
-                self.save_current_content()
-                self.show_input_report()
+                self._switch_to_input_report_if_needed()
             elif action == save_action:
                 self.save_current_content()
             elif action == Build_action:
                 self.execute_solver(mode="build")
             elif action == Run_action:
                 self.execute_solver(mode="run")
+            elif action == Cancel_action:
+                self.cancel_solver()
             elif action == custom_def_action:
                 self._refresh_parsed_definitions()
                 self.show_custom_definitions_popup()
@@ -814,10 +1020,10 @@ class BuildSimulationWidget(QWidget):
                     self.text_edit.copy()
             else:
                 menu.addAction("No Selection").setEnabled(False)
-            read_write_action = menu.addAction("Switch to Input File (Ctrl+D)")
+            read_write_action = menu.addAction("Edit Infile (Ctrl+D)")
             action = menu.exec(self.text_edit.mapToGlobal(pos))
             if action == read_write_action:
-                self.show_mindes_file()
+                self._switch_to_input_report_if_needed()
 
     def _refresh_parsed_definitions(self):
         """重新读取 input_report.txt 并更新 self.parsed_definitions"""
@@ -838,6 +1044,13 @@ class BuildSimulationWidget(QWidget):
         except Exception as e:
             self.update_status(f"Failed to reload definitions: {e}", error=True)
             self.parsed_definitions = None
+
+    def on_solver_canceled(self):
+        self.is_running = False
+        self.update_status("Solver canceled by user.", warning=True)
+        self.build_btn.setEnabled(True)
+        self.run_btn.setEnabled(True)
+        self.cancel_btn.setEnabled(False)
 
     def show_input_report(self):
         """显示 input_report.txt 文件"""

@@ -15,6 +15,8 @@ class FileBrowserWidget(QWidget):
     fileDoubleClicked = Signal(str)
     folderDoubleClicked = Signal(str)
     pathEdited = Signal(str)
+    loadVtsFolderRequested = Signal(str)  # 发射一个字符串（文件夹路径）
+    loadLogStatisticFolderRequested = Signal(str)  # 发射一个字符串（文件夹路径）
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -152,10 +154,10 @@ class FileBrowserWidget(QWidget):
         clicked_item = self.list_widget.itemAt(pos)
         if clicked_item is None:
             # 空白处：只允许新建
-            new_folder_action = menu.addAction("Create a new folder")
-            new_mindes_action = menu.addAction("Create a new .mindes file")
+            new_folder_action = menu.addAction("New folder")
+            new_mindes_action = menu.addAction("New .mindes file")
             menu.addSeparator()
-            open_explorer_action = menu.addAction("Open Windows File Explorer")
+            open_explorer_action = menu.addAction("Open File Explorer")
             action = menu.exec(global_pos)
             if action == new_folder_action:
                 self.create_new_folder()
@@ -167,12 +169,19 @@ class FileBrowserWidget(QWidget):
             # 点击了某一项：判断类型
             item_type = clicked_item.data(Qt.ItemDataRole.UserRole)
             name = clicked_item.text()
+            full_path = os.path.join(self.current_path, name)
+            load_action = None
             # 如果是 .mindes 文件，额外添加“加载”选项
             if item_type == "file" and name.lower().endswith('.mindes'):
+                load_action = menu.addAction("Build Simulation")
                 menu.addSeparator()
-                load_action = menu.addAction("Load simulation")
-            else:
-                load_action = None
+            load_vts_action = None
+            load_log_statis_action = None
+            if os.path.isdir(full_path):
+                load_log_statis_action = menu.addAction("Load Log && Statistics Data")
+                load_vts_action = menu.addAction("Load VTS Data")
+                menu.addSeparator()
+            
             # 点击了某一项：复制 + 删除 + 重命名
             copy_action = menu.addAction("Copy")
             rename_action = menu.addAction("Rename")
@@ -186,6 +195,10 @@ class FileBrowserWidget(QWidget):
                 self.delete_selected_items()
             elif action == load_action:
                 self.load_mindes_file_temp(os.path.join(self.current_path, name))
+            elif load_log_statis_action and action == load_log_statis_action:
+                self.loadLogStatisticFolderRequested.emit(full_path)
+            elif load_vts_action and action == load_vts_action:
+                self.loadVtsFolderRequested.emit(full_path)
 
     def start_rename_edit(self, item):
         """启动内联重命名编辑模式"""

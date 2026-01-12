@@ -2,137 +2,17 @@
 import os
 import re
 from pathlib import Path
-from typing import Optional, List, Set
+from typing import Optional
 
 import pandas as pd
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QPlainTextEdit, QComboBox, QListView, 
-    QListWidget, QLabel, QPushButton, QFileDialog, QMenu, QMessageBox,
-    QGroupBox, QGridLayout, QListWidgetItem, QFormLayout
+    QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QPlainTextEdit, QComboBox, QFrame, 
+    QLabel, QPushButton, QFileDialog, QMenu, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QFileSystemWatcher
-from PySide6.QtGui import QFont, QKeySequence, QShortcut, QStandardItemModel, QStandardItem
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-
-class CheckableComboBox(QComboBox):
-    selectionChanged = Signal()  # 可选：用于外部监听
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setEditable(False)
-        self.setModel(QStandardItemModel(self))
-        view = QListView()
-        view.setUniformItemSizes(True)
-        self.setView(view)
-        self.setMaxVisibleItems(10)  # 👈 控制下拉最多显示10行
-        self._placeholder = "Select items..."
-        self.setPlaceholderText(self._placeholder)
-        self._data_items = []
-
-        # 关键：连接 view 的 pressed 信号
-        self.view().pressed.connect(self._on_item_pressed)
-
-    def addItems(self, texts):
-        self._data_items = list(texts)
-        self._rebuild_model()
-
-    def _rebuild_model(self):
-        model = self.model()
-        model.clear()
-
-        # 第0项：全选控制项（支持三态）
-        select_all_item = QStandardItem("Select All")
-        select_all_item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
-        select_all_item.setData(Qt.Unchecked, Qt.CheckStateRole)
-        model.appendRow(select_all_item)
-
-        # 数据项
-        for text in self._data_items:
-            item = QStandardItem(text)
-            item.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
-            item.setData(Qt.Unchecked, Qt.CheckStateRole)
-            model.appendRow(item)
-
-        self._update_display_text()
-
-    def _on_item_pressed(self, index):
-        model = self.model()
-        item = model.itemFromIndex(index)
-        if not item:
-            return
-
-        row = index.row()
-        if row == 0:
-            # 点击的是“全选”项
-            current_state = item.checkState()
-            if current_state == Qt.Checked:
-                new_state = Qt.Unchecked
-            else:
-                new_state = Qt.Checked
-            # 应用到所有数据项
-            for i in range(1, model.rowCount()):
-                model.item(i).setCheckState(new_state)
-        else:
-            # 点击的是普通数据项
-            pass  # 状态已由 Qt 自动切换
-
-        # 更新“全选”项状态（根据子项）
-        self._update_select_all_state()
-        self._update_display_text()
-        self.selectionChanged.emit()
-
-    def _update_select_all_state(self):
-        """根据子项状态更新‘全选’项的三态"""
-        model = self.model()
-        if model.rowCount() <= 1:
-            return
-
-        checked_count = 0
-        total = model.rowCount() - 1  # 排除第0项
-
-        for i in range(1, model.rowCount()):
-            if model.item(i).checkState() == Qt.Checked:
-                checked_count += 1
-
-        select_all_item = model.item(0)
-        if checked_count == 0:
-            select_all_item.setCheckState(Qt.Unchecked)
-        elif checked_count == total:
-            select_all_item.setCheckState(Qt.Checked)
-        else:
-            select_all_item.setCheckState(Qt.PartiallyChecked)
-
-    def _update_display_text(self):
-        checked = self.checked_items()
-        if not checked:
-            self.setPlaceholderText(self._placeholder)
-            self.setCurrentText("")
-        else:
-            display = ", ".join(checked[:3])
-            if len(checked) > 3:
-                display += f" (+{len(checked) - 3} more)"
-            self.setCurrentText(display)
-
-    def checked_items(self):
-        """返回所有被选中的真实数据项（不包括‘Select All’）"""
-        model = self.model()
-        checked = []
-        for i in range(1, model.rowCount()):
-            item = model.item(i)
-            if item.checkState() == Qt.Checked:
-                checked.append(item.text())
-        return checked
-
-    def set_checked_items(self, items_to_check):
-        """可选：程序化设置选中项"""
-        model = self.model()
-        item_set = set(items_to_check)
-        for i in range(1, model.rowCount()):
-            item = model.item(i)
-            item.setCheckState(Qt.Checked if item.text() in item_set else Qt.Unchecked)
-        self._update_select_all_state()
-        self._update_display_text()
 
 class LogStatisticsWidget(QWidget):
     """
@@ -152,6 +32,8 @@ class LogStatisticsWidget(QWidget):
         self.data_df: Optional[pd.DataFrame] = None
         self.log_content = ""
         self.stat_content = ""
+        # 绘图监控
+        self.is_drawing = False
 
         # 文件监听器
         self.watcher = QFileSystemWatcher(self)
@@ -160,15 +42,35 @@ class LogStatisticsWidget(QWidget):
         self.setup_ui()
         self.setup_shortcuts()
 
-    def set_project_path(self, mindes_file: str):
+        # === 缓存自定义绘图参数 ===
+        self.plot_config = {
+            "title": "",
+            "xlabel": "",
+            "ylabel1": "",
+            "ylabel2": "",
+            "show_box": True,
+            "show_grid": True,
+            # 可扩展：line_color, line_width 等
+        }
+
+    def set_project_path(self, project_folder: str):
         """由主窗口调用：设置当前 .mindes 文件路径，自动推导结果目录"""
-        if not mindes_file:
+        if not project_folder:
             self._project_path = None
             self.statusMessage.emit("Project path cleared.", "info")
+            # 可选：清空 UI
+            self.log_edit.setPlainText("(No valid project path)")
+            self.stat_edit.setPlainText("(No valid project path)")
+            self.data_df = None
+            self.update_combo_boxes()
             return
 
-        mindes_path = Path(mindes_file).resolve()
-        self._project_path = mindes_path.with_suffix("")  # 去掉 .mindes，得到同名目录
+        # 将传入的 project_folder 视为 _project_path（无后缀的基础路径）
+        base_path = Path(project_folder).resolve()
+        self._project_path = base_path  # 这就是结果目录路径
+
+        # 推导对应的 .mindes 文件路径
+        mindes_path = base_path.with_suffix(".mindes")
 
         # 如果目录不存在，不报错，等运行后生成
         if not self._project_path.exists():
@@ -178,7 +80,6 @@ class LogStatisticsWidget(QWidget):
             self.update_combo_boxes()
             self.statusMessage.emit(f"Waiting for result dir: {self._project_path.name}", "info")
             return
-
         # 尝试加载
         self.load_log_and_statistics()
 
@@ -224,58 +125,115 @@ class LogStatisticsWidget(QWidget):
         plot_layout = QVBoxLayout(plot_page)
         plot_layout.setContentsMargins(10, 5, 10, 5)
 
-        # 控制面板：改用 QFormLayout（更紧凑）
-        control_group = QGroupBox("Data Selection")
-        form_layout = QFormLayout()
-        form_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)  # 让下拉框撑满
-        form_layout.setSpacing(6)  # 减小行间距
-        form_layout.setLabelAlignment(Qt.AlignRight)  # 标签右对齐，更整齐
+        # === 控制面板：X, Y1, Y2 单选 + Plot + Property ===
+        control_hbox = QHBoxLayout()
+        control_hbox.setSpacing(8)
 
-        font = self.font()
-        font.setPointSize(9)
-        # X 轴
+        # X Axis
+        x_label = QLabel("X Axis:")
         self.x_combo = QComboBox()
-        self.x_combo.currentIndexChanged.connect(self.update_plot)
-        self.x_combo.setMinimumWidth(150)
-        self.x_combo.setFont(font)
-        form_layout.addRow("X Axis:", self.x_combo)
+        self.x_combo.setFixedWidth(120)  # ← 改为 120px
+        control_hbox.addWidget(x_label)
+        control_hbox.addWidget(self.x_combo)
 
-        # 左 Y 轴
-        self.y1_combo = CheckableComboBox()
-        self.y1_combo.selectionChanged.connect(self.update_plot)
-        self.y1_combo.setMinimumWidth(150)
-        self.y1_combo.setFont(font)
-        form_layout.addRow("Left Y Axis:", self.y1_combo)
+        # Left Y Axis
+        y1_label = QLabel("Left Y:")
+        self.y1_combo = QComboBox()
+        self.y1_combo.setFixedWidth(120)
+        control_hbox.addWidget(y1_label)
+        control_hbox.addWidget(self.y1_combo)
 
-        # 右 Y 轴
-        self.y2_combo = CheckableComboBox()
-        self.y2_combo.selectionChanged.connect(self.update_plot)
-        self.y2_combo.setMinimumWidth(150)
-        self.y2_combo.setFont(font)
-        form_layout.addRow("Right Y Axis:", self.y2_combo)
+        # Right Y Axis
+        y2_label = QLabel("Right Y:")
+        self.y2_combo = QComboBox()
+        self.y2_combo.setFixedWidth(120)
+        control_hbox.addWidget(y2_label)
+        control_hbox.addWidget(self.y2_combo)
 
-        control_group.setLayout(form_layout)
-        plot_layout.addWidget(control_group)
+        control_hbox.addStretch()
+        plot_layout.addLayout(control_hbox)
+
+        # >>> 横线 <<<
+        top_line = QFrame()
+        top_line.setFrameShape(QFrame.HLine)
+        top_line.setFrameShadow(QFrame.Sunken)
+        plot_layout.addWidget(top_line)
 
         # Matplotlib 画布
         self.plot_figure = Figure(figsize=(6, 4), dpi=100)
         self.plot_canvas = FigureCanvas(self.plot_figure)
         plot_layout.addWidget(self.plot_canvas)
 
-        # 保存按钮
-        save_btn = QPushButton("💾 Save Plot")
-        save_btn.clicked.connect(self.save_plot)
-        plot_layout.addWidget(save_btn)
+        # >>> 横线 <<<
+        bottom_line = QFrame()
+        bottom_line.setFrameShape(QFrame.HLine)
+        bottom_line.setFrameShadow(QFrame.Sunken)
+        plot_layout.addWidget(bottom_line)
 
-        self.tab_widget.addTab(plot_page, "Plot")
+        # === 操作按钮：Draw / Property / Save ===
+        button_hbox = QHBoxLayout()
+        button_hbox.setSpacing(8)
+
+        self.plot_btn = QPushButton("📊 Draw")
+        self.plot_btn.setShortcut(QKeySequence("Ctrl+D"))
+        self.plot_btn.clicked.connect(self.update_plot)
+        button_hbox.addWidget(self.plot_btn)
+
+        self.property_btn = QPushButton("⚙️ Property")
+        self.property_btn.setShortcut(QKeySequence("Ctrl+P"))
+        self.property_btn.clicked.connect(self.open_plot_customization_dialog)
+        button_hbox.addWidget(self.property_btn)
+
+        self.export_btn = QPushButton("📤 Export")
+        self.export_btn.setShortcut(QKeySequence("Ctrl+E"))
+        self.export_btn.clicked.connect(self.export_to_excel)
+        button_hbox.addWidget(self.export_btn)
+
+        self.save_btn = QPushButton("💾 Save")
+        self.save_btn.setShortcut(QKeySequence("Ctrl+S"))
+        self.save_btn.clicked.connect(self.save_plot)
+        button_hbox.addWidget(self.save_btn)
+
+        plot_layout.addLayout(button_hbox)
+
+        self.tab_widget.addTab(plot_page, "Figure")
 
         # 初始化空图
         self.plot_figure.clear()
         self.plot_canvas.draw()
 
-        # 右键菜单（可作用于整个 widget）
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
+        # 右键菜单（用于图形调整）
+        self.plot_canvas.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.plot_canvas.customContextMenuRequested.connect(self.show_plot_context_menu)
+
+    def export_to_excel(self):
+        """将当前 data_df 导出为 Excel 文件"""
+        if self.data_df is None or self.data_df.empty:
+            self.statusMessage.emit("No data to export.", "warning")
+            QMessageBox.warning(self, "Export Error", "No data available to export.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Data to Excel",
+            "",
+            "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)"
+        )
+        if not file_path:
+            return
+
+        try:
+            if file_path.lower().endswith('.csv'):
+                self.data_df.to_csv(file_path, index=False)
+            else:
+                # Ensure .xlsx extension
+                if not file_path.lower().endswith('.xlsx'):
+                    file_path += '.xlsx'
+                self.data_df.to_excel(file_path, index=False, engine='openpyxl')
+            self.statusMessage.emit(f"Data exported: {os.path.basename(file_path)}", "info")
+        except Exception as e:
+            self.statusMessage.emit(f"Export failed: {e}", "error")
+            QMessageBox.critical(self, "Export Error", f"Failed to export data:\n{e}")
 
     def _get_monospace_font(self):
         font = QFont()
@@ -287,136 +245,117 @@ class LogStatisticsWidget(QWidget):
         font.setPointSize(9)
         return font
 
-    def show_context_menu(self, pos):
-        menu = QMenu(self)
-        load_log_stat_action = menu.addAction("Load data from MInDes")
-        load_excel_action = menu.addAction("Load data from Excel")
-
-        action = menu.exec(self.mapToGlobal(pos))
-        if action == load_log_stat_action:
-            self.load_log_and_statistics()
-        elif action == load_excel_action:
-            self.load_from_excel()
-
     def _clear_watcher(self):
         files = self.watcher.files()
         if files:
             self.watcher.removePaths(files)
 
     def load_log_and_statistics(self):
-        """从 self._project_path 加载 Log.txt 和 Statistics.txt"""
+        """从 self._project_path 加载日志和统计文件（支持多版本命名）"""
         if not self._project_path or not self._project_path.exists():
             self.log_edit.setPlainText("(No valid project path)")
             self.stat_edit.setPlainText("(No valid project path)")
             self.data_df = None
             self.update_combo_boxes()
             return
-
-        log_path = self._project_path / "Log.txt"
-        stat_path = self._project_path / "Statistics.txt"
-
         # 清除旧监听
         self._clear_watcher()
-
-        # 加载 Log.txt
-        if log_path.exists():
-            try:
-                with open(log_path, 'r', encoding='utf-8') as f:
-                    self.log_content = f.read()
-                self.log_edit.setPlainText(self.log_content)
-                self.watcher.addPath(str(log_path))
-            except Exception as e:
-                self.log_edit.setPlainText(f"(Error reading Log.txt: {e})")
-                self.statusMessage.emit(f"Failed to read Log.txt: {e}", "error")
-        else:
-            self.log_edit.setPlainText("(Log.txt not found)")
-
-        # 加载 Statistics.txt 并解析为 DataFrame
-        if stat_path.exists():
-            try:
-                with open(stat_path, 'r', encoding='utf-8') as f:
-                    self.stat_content = f.read()
-                self.stat_edit.setPlainText(self.stat_content)
-                self.parse_statistics_to_dataframe(stat_path)
-                self.watcher.addPath(str(stat_path))
-            except Exception as e:
-                self.stat_edit.setPlainText(f"(Error reading Statistics.txt: {e})")
-                self.statusMessage.emit(f"Failed to read Statistics.txt: {e}", "error")
-                self.data_df = None
-        else:
-            self.stat_edit.setPlainText("(Statistics.txt not found)")
-            self.data_df = None
-
+        # === 定义候选文件名（按优先级排序，高 → 低）===
+        LOG_CANDIDATES = ["Log.txt", "log.txt"]
+        STAT_CANDIDATES = ["Statistics.txt", "data_statistics.txt"]
+        # --- 加载 Log 文件 ---
+        log_content = "(Log file not found)"
+        loaded_log_path = None
+        for name in LOG_CANDIDATES:
+            path = self._project_path / name
+            if path.exists():
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        log_content = f.read()
+                    loaded_log_path = path
+                    break
+                except Exception as e:
+                    self.statusMessage.emit(f"Failed to read {name}: {e}", "error")
+                    continue
+        self.log_edit.setPlainText(log_content)
+        # 滚动到底部
+        self.log_edit.verticalScrollBar().setValue(
+            self.log_edit.verticalScrollBar().maximum()
+        )
+        if loaded_log_path:
+            self.watcher.addPath(str(loaded_log_path))
+        # --- 加载 Statistics 文件 ---
+        stat_content = "(Statistics file not found)"
+        loaded_stat_path = None
+        self.data_df = None  # 默认无数据
+        for name in STAT_CANDIDATES:
+            path = self._project_path / name
+            if path.exists():
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        stat_content = f.read()
+                    loaded_stat_path = path
+                    # 尝试解析为 DataFrame
+                    self.parse_statistics_to_dataframe(path)
+                    break
+                except Exception as e:
+                    self.statusMessage.emit(f"Failed to read or parse {name}: {e}", "error")
+                    continue
+        self.stat_edit.setPlainText(stat_content)
+        # >>> 滚动到底部 <<<
+        self.stat_edit.verticalScrollBar().setValue(
+            self.stat_edit.verticalScrollBar().maximum()
+        )
+        if loaded_stat_path:
+            self.watcher.addPath(str(loaded_stat_path))
+        # --- 更新 UI 控件 ---
         self.update_combo_boxes()
-        self.statusMessage.emit(f"Data loaded from: {self._project_path.name}", "info")
+        # === 自动重绘（如果用户之前绘制过）===
+        if self.is_drawing:
+            self.update_plot()
+        # --- 发送状态消息 ---
+        msg_parts = []
+        if loaded_log_path:
+            if loaded_log_path.name != "Log.txt":
+                msg_parts.append(f"legacy log: {loaded_log_path.name}")
+        if loaded_stat_path:
+            if loaded_stat_path.name != "Statistics.txt":
+                msg_parts.append(f"legacy stats: {loaded_stat_path.name}")
+        if loaded_log_path or loaded_stat_path:
+            base_msg = f"Data loaded from: {self._project_path.name}"
+            if msg_parts:
+                base_msg += " (" + ", ".join(msg_parts) + ")"
+            self.statusMessage.emit(base_msg, "info")
+        else:
+            self.statusMessage.emit(f"No output files found in: {self._project_path.name}", "warning")
+
+    def _on_file_changed(self, path: str):
+        """当被监视的文件（Log.txt / Statistics.txt）发生变化时触发"""
+        from pathlib import Path
+        file_name = Path(path).name
+        self.statusMessage.emit(f"Detected change in {file_name}, reloading...", "info")
+        self.load_log_and_statistics()
 
     def parse_statistics_to_dataframe(self, stat_file: Path):
         """尝试将 Statistics.txt 解析为结构化 DataFrame"""
         try:
-            # 尝试直接读取表格（跳过注释和非表格行）
+            # 主路径：标准表格格式（支持空格、制表符分隔）
             df = pd.read_csv(
-                stat_file,
+                stat_handled := str(stat_file),
                 comment='#',
-                delim_whitespace=True,
+                sep=r'\s+',
                 skip_blank_lines=True,
-                on_bad_lines='skip'
+                on_bad_lines='warn',  # 改为 warn，便于调试
+                engine='python'       # 更容错（可选）
             )
-            if not df.empty and len(df.columns) > 1:
+            if not df.empty and len(df.columns) >= 1:
                 self.data_df = df
                 return
-        except:
-            pass
+        except Exception as e:
+            self.statusMessage.emit(f"Primary parsing failed: {e}", "warning")
 
-        # 备用：逐行解析参数（适用于 input_report 风格）
-        data_dict = {}
-        current_step = 0
-        step_data = {}
-
-        with open(stat_file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-
-        for line in lines:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-
-            # 检测是否为新时间步分隔（如 "STEP 10"）
-            if line.upper().startswith("STEP ") or re.match(r'^\s*\d+\s*$', line):
-                if step_data:
-                    for k, v in step_data.items():
-                        if k not in data_dict:
-                            data_dict[k] = []
-                        data_dict[k].append(v)
-                    step_data = {}
-                    current_step += 1
-                continue
-
-            # 匹配 > [TAG] name = value
-            match = re.match(r'^>\s*\[.*?\]\s*(\S+)\s*=\s*(.+)$', line)
-            if match:
-                key, val_str = match.groups()
-                try:
-                    val = float(val_str)
-                    step_data[key] = val
-                except ValueError:
-                    continue  # 非数值跳过
-
-        # 添加最后一组
-        if step_data:
-            for k, v in step_data.items():
-                if k not in data_dict:
-                    data_dict[k] = []
-                data_dict[k].append(v)
-
-        if data_dict:
-            # 补齐长度（以防某些变量缺失）
-            max_len = max(len(v) for v in data_dict.values())
-            for k in data_dict:
-                if len(data_dict[k]) < max_len:
-                    data_dict[k].extend([float('nan')] * (max_len - len(data_dict[k])))
-            self.data_df = pd.DataFrame(data_dict)
-        else:
-            self.data_df = None
+        # === Fallback: only if main fails ===
+        self.data_df = None
 
     def load_from_excel(self):
         file_path, _ = QFileDialog.getOpenFileName(
@@ -436,80 +375,143 @@ class LogStatisticsWidget(QWidget):
             QMessageBox.critical(self, "Load Error", f"Failed to load Excel:\n{e}")
 
     def update_combo_boxes(self):
-        """更新 X、Y1、Y2 下拉框"""
+        """更新 X、Y1、Y2 下拉框选项，并尽可能保留用户已有选择"""
+        # === 1. 保存当前用户选择 ===
+        current_x = self.x_combo.currentText()
+        current_y1 = self.y1_combo.currentText()
+        current_y2 = self.y2_combo.currentText()
+
+        # === 2. 清空现有选项 ===
         self.x_combo.clear()
         self.y1_combo.clear()
         self.y2_combo.clear()
 
+        # === 3. 填充新选项 ===
         if self.data_df is not None and not self.data_df.empty:
             columns = list(self.data_df.columns)
             self.x_combo.addItems(columns)
-            self.y1_combo.addItems(columns)
-            self.y2_combo.addItems(columns)
-            if columns:
-                self.x_combo.setCurrentIndex(0)  # 默认选第一列作为 X
+            y_items = ["-"] + columns
+            self.y1_combo.addItems(y_items)
+            self.y2_combo.addItems(y_items)
 
-    def _on_file_changed(self, path: str):
-        """文件变化时自动重载（防抖可后续加）"""
-        self.statusMessage.emit(f"Detected change in: {Path(path).name}, reloading...", "info")
-        self.load_log_and_statistics()
+            # === 4. 恢复 X 选择（必须是有效列）===
+            if current_x in columns:
+                idx = self.x_combo.findText(current_x)
+                if idx != -1:
+                    self.x_combo.setCurrentIndex(idx)
+                else:
+                    self.x_combo.setCurrentIndex(0)  # fallback
+            elif columns:
+                self.x_combo.setCurrentIndex(0)  # 默认第一列
+
+            # === 5. 恢复 Y1 选择（可以是 "-" 或有效列）===
+            if current_y1 == "-" or current_y1 in columns:
+                idx = self.y1_combo.findText(current_y1)
+                if idx != -1:
+                    self.y1_combo.setCurrentIndex(idx)
+                else:
+                    self.y1_combo.setCurrentIndex(0)  # "-"
+            else:
+                self.y1_combo.setCurrentIndex(0)  # 默认 "-"
+
+            # === 6. 恢复 Y2 选择（可以是 "-" 或有效列）===
+            if current_y2 == "-" or current_y2 in columns:
+                idx = self.y2_combo.findText(current_y2)
+                if idx != -1:
+                    self.y2_combo.setCurrentIndex(idx)
+                else:
+                    self.y2_combo.setCurrentIndex(0)  # "-"
+            else:
+                self.y2_combo.setCurrentIndex(0)  # 默认 "-"
+        else:
+            # 无数据：只显示 "-" 选项
+            self.y1_combo.addItem("-")
+            self.y2_combo.addItem("-")
+            self.y1_combo.setCurrentIndex(0)
+            self.y2_combo.setCurrentIndex(0)
+            # X 轴留空（无选项）
 
     def update_plot(self):
         self.plot_figure.clear()
         if self.data_df is None or self.data_df.empty:
             self.plot_canvas.draw()
+            self.is_drawing = False
             return
 
         x_col = self.x_combo.currentText()
+        y1_col = self.y1_combo.currentText()
+        y2_col = self.y2_combo.currentText()
+
         if not x_col or x_col not in self.data_df.columns:
             self.plot_canvas.draw()
+            self.is_drawing = False
             return
 
         x = self.data_df[x_col]
-        y1_cols = self.y1_combo.checked_items()  # ← 关键：使用新方法
-        y2_cols = self.y2_combo.checked_items()  # ← 关键：使用新方法
-
         ax1 = self.plot_figure.add_subplot(111)
         ax2 = None
 
-        # 左Y轴
-        plotted_left = False
-        for col in y1_cols:
-            if col in self.data_df.columns:
-                ax1.plot(x, self.data_df[col], '-', label=col)
-                plotted_left = True
-        if plotted_left:
-            ax1.set_ylabel("Left Y", color='tab:blue')
-            ax1.tick_params(axis='y', labelcolor='tab:blue')
+        # 左 Y 轴（跳过 "-"）
+        if y1_col != "-" and y1_col in self.data_df.columns:
+            ax1.plot(x, self.data_df[y1_col], 'k-', label=y1_col)
+            default_ylabel1 = y1_col
+        else:
+            default_ylabel1 = ""
 
-        # 右Y轴
-        if y2_cols:
+        # 右 Y 轴（跳过 "-" 且不与左轴重复）
+        if y2_col != "-" and y2_col in self.data_df.columns and y2_col != y1_col:
             ax2 = ax1.twinx()
-            for col in y2_cols:
-                if col in self.data_df.columns:
-                    ax2.plot(x, self.data_df[col], '--', label=col)
-            ax2.set_ylabel("Right Y", color='tab:red')
-            ax2.tick_params(axis='y', labelcolor='tab:red')
+            ax2.plot(x, self.data_df[y2_col], 'r--', label=y2_col)
+            default_ylabel2 = y2_col
+        else:
+            default_ylabel2 = ""
 
-        ax1.set_xlabel(x_col)
-        ax1.grid(True, linestyle='--', alpha=0.5)
+        # 应用缓存的自定义参数（若未设置，则用默认列名）
+        title = self.plot_config["title"]
+        xlabel = self.plot_config["xlabel"] or x_col
+        ylabel1 = self.plot_config["ylabel1"] or default_ylabel1
+        ylabel2 = self.plot_config["ylabel2"] or default_ylabel2
+        show_box = self.plot_config.get("show_box", True)
+        show_grid = self.plot_config.get("show_grid", True)
 
-        # 合并图例
+        ax1.set_title(title, color='black', fontweight='bold')
+        ax1.set_xlabel(xlabel, color='black', fontweight='bold')
+        # 设置左Y轴标签和其属性
+        if ylabel1:
+            ax1.set_ylabel(ylabel1, color='black', fontweight='bold')  # 字体颜色设为黑色，字号加大，加粗
+            ax1.tick_params(axis='y', labelcolor='black')  # 刻度标签颜色设为黑色，字号加大
+        # 设置右Y轴标签及其属性
+        if ax2 and ylabel2:
+            ax2.set_ylabel(ylabel2, color='tab:red', fontweight='bold')  # 右侧保持红色但字号加大，加粗
+            ax2.tick_params(axis='y', labelcolor='tab:red')  # 刻度标签颜色设为红色，字号加大
+
+        # 边框
+        for spine in ax1.spines.values():
+            spine.set_visible(show_box)
+        if ax2:
+            for spine in ax2.spines.values():
+                spine.set_visible(show_box)
+
+        # 网格
+        ax1.grid(show_grid, linestyle='--', alpha=0.5)
+
+        # 图例
         handles1, labels1 = ax1.get_legend_handles_labels()
         handles2, labels2 = (ax2.get_legend_handles_labels() if ax2 else ([], []))
         if handles1 or handles2:
-            ax1.legend(handles1 + handles2, labels1 + labels2, loc='upper right')
+            ax1.legend(handles1 + handles2, labels1 + labels2, loc='upper left')
 
         self.plot_figure.tight_layout()
         self.plot_canvas.draw()
+        self.is_drawing = True
 
     def save_plot(self):
         if not hasattr(self, 'plot_figure') or not self.plot_figure.axes:
-            self.statusMessage.emit("No plot to save.", "warning")
+            self.statusMessage.emit("No figure to save.", "warning")
             return
 
         file_path, selected_filter = QFileDialog.getSaveFileName(
-            self, "Save Plot", "",
+            self, "Save Figure", "",
             "PNG (*.png);;JPEG (*.jpg);;PDF (*.pdf);;SVG (*.svg);;All Files (*)"
         )
         if not file_path:
@@ -529,7 +531,73 @@ class LogStatisticsWidget(QWidget):
 
         try:
             self.plot_figure.savefig(file_path, dpi=300, bbox_inches='tight')
-            self.statusMessage.emit(f"Plot saved: {os.path.basename(file_path)}", "info")
+            self.statusMessage.emit(f"Figure saved: {os.path.basename(file_path)}", "info")
         except Exception as e:
-            self.statusMessage.emit(f"Failed to save plot: {e}", "error")
-            QMessageBox.critical(self, "Save Error", f"Failed to save plot:\n{e}")
+            self.statusMessage.emit(f"Failed to save figure: {e}", "error")
+            QMessageBox.critical(self, "Save Error", f"Failed to save figure:\n{e}")
+
+    def show_plot_context_menu(self, pos):
+        menu = QMenu(self)
+        draw_action = menu.addAction("Draw (Ctrl+D)")
+        customize_action = menu.addAction("Property (Ctrl+P)")
+        save_action = menu.addAction("Save (Ctrl+S)")
+        action = menu.exec(self.plot_canvas.mapToGlobal(pos))
+        if action == draw_action:
+            self.update_plot()
+        elif action == customize_action:
+            self.open_plot_customization_dialog()
+        elif action == save_action:
+            self.save_plot()
+
+    def open_plot_customization_dialog(self):
+        from PySide6.QtWidgets import QDialog, QFormLayout, QLineEdit, QCheckBox, QPushButton, QMessageBox
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Figure Properties")
+        layout = QFormLayout(dialog)
+
+        if not self.plot_figure.axes:
+            QMessageBox.warning(self, "No Figure", "Please draw a figure first.")
+            return
+
+        ax1 = self.plot_figure.axes[0]
+        ax2 = ax1.right_ax if hasattr(ax1, 'right_ax') else None
+
+        # 创建控件并加载缓存值
+        title_edit = QLineEdit(self.plot_config["title"])
+        xlabel_edit = QLineEdit(self.plot_config["xlabel"])
+        ylabel1_edit = QLineEdit(self.plot_config["ylabel1"])
+        ylabel2_edit = QLineEdit(self.plot_config["ylabel2"]) if ax2 else None
+
+        box_checkbox = QCheckBox()
+        box_checkbox.setChecked(self.plot_config["show_box"])
+        grid_checkbox = QCheckBox()
+        grid_checkbox.setChecked(self.plot_config["show_grid"])
+
+        layout.addRow("Title:", title_edit)
+        layout.addRow("X Label:", xlabel_edit)
+        layout.addRow("Y1 Label:", ylabel1_edit)
+        if ax2:
+            layout.addRow("Y2 Label:", ylabel2_edit)
+        layout.addRow("Show Box Frame:", box_checkbox)
+        layout.addRow("Show Grid:", grid_checkbox)
+
+        apply_btn = QPushButton("Apply")
+        layout.addRow(apply_btn)
+
+        def apply_changes():
+            # 更新缓存
+            self.plot_config["title"] = title_edit.text().strip()
+            self.plot_config["xlabel"] = xlabel_edit.text().strip()
+            self.plot_config["ylabel1"] = ylabel1_edit.text().strip()
+            if ax2 and ylabel2_edit:
+                self.plot_config["ylabel2"] = ylabel2_edit.text().strip()
+            self.plot_config["show_box"] = box_checkbox.isChecked()
+            self.plot_config["show_grid"] = grid_checkbox.isChecked()
+
+            # 刷新图表（应用新配置）
+            self.update_plot()
+            dialog.accept()
+
+        apply_btn.clicked.connect(apply_changes)
+        dialog.exec()
