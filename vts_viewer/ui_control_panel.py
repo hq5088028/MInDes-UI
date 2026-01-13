@@ -194,7 +194,7 @@ class ControlPanelMixin:
         map_layout.addWidget(QLabel("Draw Mode:"))
         self.vis_mode_combo = QComboBox()
         self.vis_mode_combo.addItems(
-            ["Surface", "Surface with Grid", "Clip", "Contour"]
+            ["Surface", "Surface with Grid", "Clip", "Contour", "Vector Arrows"]
         )
         self.vis_mode_combo.currentTextChanged.connect(
             self.on_vis_mode_changed
@@ -455,23 +455,22 @@ class ControlPanelMixin:
         return self.scroll
 
     def on_field_selection_changed(self, display_text):
-        current_text = self.vis_mode_combo.currentText()
+        current_index = self.vis_mode_combo.currentIndex()
         is_vector = display_text.startswith("[V]")
-        # 动态更新 Draw Mode 选项
+        # 纠偏
         self.vis_mode_combo.blockSignals(True)
-        self.vis_mode_combo.clear()
-        base_modes = ["Surface", "Surface with Grid", "Clip", "Contour"]
-        self.vis_mode_combo.addItems(base_modes)
-        if is_vector:
-            self.vis_mode_combo.addItem("Vector Arrows")
-        index = self.vis_mode_combo.findText(current_text)
-        if index == -1:
+        arrow_index = self.vis_mode_combo.findText("Vector Arrows")
+        if (arrow_index == current_index and not is_vector) or current_index == -1:
             index = self.vis_mode_combo.findText("Surface")
             self.vis_mode_combo.setCurrentIndex(index)
             self.vis_mode_combo.setCurrentText("Surface")
             self.on_vis_mode_changed("Surface")
         self.vis_mode_combo.blockSignals(False)
         self.update_range_inputs()
+    
+    def on_glyph_color_mode_changed(self, mode):
+        single_color = (mode == "Single Color")
+        self.arrow_color_btn.setEnabled(single_color)
 
     def toggle_range_edit(self, checked):
         enabled = not checked
@@ -493,12 +492,6 @@ class ControlPanelMixin:
         self.clip_group.setVisible(mode == "Clip")
         self.contour_group.setVisible(mode == "Contour")
         self.glyph_group.setVisible(mode == "Vector Arrows")
-        if mode == "Vector Arrows":
-            self.on_glyph_color_mode_changed(self.glyph_color_mode_combo.currentText())
-
-    def on_glyph_color_mode_changed(self, mode):
-        single_color = (mode == "Single Color")
-        self.arrow_color_btn.setEnabled(single_color)
 
     def on_opacity_slider_changed(self, value):
         """处理透明度滑块值变化"""
