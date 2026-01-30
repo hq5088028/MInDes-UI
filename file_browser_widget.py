@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QFileIconProvider, 
     QLineEdit, QAbstractItemView, QMessageBox, QMenu, QInputDialog
 )
-from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher
+from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher, QSettings
 import os
 import shutil
 import subprocess  # 👈 用于跨平台兼容（可选）
@@ -20,8 +20,10 @@ class FileBrowserWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        # 默认路径设为当前脚本所在目录
-        self.default_path = os.path.dirname(os.path.abspath(__file__))
+        # 默认路径设为用户 Documents 文件夹，不存在则为用户主目录
+        default_path = os.path.expanduser("~")+os.path.sep+"Documents"
+        open_path = default_path if os.path.isdir(default_path) else os.path.expanduser("~")
+        self.default_path = open_path
         self.current_path = self.default_path
         # 👇 新增文件系统监听器
         self.watcher = QFileSystemWatcher()
