@@ -9,15 +9,17 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox,
     QPlainTextEdit, QLabel, QMenu, QMessageBox, QListWidget, 
     QListWidgetItem, QDialog, QTableWidget, QTableWidgetItem, QHeaderView, 
-    QTextEdit, QTabWidget, QDialogButtonBox, QApplication, QFrame
+    QTextEdit, QTabWidget, QDialogButtonBox, QApplication, QFrame, QProgressBar
 )
 from PySide6.QtGui import (
     QAction, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QPainter, 
     QColor, QTextBlock, QFont, QKeySequence, QShortcut, QClipboard, QTextFormat
 )
-from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject
+from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject, QTimer
 
 EDITOR_BACKGROUND = "#f0f0f0"
+STAT_CANDIDATES = ["Statistics.txt", "data_statistics.txt"]
+PROGRESS_POLL_INTERVAL_MS = 500
 
 def get_solver_dir() -> Path:
     """ 获取 solver 文件夹路径（返回 pathlib.Path 对象） """
@@ -45,6 +47,14 @@ class SolverRunner(QObject):
         self.omp_threads = str(omp_threads)
         self._proc = None  # 保存 Popen 对象，用于 cancel
         self._canceled = False
+        self._current_run_mode = None
+
+    def _cleanup_files(self):
+        for f in self.cleanup_files:
+            try:
+                os.remove(f)
+            except OSError:
+                pass
 
     def run(self):
         try:
@@ -58,8 +68,6 @@ class SolverRunner(QObject):
             cmd = [self.solver_path]
             if self.input_base is not None:
                 cmd.append(self.input_base)
-
-            self.started.emit()
 
             # === 隐藏控制台窗口（仅 Windows）===
             startupinfo = None
@@ -80,42 +88,43 @@ class SolverRunner(QObject):
                 universal_newlines=True,
                 startupinfo=startupinfo,
             )
+            self.started.emit()
 
             # 实时读取输出（可选）
-            for line in self._proc.stdout:
-                if self._canceled:
-                    break
-                self.output_received.emit(line.rstrip())
+            if self._proc.stdout is not None:
+                for line in self._proc.stdout:
+                    if self._canceled:
+                        break
+                    self.output_received.emit(line.rstrip())
 
-            self._proc.wait()  # 等待进程结束
+            return_code = self._proc.wait()  # 等待进程结束
 
             if self._canceled:
+                self._cleanup_files()
+                self.canceled.emit()
                 return
 
             # 清理临时文件
-            for f in self.cleanup_files:
-                try:
-                    os.remove(f)
-                except OSError:
-                    pass
+            self._cleanup_files()
 
-            if self._proc.returncode != 0:
-                raise RuntimeError(f"Solver exited with code {self._proc.returncode}")
+            if return_code != 0:
+                raise RuntimeError(f"Solver exited with code {return_code}")
 
             self.finished.emit()
 
         except Exception as e:
-            if not self._canceled:
+            if self._canceled:
+                self._cleanup_files()
+                self.canceled.emit()
+            else:
                 # 出错时也清理文件
-                for f in self.cleanup_files:
-                    try:
-                        os.remove(f)
-                    except OSError:
-                        pass
+                self._cleanup_files()
                 self.error.emit(str(e))
+        finally:
+            self._proc = None
 
     def cancel(self):
-        """槽函数：被主线程调用以取消任务"""
+        """槽函数：由 worker 所在线程执行，安全取消任务"""
         self._canceled = True
         if self._proc and self._proc.poll() is None:  # 进程仍在运行
             self._proc.terminate()  # 发送 SIGTERM（Windows 是 TerminateProcess）
@@ -123,7 +132,10 @@ class SolverRunner(QObject):
                 self._proc.wait(timeout=3)  # 等待 3 秒
             except subprocess.TimeoutExpired:
                 self._proc.kill()  # 强制杀死
-        self.canceled.emit()
+                try:
+                    self._proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    pass
 
 class LineNumberArea(QFrame):
     def __init__(self, editor):
@@ -136,6 +148,70 @@ class LineNumberArea(QFrame):
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
 
+class SimulationProgressDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._allow_close = False
+
+        # 去掉右上角关闭按钮，但保留标题栏、拖拽和缩放
+        self.setWindowFlags(
+            Qt.Window |
+            Qt.WindowTitleHint |
+            Qt.WindowSystemMenuHint |
+            Qt.WindowMinMaxButtonsHint
+        )
+
+        self.setWindowTitle("Simulation Progress")
+        self.setModal(False)
+        self.resize(520, 150)
+        self.setMinimumSize(420, 130)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 14, 14, 12)
+        layout.setSpacing(8)
+
+        self.title_label = QLabel("Simulation is running.")
+        layout.addWidget(self.title_label)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 1000)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)   # 百分比不放在进度条内部
+        self.progress_bar.setMinimumHeight(15)    # 让进度条更宽/更厚
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #bdbdbd;
+                border-radius: 6px;
+                background-color: #f3f3f3;
+            }
+            QProgressBar::chunk {
+                background-color: #4a90e2;
+                border-radius: 6px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+
+        # 百分比单独放到进度条下方，左对齐
+        self.percent_label = QLabel("0.0%")
+        self.percent_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.percent_label.setStyleSheet("color: #444;")
+        layout.addWidget(self.percent_label)
+
+    def set_progress_value(self, value: float):
+        value = max(0.0, min(1.0, float(value)))
+        self.progress_bar.setValue(int(round(value * 1000)))
+        self.percent_label.setText(f"{value * 100:.1f}%")
+
+    def closeEvent(self, event):
+        if self._allow_close:
+            super().closeEvent(event)
+        else:
+            event.ignore()
+
+    def close_by_owner(self):
+        self._allow_close = True
+        self.close()
+    
 class MindesSyntaxHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -484,6 +560,7 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
 class BuildSimulationWidget(QWidget):
     # 信号：当构建/运行完成时，通知主窗口结果目录路径
     simulationFinished = Signal(str)  # 发送 .mindes 同名结果文件夹路径
+    requestCancelSolver = Signal()    # 请求在线程中取消 solver
     class CodeEditor(QPlainTextEdit):
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -563,6 +640,7 @@ class BuildSimulationWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_mindes_file = None  # 当前加载的 .mindes 文件绝对路径
+        self._project_path = None
         self.selected_solver_path = None  # 当前选中的求解器 exe 的绝对路径
         self.solver_dir = get_solver_dir()  # 求解器根目录（相对主程序）
 
@@ -573,6 +651,13 @@ class BuildSimulationWidget(QWidget):
 
         # input report 识别
         self.parsed_definitions = None
+
+        # 项目输出目录 / 进度窗状态
+        self._progress_dialog = None
+        self._progress_timer = QTimer(self)
+        self._progress_timer.setInterval(PROGRESS_POLL_INTERVAL_MS)
+        self._progress_timer.timeout.connect(self._poll_simulation_progress)
+        self._progress_stat_path = None
 
         self.setup_ui()
         self.save_btn.setEnabled(False)
@@ -732,6 +817,8 @@ class BuildSimulationWidget(QWidget):
         self.solver_thread = None
         self.solver_worker = None
         self.is_running = False
+        self._solver_shutdown_in_progress = False
+        self._current_run_mode = None
 
         top_layout.addStretch()
         layout.addLayout(top_layout)
@@ -847,52 +934,169 @@ class BuildSimulationWidget(QWidget):
             self.selected_solver_path = data
             self.update_status(f"Solver selected: {name}")
 
+    def _update_editor_actions(self):
+        has_file = bool(self.current_mindes_file)
+        self.save_btn.setEnabled(has_file and not self.is_showing_report and not self.is_running)
+        self.debug_edit_btn.setEnabled(has_file and not self.is_running)
+
+    def _set_running_state(
+        self,
+        running: bool,
+        message: str | None = None,
+        *,
+        error: bool = False,
+        warning: bool = False,
+        success: bool = False,
+        info: bool = False,
+    ):
+        self.is_running = running
+        has_file = bool(self.current_mindes_file)
+        can_start = has_file and not running
+
+        self.build_btn.setEnabled(can_start)
+        self.run_btn.setEnabled(can_start)
+        self.cancel_btn.setEnabled(running and self.solver_worker is not None)
+        self.solver_combo.setEnabled(not running)
+        self._update_editor_actions()
+
+        if message:
+            self.update_status(
+                message,
+                error=error,
+                warning=warning,
+                success=success,
+                info=info,
+            )
+
+    def _clear_solver_refs(self):
+        self._close_progress_dialog()
+        self.solver_thread = None
+        self.solver_worker = None
+        self._solver_shutdown_in_progress = False
+        self.cancel_btn.setEnabled(False)
+        if self.current_mindes_file:
+            self._set_running_state(False)
+        else:
+            self.is_running = False
+            self.solver_combo.setEnabled(True)
+            self._update_editor_actions()
+
     def set_mindes_content(self, file_path: str, content: str):
         """由主窗口调用：设置当前 .mindes 文件路径和内容"""
         self.current_mindes_file = os.path.abspath(file_path)
+        self._project_path = Path(self.current_mindes_file).with_suffix("")
         # 确保使用正确的 .mindes 高亮器
         self.switch_highlighter(False)
         self.text_edit.setPlainText(content)
         self.is_showing_report = False
-        self.update_status(f"Loaded: {os.path.basename(file_path)}")
-        self.save_btn.setEnabled(True)
-        self.build_btn.setEnabled(True)
-        self.run_btn.setEnabled(True)
+        self._set_running_state(self.is_running, f"Loaded: {os.path.basename(file_path)}")
         # TODO: 可在此处添加语法高亮/着色逻辑（预留）
         # self.highlight_text()
 
+    def _find_progress_stat_file(self):
+        if not self._project_path or not self._project_path.exists():
+            return None
+
+        for name in STAT_CANDIDATES:
+            candidate = self._project_path / name
+            if candidate.exists() and candidate.is_file():
+                return candidate
+        return None
+
+    def _read_latest_progress_value(self, stat_path: Path):
+        try:
+            with open(stat_path, "r", encoding="utf-8") as f:
+                lines = [line.strip() for line in f if line.strip()]
+        except OSError:
+            return None
+
+        if len(lines) < 2:
+            return None
+
+        header = re.split(r"\s+", lines[0].strip())
+        if "progress" not in header:
+            return None
+
+        progress_idx = header.index("progress")
+
+        for line in reversed(lines[1:]):
+            parts = re.split(r"\s+", line.strip())
+            if progress_idx >= len(parts):
+                continue
+            try:
+                value = float(parts[progress_idx])
+                if 0.0 <= value <= 1.0:
+                    return value
+            except ValueError:
+                continue
+
+        return None
+
+    def _poll_simulation_progress(self):
+        if not self.is_running or self._current_run_mode != "run":
+            return
+
+        # 还没锁定统计文件，就持续查找
+        if self._progress_stat_path is None:
+            self._progress_stat_path = self._find_progress_stat_file()
+            if self._progress_stat_path is None:
+                return
+
+        latest_value = self._read_latest_progress_value(self._progress_stat_path)
+        if latest_value is None:
+            return
+
+        # 第一次读到有效 progress 时再创建窗口
+        if self._progress_dialog is None:
+            self._progress_dialog = SimulationProgressDialog(self.window())
+            self._progress_dialog.title_label.setText(
+                f"Running: {os.path.basename(self.current_mindes_file)}"
+            )
+            self._progress_dialog.show()
+            self._progress_dialog.raise_()
+        
+        self._progress_dialog.set_progress_value(latest_value)
+
+    def _close_progress_dialog(self):
+        if self._progress_timer.isActive():
+            self._progress_timer.stop()
+
+        self._progress_stat_path = None
+
+        if self._progress_dialog is not None:
+            self._progress_dialog.close_by_owner()
+            self._progress_dialog = None
+
     def on_solver_started(self):
         """进程已成功启动，启用 Cancel 按钮"""
-        self.is_running = True
-        self.update_status("Solver start.", success=True)
-        self.build_btn.setEnabled(False)
-        self.run_btn.setEnabled(False)
-        self.cancel_btn.setEnabled(True)
+        self._set_running_state(True, "Solver started.", success=True)
+
+        # 仅在 Run 模式下轮询；Build 模式不显示进度窗
+        if self._current_run_mode == "run":
+            if not self._progress_timer.isActive():
+                self._progress_timer.start()
+            self._poll_simulation_progress()   # 立即触发一次
 
     def on_solver_finished(self):
-        self.is_running = False
-        self.update_status("Solver finished.", success=True)
-        self.build_btn.setEnabled(True)
-        self.run_btn.setEnabled(True)
-        self.cancel_btn.setEnabled(False)
+        result_dir = os.path.splitext(self.current_mindes_file)[0] if self.current_mindes_file else ""
+        self._close_progress_dialog()
+        self._set_running_state(False, "Solver finished.", success=True)
+        if result_dir:
+            self.simulationFinished.emit(result_dir)
 
     def on_solver_error(self, error_msg):
-        self.is_running = False
-        self.update_status(f"Error: {error_msg}", error=True)
+        self._close_progress_dialog()
+        self._set_running_state(False, f"Error: {error_msg}", error=True)
         QMessageBox.critical(self, "Solver Error", error_msg)
-        self.build_btn.setEnabled(True)
-        self.run_btn.setEnabled(True)
-        self.cancel_btn.setEnabled(False)
 
     def _reset_buttons(self):
         """恢复按钮状态"""
-        self.build_btn.setEnabled(True)
-        self.run_btn.setEnabled(True)
-        self.cancel_btn.setEnabled(False)
+        self._set_running_state(False)
 
     def cancel_solver(self):
         """取消正在运行的求解器"""
         if self.solver_worker and self.is_running:
+            self.cancel_btn.setEnabled(False)
             self.update_status("Terminating solver...", warning=True)
             self.solver_worker.cancel()
 
@@ -906,23 +1110,19 @@ class BuildSimulationWidget(QWidget):
         if self.is_running:
             QMessageBox.information(self, "Busy", "A solver is already running.")
             return  # 防止重复点击
-        if self.solver_worker:
-            self.update_status("Terminating previous task...", warning=True)
-            self.solver_worker.cancel()
+        if self.solver_worker or self.solver_thread:
+            QMessageBox.information(self, "Busy", "Previous solver resources are still being cleaned up.")
+            return
+        
         # 保存 .mindes 文件
         if not self.save_current_content():
             return
+        
         mindes_abs = os.path.abspath(self.current_mindes_file)
         solver_dir = os.path.dirname(self.selected_solver_path)
-
-        self.update_status(f"Executing {mode}...", info=True)
-        omp_threads = max(1, os.cpu_count() - 1)
-            
-        # === 禁用 Build/Run，启用 Cancel（稍后由 started 信号确认）===
-        self.build_btn.setEnabled(False)
-        self.run_btn.setEnabled(False)
-        self.cancel_btn.setEnabled(False)  # 先禁用，等进程真正启动后再启用
-        self.is_running = True
+        omp_threads = max(1, (os.cpu_count() or 2) - 1)
+        self._set_running_state(True, f"Launching {mode}...", info=True)
+        self._current_run_mode = mode
 
         # === 根据 mode 准备参数 ===
         cleanup_files = []  # 要在 solver 结束后删除的文件列表
@@ -931,7 +1131,7 @@ class BuildSimulationWidget(QWidget):
             # 生成 start.in（CRLF）
             start_in = os.path.join(solver_dir, "start.in")
             with open(start_in, 'w', newline='\r\n', encoding='utf-8') as f:
-                f.write(mindes_abs + '\n')  # 注意：这里仍写 '\n'，但 newline='\r\n' 会将其转为 \r\n
+                f.write(mindes_abs + '\n')
             # 生成 path.in（CRLF）
             path_in = os.path.join(solver_dir, "path.in")
             with open(path_in, 'w', newline='\r\n', encoding='utf-8') as f:
@@ -945,51 +1145,69 @@ class BuildSimulationWidget(QWidget):
             input_base_for_worker = mindes_abs
             should_cleanup = False
             cleanup_files = []
+            # 先清掉旧的进度窗状态，等待 solver 启动后再轮询检测统计文件
+            self._close_progress_dialog()
+            self._progress_stat_path = None
+        else:
+            self._set_running_state(False, f"Unknown mode: {mode}", error=True)
+            return
+        
         # === 启动后台线程 ===
-        self.solver_thread = QThread()
+        self.solver_thread = QThread(self)
         self.solver_worker = SolverRunner(
             solver_path=self.selected_solver_path,
-            input_base=input_base_for_worker,      # 可能为 None
+            input_base=input_base_for_worker,
             cwd=solver_dir,
             cleanup_files=cleanup_files if should_cleanup else [],
             omp_threads=omp_threads
         )
         self.solver_worker.moveToThread(self.solver_thread)
+        
         # 连接信号
         self.solver_thread.started.connect(self.solver_worker.run)
         self.solver_worker.started.connect(self.on_solver_started)
         self.solver_worker.finished.connect(self.on_solver_finished)
         self.solver_worker.error.connect(self.on_solver_error)
         self.solver_worker.canceled.connect(self.on_solver_canceled)
-        # === 连接 Cancel 按钮到 worker 的 cancel 槽 ===
-        # self.cancel_btn.clicked.connect(self.solver_worker.cancel)
-        # 清理
-        self.solver_worker.finished.connect(self.on_worker_done)
-        self.solver_worker.error.connect(self.on_worker_done)
-        self.solver_worker.canceled.connect(self.on_worker_done)
-        self.solver_thread.finished.connect(self.solver_thread.deleteLater)
-        self.solver_worker.deleteLater()
-        # 启动前启用 Cancel（现在可以点了）
-        self.build_btn.setEnabled(False)
-        self.run_btn.setEnabled(False)
-        self.cancel_btn.setEnabled(True)  # ← 现在启用！
-        self.is_running = True
 
+        # 清理
+        self.solver_worker.finished.connect(self.solver_thread.quit)
+        self.solver_worker.error.connect(self.solver_thread.quit)
+        self.solver_worker.canceled.connect(self.solver_thread.quit)
+        self.solver_thread.finished.connect(self.solver_worker.deleteLater)
+        self.solver_thread.finished.connect(self.solver_thread.deleteLater)
+        self.solver_thread.finished.connect(self._clear_solver_refs)
+
+        self.cancel_btn.setEnabled(True)
         self.solver_thread.start()
 
     def on_worker_done(self):
-        # 确保线程退出
+        """兼容旧接口：统一通过线程 finished 完成清理。"""
         if self.solver_thread and self.solver_thread.isRunning():
             self.solver_thread.quit()
-            self.solver_thread.wait(2000)  # 最多等 2 秒
-        # 清理引用
-        self.solver_thread = None
-        self.solver_worker = None
-        self.is_running = False
-        # 恢复按钮状态
-        self.build_btn.setEnabled(True)
-        self.run_btn.setEnabled(True)
-        self.cancel_btn.setEnabled(False)
+            self.solver_thread.wait(2000)
+
+    def shutdown_solver(self, timeout_ms: int = 5000) -> bool:
+        """在主窗口关闭时安全停止后台 solver。"""
+        self._close_progress_dialog()
+        if not self.solver_worker or not self.solver_thread:
+            return True
+        if self._solver_shutdown_in_progress:
+            return False
+
+        self._solver_shutdown_in_progress = True
+        if self.is_running:
+            self.cancel_btn.setEnabled(False)
+            self.update_status("Stopping solver before exit...", warning=True)
+            self.requestCancelSolver.emit()
+
+        if self.solver_thread.isRunning():
+            self.solver_thread.quit()
+            if self.solver_thread.wait(timeout_ms):
+                return True
+            self.update_status("Solver did not stop cleanly before exit.", warning=True)
+            return False
+        return True
 
     def show_context_menu(self, pos):
         """右键菜单处理"""
@@ -1080,11 +1298,8 @@ class BuildSimulationWidget(QWidget):
             self.parsed_definitions = None
 
     def on_solver_canceled(self):
-        self.is_running = False
-        self.update_status("Solver canceled by user.", warning=True)
-        self.build_btn.setEnabled(True)
-        self.run_btn.setEnabled(True)
-        self.cancel_btn.setEnabled(False)
+        self._close_progress_dialog()
+        self._set_running_state(False, "Solver canceled by user.", warning=True)
 
     def show_input_report(self):
         """显示 input_report.txt 文件"""

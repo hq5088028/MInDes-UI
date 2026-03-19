@@ -1,21 +1,20 @@
 # MInDes-UI.py
-import sys, os
+import sys, os, subprocess
 os.environ["QT_API"] = "pyside6"
 from pathlib import Path
-import matplotlib
-matplotlib.use("QtAgg")
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QSplitter, QTabWidget, QMessageBox, QDialog, QLabel, QPushButton
+    QSplitter, QTabWidget, QMessageBox, QDialog, QLabel, QPushButton, QSplashScreen
 )
 from PySide6.QtCore import Qt, QSettings
 from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon
 
 # 导入组件
-from vts_viewer_widget import VTSViewerWidget
 from file_browser_widget import FileBrowserWidget
 from build_simulation_widget import BuildSimulationWidget  
-from log_statistics_widget import LogStatisticsWidget
+# 按需导入
+# from log_statistics_widget import LogStatisticsWidget
+# from vts_viewer_widget import VTSViewerWidget
 
 def resource_path(relative_path):
     """获取应用图标，兼容开发和 PyInstaller 打包"""
@@ -35,6 +34,18 @@ def get_app_icon():
         # fallback（可选）
         print(f"⚠️ Icon not found: {icon_path}")
         return QIcon()
+
+def make_splash():
+    pixmap = QPixmap(420, 220)
+    pixmap.fill(Qt.white)
+    splash = QSplashScreen(pixmap)
+    splash.setWindowFlag(Qt.WindowStaysOnTopHint)
+    splash.showMessage(
+        "Starting MInDes...\nLoading UI shell...",
+        Qt.AlignLeft | Qt.AlignBottom,
+        Qt.black,
+    )
+    return splash
 
 class AboutDialog(QDialog):
     def __init__(self, parent=None):
@@ -109,6 +120,12 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(get_app_icon())
         self.current_project_path = None
         self.build_widget = None
+        self.log_stat_widget = None
+        self.vts_viewer = None
+        self.log_placeholder = None
+        self.vts_placeholder = None
+        self.log_tab_index = -1
+        self.vts_tab_index = -1
 
         self.settings = QSettings("MInDes", "MInDes-UI")
         last_dir = self.settings.value("last_directory", "", type=str)
@@ -152,9 +169,10 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)  # 可选：控件间距
 
         self.tab_widget = QTabWidget()
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         right_layout.addWidget(self.tab_widget)  # 将 tab widget 放入布局
 
-        splitter.addWidget(right_panel) 
+        splitter.addWidget(right_panel)
         self.create_tabs()
 
         splitter.setSizes([200, 1000])
@@ -162,10 +180,8 @@ class MainWindow(QMainWindow):
 
     def on_load_vts_folder_requested(self, folder_path: str):
         """切换到 VTS 页面并加载指定文件夹"""
-        # 1. 切换到 VTS Viewer 页面（假设你在 QTabWidget 或 QStackedWidget 中）
-        # 示例：如果你用 QTabWidget
-        self.tab_widget.setCurrentWidget(self.vts_viewer)  # 替换为你的实际引用
-        # 2. 调用 VTS Viewer 的 load_vts 并传入路径
+        self.ensure_vts_tab_loaded()
+        self.tab_widget.setCurrentIndex(self.vts_tab_index)
         self.vts_viewer.load_vts(folder_path)
 
     def on_path_edited(self, new_path: str):
@@ -174,11 +190,37 @@ class MainWindow(QMainWindow):
     def on_folder_double_clicked(self, folder_path: str):
         self.file_browser.set_current_path(folder_path)
 
+    def handle_open_path(self, selected_path: str):
+        """统一处理 File->Open 选择结果，自动识别文件夹或 .mindes 文件"""
+        if not selected_path:
+            return
+
+        selected_path = os.path.normpath(selected_path)
+
+        if os.path.isdir(selected_path):
+            self.file_browser.set_current_path(selected_path)
+            return
+
+        if os.path.isfile(selected_path) and selected_path.lower().endswith(".mindes"):
+            self.load_mindes_file(selected_path)
+            return
+
+        QMessageBox.warning(
+            self,
+            "Unsupported Path",
+            "Please select a project folder or a .mindes file."
+        )
+
     def load_mindes_file(self, file_path: str):
         if file_path.endswith('.mindes'):
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
+                # 同步左侧文件浏览器到该文件所在目录
+                parent_dir = os.path.dirname(file_path)
+                if parent_dir and os.path.isdir(parent_dir):
+                    self.file_browser.set_current_path(parent_dir)
+                
                 # 通知 BuildSimulationWidget 加载文件
                 if self.build_widget:
                     self.build_widget.set_mindes_content(file_path, content)
@@ -188,50 +230,48 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Load Error", f"Failed to load .mindes file:\n{str(e)}")
 
     def load_log_statistic_file(self, folder_path: str):
-            """切换到 LOG 页面并加载指定文件"""
-            # 1. 切换到 LOG 页面（假设你在 QTabWidget 或 QStackedWidget 中）
-            # 示例：如果你用 QTabWidget
-            self.tab_widget.setCurrentWidget(self.log_stat_widget)  # 替换为你的实际引用
-            # 2. 调用 LOG 的 set_project_path 并传入路径
-            self.log_stat_widget.set_project_path(folder_path)
+        """切换到 LOG 页面并加载指定文件"""
+        self.ensure_log_tab_loaded()
+        self.tab_widget.setCurrentIndex(self.log_tab_index)
+        self.log_stat_widget.set_project_path(folder_path)
+
+    def open_project_or_file(self):
+        """通过一个对话框打开项目文件夹或 .mindes 文件"""
+        dialog = QFileDialog(self, "Open ...")
+        dialog.setOption(QFileDialog.DontUseNativeDialog, False)
+        dialog.setFileMode(QFileDialog.AnyFile)
+        dialog.setNameFilter("MInDes Project (*.mindes);;All Files (*)")
+
+        if self.last_dir and self.last_dir.exists():
+            dialog.setDirectory(str(self.last_dir))
+        elif self.file_browser and self.file_browser.current_path:
+            dialog.setDirectory(self.file_browser.current_path)
+
+        if dialog.exec():
+            selected_files = dialog.selectedFiles()
+            if selected_files:
+                self.handle_open_path(selected_files[0])
 
     def create_menu_bar(self):
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
 
+        open_action = QAction("Open...", self)
+        open_action.triggered.connect(self.open_project_or_file)
+
+        file_menu.addAction(open_action)
         file_menu.addSeparator()
-        
+
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
-
-        open_file_action = QAction("Open .mindes File...", self)
-        def open_file():
-            dialog = QFileDialog(self)
-            dialog.setFileMode(QFileDialog.ExistingFile)
-            dialog.setNameFilter("MInDes Project Files (*.mindes)")
-            if dialog.exec():
-                file_path = dialog.selectedFiles()[0]
-                self.load_mindes_file(file_path)
-        open_file_action.triggered.connect(open_file)
-
-        open_folder_action = QAction("Open Project Folder...", self)
-        dialog = QFileDialog(self)
-        dialog.setFileMode(QFileDialog.Directory)
-        dialog.setOption(QFileDialog.ShowDirsOnly, True)
-        def open_folder():
-            if dialog.exec():
-                folder_path = dialog.selectedFiles()[0]
-                self.file_browser.set_current_path(folder_path)
-        open_folder_action.triggered.connect(open_folder)
-
         file_menu.addAction(exit_action)
-        file_menu.addAction(open_folder_action)
-        file_menu.addAction(open_file_action)
 
         help_menu = menubar.addMenu("About")
         about_action = QAction("About MInDes", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
+        self.license_menu = help_menu.addMenu("License")
+        help_menu.aboutToShow.connect(self.refresh_license_menu)
         custom_solver_action = QAction("How to add custom solvers", self)
         custom_solver_action.triggered.connect(self.show_custom_solver_help)
         help_menu.addAction(custom_solver_action)
@@ -241,17 +281,113 @@ class MainWindow(QMainWindow):
         about_dialog = AboutDialog(self)  # 实例化 AboutDialog
         about_dialog.exec()  # 显示关于对话框
 
+    def refresh_license_menu(self):
+        self.license_menu.clear()
+
+        if not self.build_widget:
+            action = QAction("Build widget not ready", self)
+            action.setEnabled(False)
+            self.license_menu.addAction(action)
+            return
+
+        combo = self.build_widget.solver_combo
+        if combo is None or combo.count() == 0:
+            action = QAction("No solver available", self)
+            action.setEnabled(False)
+            self.license_menu.addAction(action)
+            return
+
+        for i in range(combo.count()):
+            solver_name = combo.itemText(i)
+            solver_path = combo.itemData(i)
+
+            if not solver_path:
+                continue
+
+            action = QAction(solver_name, self)
+            action.triggered.connect(
+                lambda checked=False, path=solver_path, name=solver_name:
+                    self.launch_solver_console(path, name)
+            )
+            self.license_menu.addAction(action)
+
+    def launch_solver_console(self, solver_path: str, solver_name: str):
+        if not solver_path or not os.path.exists(solver_path):
+            QMessageBox.warning(
+                self,
+                "Solver Not Found",
+                f"Solver executable not found:\n{solver_path}"
+            )
+            return
+    
+        try:
+            cwd = os.path.dirname(solver_path)
+    
+            if sys.platform == "win32":
+                subprocess.Popen(
+                    [solver_path],
+                    cwd=cwd,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+            else:
+                subprocess.Popen([solver_path], cwd=cwd)
+    
+            if self.build_widget:
+                self.build_widget.update_status(
+                    f"Opened solver console: {solver_name}",
+                    success=True
+                )
+    
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Launch Error",
+                f"Failed to launch solver console:\n{e}"
+            )
+
+    def _make_lazy_placeholder(self, text: str) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setAlignment(Qt.AlignCenter)
+        label = QLabel(text)
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        return widget
+
+    def ensure_log_tab_loaded(self):
+        if self.log_stat_widget is not None:
+            return
+
+        from log_statistics_widget import LogStatisticsWidget
+        self.log_stat_widget = LogStatisticsWidget()
+        self.log_stat_widget.statusMessage.connect(self.route_log_stat_status)
+        self.tab_widget.removeTab(self.log_tab_index)
+        self.tab_widget.insertTab(self.log_tab_index, self.log_stat_widget, "Log && Statistic")
+
+    def ensure_vts_tab_loaded(self):
+        if self.vts_viewer is not None:
+            return
+
+        from vts_viewer_widget import VTSViewerWidget
+        self.vts_viewer = VTSViewerWidget()
+        self.tab_widget.removeTab(self.vts_tab_index)
+        self.tab_widget.insertTab(self.vts_tab_index, self.vts_viewer, "VTS Data Viewer")
+
+    def on_tab_changed(self, index: int):
+        if index == self.log_tab_index:
+            self.ensure_log_tab_loaded()
+            self.tab_widget.setCurrentIndex(self.log_tab_index)
+        elif index == self.vts_tab_index:
+            self.ensure_vts_tab_loaded()
+            self.tab_widget.setCurrentIndex(self.vts_tab_index)
+
     def create_tabs(self):
         self.build_widget = BuildSimulationWidget()
         self.tab_widget.addTab(self.build_widget, "Build Simulation")
-
-        self.log_stat_widget = LogStatisticsWidget()
-        # 将 Log&Stat 的状态信号转发给 build_widget 的状态栏
-        self.log_stat_widget.statusMessage.connect(self.route_log_stat_status)
-        self.tab_widget.addTab(self.log_stat_widget, "Log && Statistic")
-
-        self.vts_viewer = VTSViewerWidget()
-        self.tab_widget.addTab(self.vts_viewer, "VTS Data Viewer")
+        self.log_placeholder = self._make_lazy_placeholder("Log && Statistic will load on first open.")
+        self.log_tab_index = self.tab_widget.addTab(self.log_placeholder, "Log && Statistic")
+        self.vts_placeholder = self._make_lazy_placeholder("VTS Data Viewer will load on first open.")
+        self.vts_tab_index = self.tab_widget.addTab(self.vts_placeholder, "VTS Data Viewer")
 
     def route_log_stat_status(self, message: str, level: str):
         """
@@ -287,10 +423,43 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.settings.setValue("last_directory", self.file_browser.current_path)
+        
+        if self.build_widget and self.build_widget.is_running:
+            reply = QMessageBox.question(
+                self,
+                "Solver Running",
+                "A solver is still running. Stop it and exit?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if reply != QMessageBox.Yes:
+                event.ignore()
+                return
+
+            stopped_cleanly = self.build_widget.shutdown_solver(timeout_ms=5000)
+            if not stopped_cleanly:
+                QMessageBox.warning(
+                    self,
+                    "Exit Warning",
+                    "Solver did not stop cleanly. The application will still close."
+                )
+
         return super().closeEvent(event)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    splash = make_splash()
+    splash.show()
+    app.processEvents()
+
+    splash.showMessage("Starting MInDes...\nLoading main window...", Qt.AlignLeft | Qt.AlignBottom, Qt.black)
+    app.processEvents()
     window = MainWindow()
+
+    splash.showMessage("Starting MInDes...\nPreparing tabs...", Qt.AlignLeft | Qt.AlignBottom, Qt.black)
+    app.processEvents()
     window.show()
+
+    splash.finish(window)
     sys.exit(app.exec())
