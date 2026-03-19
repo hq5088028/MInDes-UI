@@ -1,14 +1,15 @@
 # MInDes-UI.py
 import sys, os
 os.environ["QT_API"] = "pyside6"
+from pathlib import Path
 import matplotlib
 matplotlib.use("QtAgg")
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QTabWidget, QMessageBox, QDialog, QLabel, QPushButton
 )
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QFont, QPixmap, QIcon
+from PySide6.QtCore import Qt, QSettings
+from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon
 
 # 导入组件
 from vts_viewer_widget import VTSViewerWidget
@@ -108,8 +109,12 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(get_app_icon())
         self.current_project_path = None
         self.build_widget = None
-        self.setup_ui()
 
+        self.settings = QSettings("MInDes", "MInDes-UI")
+        last_dir = self.settings.value("last_directory", "", type=str)
+        self.last_dir = Path(last_dir) if last_dir else None
+        
+        self.setup_ui()
 
     def setup_ui(self):
         central_widget = QWidget()
@@ -128,6 +133,9 @@ class MainWindow(QMainWindow):
         self.create_menu_bar()
 
         self.file_browser = FileBrowserWidget()
+        self.file_browser.set_current_path(
+            str(self.last_dir) if self.last_dir and self.last_dir.is_dir() else self.file_browser.default_path
+        )
         self.file_browser.pathEdited.connect(self.on_path_edited)
         self.file_browser.loadVtsFolderRequested.connect(self.on_load_vts_folder_requested)
         self.file_browser.loadLogStatisticFolderRequested.connect(self.load_log_statistic_file)
@@ -192,9 +200,33 @@ class MainWindow(QMainWindow):
         file_menu = menubar.addMenu("File")
 
         file_menu.addSeparator()
+        
         exit_action = QAction("Exit", self)
         exit_action.triggered.connect(self.close)
+
+        open_file_action = QAction("Open .mindes File...", self)
+        def open_file():
+            dialog = QFileDialog(self)
+            dialog.setFileMode(QFileDialog.ExistingFile)
+            dialog.setNameFilter("MInDes Project Files (*.mindes)")
+            if dialog.exec():
+                file_path = dialog.selectedFiles()[0]
+                self.load_mindes_file(file_path)
+        open_file_action.triggered.connect(open_file)
+
+        open_folder_action = QAction("Open Project Folder...", self)
+        dialog = QFileDialog(self)
+        dialog.setFileMode(QFileDialog.Directory)
+        dialog.setOption(QFileDialog.ShowDirsOnly, True)
+        def open_folder():
+            if dialog.exec():
+                folder_path = dialog.selectedFiles()[0]
+                self.file_browser.set_current_path(folder_path)
+        open_folder_action.triggered.connect(open_folder)
+
         file_menu.addAction(exit_action)
+        file_menu.addAction(open_folder_action)
+        file_menu.addAction(open_file_action)
 
         help_menu = menubar.addMenu("About")
         about_action = QAction("About MInDes", self)
@@ -252,6 +284,10 @@ class MainWindow(QMainWindow):
             "└── ..."
         )
         QMessageBox.information(self, "Custom Solver Guide", help_text)
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        self.settings.setValue("last_directory", self.file_browser.current_path)
+        return super().closeEvent(event)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
