@@ -5,11 +5,12 @@ import re
 import subprocess
 import threading
 from pathlib import Path
+from log_statistics_widget import STAT_CANDIDATES, get_existing_candidates_by_mtime
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QComboBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QComboBox,
     QPlainTextEdit, QLabel, QMenu, QMessageBox, QListWidget, 
     QListWidgetItem, QDialog, QTableWidget, QTableWidgetItem, QHeaderView, 
-    QTextEdit, QTabWidget, QDialogButtonBox, QApplication, QFrame, QProgressBar
+    QTextEdit, QTabWidget, QDialogButtonBox, QApplication, QFrame, QProgressBar, QSizePolicy
 )
 from PySide6.QtGui import (
     QAction, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QPainter, 
@@ -18,7 +19,8 @@ from PySide6.QtGui import (
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject, QTimer
 
 EDITOR_BACKGROUND = "#f0f0f0"
-STAT_CANDIDATES = ["Statistics.txt", "data_statistics.txt"]
+PROGRESS_COLUMN_CANDIDATES = ["progress"]
+SIM_STEP_COLUMN_CANDIDATES = ["sim_step", "istep"]
 PROGRESS_POLL_INTERVAL_MS = 500
 
 def get_solver_dir() -> Path:
@@ -147,71 +149,7 @@ class LineNumberArea(QFrame):
 
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
-
-class SimulationProgressDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._allow_close = False
-
-        # 去掉右上角关闭按钮，但保留标题栏、拖拽和缩放
-        self.setWindowFlags(
-            Qt.Window |
-            Qt.WindowTitleHint |
-            Qt.WindowSystemMenuHint |
-            Qt.WindowMinMaxButtonsHint
-        )
-
-        self.setWindowTitle("Simulation Progress")
-        self.setModal(False)
-        self.resize(520, 150)
-        self.setMinimumSize(420, 130)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 14, 14, 12)
-        layout.setSpacing(8)
-
-        self.title_label = QLabel("Simulation is running.")
-        layout.addWidget(self.title_label)
-
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 1000)
-        self.progress_bar.setValue(0)
-        self.progress_bar.setTextVisible(False)   # 百分比不放在进度条内部
-        self.progress_bar.setMinimumHeight(15)    # 让进度条更宽/更厚
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #bdbdbd;
-                border-radius: 6px;
-                background-color: #f3f3f3;
-            }
-            QProgressBar::chunk {
-                background-color: #4a90e2;
-                border-radius: 6px;
-            }
-        """)
-        layout.addWidget(self.progress_bar)
-
-        # 百分比单独放到进度条下方，左对齐
-        self.percent_label = QLabel("0.0%")
-        self.percent_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.percent_label.setStyleSheet("color: #444;")
-        layout.addWidget(self.percent_label)
-
-    def set_progress_value(self, value: float):
-        value = max(0.0, min(1.0, float(value)))
-        self.progress_bar.setValue(int(round(value * 1000)))
-        self.percent_label.setText(f"{value * 100:.1f}%")
-
-    def closeEvent(self, event):
-        if self._allow_close:
-            super().closeEvent(event)
-        else:
-            event.ignore()
-
-    def close_by_owner(self):
-        self._allow_close = True
-        self.close()
-    
+   
 class MindesSyntaxHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -557,6 +495,69 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
         if text_line.startswith('#'):
             self.setFormat(0, len(text_line), self.comment_format)
 
+class ProgressOverlayWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(0)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 1000)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setMinimumHeight(24)
+        self.progress_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #c8d2dc;
+                border-radius: 12px;
+                background-color: #edf1f5;
+                padding: 1px;
+            }
+            QProgressBar::chunk {
+                border-radius: 10px;
+                background-color: qlineargradient(
+                    x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #a9d4ff,
+                    stop:0.5 #8fc5fb,
+                    stop:1 #73b4f3
+                );
+                margin: 0px;
+            }
+        """)
+
+        self.overlay_label = QLabel("")
+        self.overlay_label.setMinimumHeight(24)
+        self.overlay_label.setAlignment(Qt.AlignCenter)
+        self.overlay_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.overlay_label.setCursor(Qt.IBeamCursor)
+        self.overlay_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.overlay_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.overlay_label.setStyleSheet("""
+            QLabel {
+                background: transparent;
+                color: #1f1f1f;
+                font-weight: 700;
+                border: none;
+                padding: 0px 10px;
+            }
+        """)
+
+        grid.addWidget(self.progress_bar, 0, 0)
+        grid.addWidget(self.overlay_label, 0, 0)
+
+    def set_overlay_text(self, text: str):
+        self.overlay_label.setText(text)
+
+    def set_progress_value(self, value: float | None):
+        if value is None:
+            self.progress_bar.setValue(0)
+        else:
+            value = max(0.0, min(1.0, float(value)))
+            self.progress_bar.setValue(int(round(value * 1000)))
+
 class BuildSimulationWidget(QWidget):
     # 信号：当构建/运行完成时，通知主窗口结果目录路径
     simulationFinished = Signal(str)  # 发送 .mindes 同名结果文件夹路径
@@ -653,7 +654,6 @@ class BuildSimulationWidget(QWidget):
         self.parsed_definitions = None
 
         # 项目输出目录 / 进度窗状态
-        self._progress_dialog = None
         self._progress_timer = QTimer(self)
         self._progress_timer.setInterval(PROGRESS_POLL_INTERVAL_MS)
         self._progress_timer.timeout.connect(self._poll_simulation_progress)
@@ -868,9 +868,10 @@ class BuildSimulationWidget(QWidget):
         self.text_edit.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.text_edit)
 
-        # === 第三部分：状态提示栏 ===
+        # === 第三部分：状态提示栏 + 内嵌进度条 ===
         status_layout = QHBoxLayout()
         status_layout.setContentsMargins(0, 0, 0, 0)
+        status_layout.setSpacing(6)
 
         self.note_label = QLabel("Note:")
         self.note_label.setStyleSheet("""
@@ -887,13 +888,70 @@ class BuildSimulationWidget(QWidget):
         self.update_status("Ready.")  # 初始状态设置
         self.status_line.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.status_line.setCursor(Qt.IBeamCursor)
+
+        # 右侧进度区域（上：文字，下：进度条）
+        self.progress_overlay = ProgressOverlayWidget()
+        self.progress_overlay.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
         status_layout.addWidget(self.note_label)
-        status_layout.addWidget(self.status_line, 1)
+        status_layout.addWidget(self.status_line, 1)      # note 文本控件
+        status_layout.addWidget(self.progress_overlay, 1)   # 进度条控件（含上方文字）
         # status_layout.addStretch()
         layout.addLayout(status_layout)
+        self._update_progress_overlay()
 
         # 内部状态
         self.is_showing_report = False  # 是否正在显示 input_report.txt
+
+    def _get_solver_display_name(self) -> str:
+        return self.solver_combo.currentText().strip() if self.solver_combo.count() > 0 else ""
+
+    def _get_mindes_display_name(self) -> str:
+        return os.path.basename(self.current_mindes_file) if self.current_mindes_file else ""
+
+    def _update_progress_overlay(
+        self,
+        progress_value: float | None = None,
+        sim_step_value: str | None = None,
+        stat_file_found: bool = False,
+    ):
+        solver_name = self._get_solver_display_name()
+        mindes_name = self._get_mindes_display_name()
+
+        # run 过程中：显示 statistic 文件相关信息
+        if self.is_running and self._current_run_mode == "run":
+            parts = []
+            if stat_file_found:
+                if progress_value is not None:
+                    parts.append(f"progress {progress_value * 100:.1f}%")
+                else:
+                    parts.append("progress none")
+                if sim_step_value is not None and str(sim_step_value).strip():
+                    parts.append(f"sim_step {sim_step_value}")
+                else:
+                    parts.append("sim_step none")
+            else:
+                # statistic 文件未找到：只显示字段名，不显示数值
+                parts.append("progress none")
+                parts.append("sim_step none")
+
+            self.progress_overlay.set_progress_value(progress_value)
+            self.progress_overlay.set_overlay_text("   ".join(parts))
+            return
+        # run 前 / run 结束后：显示 solver + 文件名
+        self.progress_overlay.set_progress_value(None)
+        self.progress_overlay.set_overlay_text(f"<{solver_name}> [{mindes_name}]")
+
+    def _find_first_matching_column_index(self, header: list[str], candidates: list[str]):
+        header_map = {name.strip().lower(): idx for idx, name in enumerate(header)}
+        for candidate in candidates:
+            idx = header_map.get(candidate.strip().lower())
+            if idx is not None:
+                return idx
+        return None
+
+    def _reset_inline_progress(self):
+        self._update_progress_overlay()
 
     def _switch_to_input_report_if_needed(self):
         """ .mindes 文件 和 report 文件互相切换"""
@@ -933,11 +991,18 @@ class BuildSimulationWidget(QWidget):
         if data:
             self.selected_solver_path = data
             self.update_status(f"Solver selected: {name}")
+        self._update_progress_overlay()
 
     def _update_editor_actions(self):
         has_file = bool(self.current_mindes_file)
-        self.save_btn.setEnabled(has_file and not self.is_showing_report and not self.is_running)
-        self.debug_edit_btn.setEnabled(has_file and not self.is_running)
+        self.save_btn.setEnabled(has_file and not self.is_showing_report)
+        self.debug_edit_btn.setEnabled(has_file)
+
+    def _apply_editor_mode(self):
+        """根据当前显示状态统一刷新编辑器的可编辑性与相关按钮状态。"""
+        is_report_mode = bool(self.is_showing_report)
+        self.text_edit.setReadOnly(is_report_mode)
+        self._update_editor_actions()
 
     def _set_running_state(
         self,
@@ -985,97 +1050,97 @@ class BuildSimulationWidget(QWidget):
         """由主窗口调用：设置当前 .mindes 文件路径和内容"""
         self.current_mindes_file = os.path.abspath(file_path)
         self._project_path = Path(self.current_mindes_file).with_suffix("")
+        self.is_showing_report = False
         # 确保使用正确的 .mindes 高亮器
         self.switch_highlighter(False)
         self.text_edit.setPlainText(content)
-        self.is_showing_report = False
+        self._apply_editor_mode()
         self._set_running_state(self.is_running, f"Loaded: {os.path.basename(file_path)}")
+        self._update_progress_overlay()
         # TODO: 可在此处添加语法高亮/着色逻辑（预留）
         # self.highlight_text()
 
     def _find_progress_stat_file(self):
         if not self._project_path or not self._project_path.exists():
             return None
+        stat_candidates = get_existing_candidates_by_mtime(self._project_path, STAT_CANDIDATES)
+        return stat_candidates[0] if stat_candidates else None
 
-        for name in STAT_CANDIDATES:
-            candidate = self._project_path / name
-            if candidate.exists() and candidate.is_file():
-                return candidate
-        return None
-
-    def _read_latest_progress_value(self, stat_path: Path):
+    def _read_latest_progress_info(self, stat_path: Path):
         try:
             with open(stat_path, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
         except OSError:
-            return None
+            return None, None
 
         if len(lines) < 2:
-            return None
+            return None, None
 
         header = re.split(r"\s+", lines[0].strip())
-        if "progress" not in header:
-            return None
 
-        progress_idx = header.index("progress")
+        progress_idx = self._find_first_matching_column_index(
+            header, PROGRESS_COLUMN_CANDIDATES
+        )
+        sim_step_idx = self._find_first_matching_column_index(
+            header, SIM_STEP_COLUMN_CANDIDATES
+        )
+
+        progress_value = None
+        sim_step_value = None
 
         for line in reversed(lines[1:]):
             parts = re.split(r"\s+", line.strip())
-            if progress_idx >= len(parts):
-                continue
-            try:
-                value = float(parts[progress_idx])
-                if 0.0 <= value <= 1.0:
-                    return value
-            except ValueError:
-                continue
 
-        return None
+            if progress_value is None and progress_idx is not None and progress_idx < len(parts):
+                try:
+                    value = float(parts[progress_idx])
+                    if 0.0 <= value <= 1.0:
+                        progress_value = value
+                except ValueError:
+                    pass
+
+            if sim_step_value is None and sim_step_idx is not None and sim_step_idx < len(parts):
+                value = parts[sim_step_idx].strip()
+                if value:
+                    sim_step_value = value
+
+            if progress_value is not None and sim_step_value is not None:
+                break
+
+        return progress_value, sim_step_value
 
     def _poll_simulation_progress(self):
         if not self.is_running or self._current_run_mode != "run":
             return
-
         # 还没锁定统计文件，就持续查找
+        self._progress_stat_path = self._find_progress_stat_file()
         if self._progress_stat_path is None:
-            self._progress_stat_path = self._find_progress_stat_file()
-            if self._progress_stat_path is None:
-                return
-
-        latest_value = self._read_latest_progress_value(self._progress_stat_path)
-        if latest_value is None:
+            self._update_progress_overlay(stat_file_found=False)
             return
-
-        # 第一次读到有效 progress 时再创建窗口
-        if self._progress_dialog is None:
-            self._progress_dialog = SimulationProgressDialog(self.window())
-            self._progress_dialog.title_label.setText(
-                f"Running: {os.path.basename(self.current_mindes_file)}"
-            )
-            self._progress_dialog.show()
-            self._progress_dialog.raise_()
-        
-        self._progress_dialog.set_progress_value(latest_value)
+        progress_value, sim_step_value = self._read_latest_progress_info(self._progress_stat_path)
+        self._update_progress_overlay(
+            progress_value=progress_value,
+            sim_step_value=sim_step_value,
+            stat_file_found=True,
+        )
 
     def _close_progress_dialog(self):
         if self._progress_timer.isActive():
             self._progress_timer.stop()
-
         self._progress_stat_path = None
-
-        if self._progress_dialog is not None:
-            self._progress_dialog.close_by_owner()
-            self._progress_dialog = None
+        self._reset_inline_progress()
 
     def on_solver_started(self):
         """进程已成功启动，启用 Cancel 按钮"""
         self._set_running_state(True, "Solver started.", success=True)
 
-        # 仅在 Run 模式下轮询；Build 模式不显示进度窗
         if self._current_run_mode == "run":
+            self._update_progress_overlay(stat_file_found=False)
             if not self._progress_timer.isActive():
                 self._progress_timer.start()
-            self._poll_simulation_progress()   # 立即触发一次
+            self._poll_simulation_progress()
+        else:
+            self._reset_inline_progress()
 
     def on_solver_finished(self):
         result_dir = os.path.splitext(self.current_mindes_file)[0] if self.current_mindes_file else ""
@@ -1148,6 +1213,7 @@ class BuildSimulationWidget(QWidget):
             # 先清掉旧的进度窗状态，等待 solver 启动后再轮询检测统计文件
             self._close_progress_dialog()
             self._progress_stat_path = None
+            self._update_progress_overlay(stat_file_found=False)
         else:
             self._set_running_state(False, f"Unknown mode: {mode}", error=True)
             return
@@ -1305,21 +1371,18 @@ class BuildSimulationWidget(QWidget):
         """显示 input_report.txt 文件"""
         if not self.current_mindes_file:
             return
-            
         # 构建 input_report.txt 路径
         mindes_base = os.path.splitext(self.current_mindes_file)[0]
         report_path = os.path.join(mindes_base, "input_report.txt")
-        
         if os.path.exists(report_path):
             try:
                 with open(report_path, 'r', encoding='utf-8') as f:
                     content = f.read()
+                self.is_showing_report = True
                 # 切换高亮器
                 self.switch_highlighter(True)
-
                 self.text_edit.setPlainText(content)
-                self.text_edit.setReadOnly(True)
-                self.is_showing_report = True
+                self._apply_editor_mode()
                 self.update_status("Showing input_report.txt (read-only)")
             except Exception as e:
                 self.update_status(f"Failed to read input_report.txt: {str(e)}", error=True)
@@ -1336,16 +1399,14 @@ class BuildSimulationWidget(QWidget):
         """切换回 .mindes 文件显示"""
         if not self.current_mindes_file:
             return
-            
         try:
             with open(self.current_mindes_file, 'r', encoding='utf-8') as f:
                 content = f.read()
+            self.is_showing_report = False
             # 切换高亮器
             self.switch_highlighter(False)
-
             self.text_edit.setPlainText(content)
-            self.text_edit.setReadOnly(False)
-            self.is_showing_report = False
+            self._apply_editor_mode()
             self.update_status(f"Editing: {os.path.basename(self.current_mindes_file)}")
         except Exception as e:
             self.update_status(f"Failed to reload .mindes file: {str(e)}", error=True)

@@ -19,10 +19,12 @@ class VTSViewerWidget(
     VisualizationMixin,
     PlotOverLineMixin
     ):
-    def __init__(self):
+    def __init__(self, parent=None, progress_callback=None):
         vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow()) # 禁用vts的自动弹窗
-        super().__init__()
+        super().__init__(parent)
+        self.progress_callback = progress_callback
         # ✅ 只在这里设置主布局
+        self._report_progress("   Creating VTS main layout...")
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -65,10 +67,12 @@ class VTSViewerWidget(
         self.plot_line_enabled = False
 
         # === Control Panel ===
+        self._report_progress("   Creating VTS control panel...")
         control_panel = self._create_control_panel()
         control_panel.setFixedWidth(self.control_panel_width)
 
         # === VTK + Plot Tabs ===
+        self._report_progress("   Creating VTK view and tabs...")
         self._create_vtk_and_tabs()  # 封装 VTK 和 Tab 创建逻辑
 
         self.tab_widget.setTabEnabled(1, False)  # 🔑 禁用/启用 tab
@@ -83,7 +87,9 @@ class VTSViewerWidget(
         self.auto_update_enabled = False
         self.sequential_timer = None      # 用于顺序播放的 QTimer
         self.is_sequential_playing = False
+
         # 构造后台加载，双缓冲式播放
+        self._report_progress("   Creating VTK render pipeline...")
         self.frame_buffer = queue.Queue(maxsize=2)  # 双缓冲
         self.playback_worker = None
         self.stop_playback_event = threading.Event()
@@ -154,3 +160,7 @@ class VTSViewerWidget(
         # self.renderer.AddActor(self.glyph_actor)
         # 3. 重构 UI 设置
         self.update_colormap_preview()
+
+    def _report_progress(self, detail: str):
+        if self.progress_callback:
+            self.progress_callback(detail)

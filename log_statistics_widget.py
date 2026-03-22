@@ -14,6 +14,29 @@ from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+# === 定义候选文件名（按优先级排序，高 → 低）===
+LOG_CANDIDATES = ["Log.txt", "log.txt"]
+STAT_CANDIDATES = ["Statistics.txt", "data_statistics.txt"]
+
+def get_existing_candidates_by_mtime(base_dir: Path, candidates: list[str]) -> list[Path]:
+    """
+    返回 base_dir 下所有命中的候选文件，按“最后写入时间”从新到旧排序。
+    若写入时间相同，则按 candidates 中的先后顺序决定优先级。
+    """
+    ranked = []
+
+    for priority, name in enumerate(candidates):
+        path = base_dir / name
+        if not (path.exists() and path.is_file()):
+            continue
+        try:
+            ranked.append((path.stat().st_mtime_ns, -priority, path))
+        except OSError:
+            continue
+
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return [item[2] for item in ranked]
+
 class LogStatisticsWidget(QWidget):
     """
     升级版 Log & Statistics Widget
@@ -26,8 +49,9 @@ class LogStatisticsWidget(QWidget):
     # 状态信号：(message, level) 其中 level in {"info", "warning", "error"}
     statusMessage = Signal(str, str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, progress_callback=None):
         super().__init__(parent)
+        self.progress_callback = progress_callback
         self._project_path: Optional[Path] = None  # .mindes 同名结果目录
         self.data_df: Optional[pd.DataFrame] = None
         self.log_content = ""
@@ -36,10 +60,13 @@ class LogStatisticsWidget(QWidget):
         self.is_drawing = False
 
         # 文件监听器
+        self._report_progress("   Creating Log widget watcher...")
         self.watcher = QFileSystemWatcher(self)
         self.watcher.fileChanged.connect(self._on_file_changed)
 
         self.setup_ui()
+
+        self._report_progress("Binding shortcuts...")
         self.setup_shortcuts()
 
         # === 缓存自定义绘图参数 ===
@@ -52,6 +79,10 @@ class LogStatisticsWidget(QWidget):
             "show_grid": True,
             # 可扩展：line_color, line_width 等
         }
+
+    def _report_progress(self, detail: str):
+        if self.progress_callback:
+            self.progress_callback(detail)
 
     def set_project_path(self, project_folder: str):
         """由主窗口调用：设置当前 .mindes 文件路径，自动推导结果目录"""
@@ -93,6 +124,7 @@ class LogStatisticsWidget(QWidget):
         main_layout.setSpacing(5)
 
         # === 使用 QTabWidget 管理三个页面 ===
+        self._report_progress("   Creating Log/Statistic tabs...")
         self.tab_widget = QTabWidget()
         main_layout.addWidget(self.tab_widget)
 
@@ -121,6 +153,7 @@ class LogStatisticsWidget(QWidget):
         self.tab_widget.addTab(stat_container, "Statistic")
 
         # --- Tab 3: Plot ---
+        self._report_progress("   Creating Figure tab controls...")
         plot_page = QWidget()
         plot_layout = QVBoxLayout(plot_page)
         plot_layout.setContentsMargins(10, 5, 10, 5)
@@ -160,6 +193,7 @@ class LogStatisticsWidget(QWidget):
         plot_layout.addWidget(top_line)
 
         # Matplotlib 画布
+        self._report_progress("   Creating plot canvas...")
         self.plot_figure = Figure(figsize=(6, 4), dpi=100)
         self.plot_canvas = FigureCanvas(self.plot_figure)
         plot_layout.addWidget(self.plot_canvas)
@@ -171,6 +205,7 @@ class LogStatisticsWidget(QWidget):
         plot_layout.addWidget(bottom_line)
 
         # === 操作按钮：Draw / Property / Save ===
+        self._report_progress("   Creating plot actions...")
         button_hbox = QHBoxLayout()
         button_hbox.setSpacing(8)
 
@@ -260,54 +295,51 @@ class LogStatisticsWidget(QWidget):
             return
         # 清除旧监听
         self._clear_watcher()
-        # === 定义候选文件名（按优先级排序，高 → 低）===
-        LOG_CANDIDATES = ["Log.txt", "log.txt"]
-        STAT_CANDIDATES = ["Statistics.txt", "data_statistics.txt"]
         # --- 加载 Log 文件 ---
         log_content = "(Log file not found)"
         loaded_log_path = None
-        for name in LOG_CANDIDATES:
-            path = self._project_path / name
-            if path.exists():
-                try:
-                    with open(path, 'r', encoding='utf-8') as f:
-                        log_content = f.read()
-                    loaded_log_path = path
-                    break
-                except Exception as e:
-                    self.statusMessage.emit(f"Failed to read {name}: {e}", "error")
-                    continue
+        log_candidates = get_existing_candidates_by_mtime(self._project_path, LOG_CANDIDATES)
+        for path in log_candidates:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    log_content = f.read()
+                loaded_log_path = path
+                break
+            except Exception as e:
+                self.statusMessage.emit(f"Failed to read {path.name}: {e}", "error")
+                continue
+
         self.log_edit.setPlainText(log_content)
         # 滚动到底部
         self.log_edit.verticalScrollBar().setValue(
             self.log_edit.verticalScrollBar().maximum()
         )
-        if loaded_log_path:
-            self.watcher.addPath(str(loaded_log_path))
+        for path in log_candidates:
+            self.watcher.addPath(str(path))
         # --- 加载 Statistics 文件 ---
         stat_content = "(Statistics file not found)"
         loaded_stat_path = None
         self.data_df = None  # 默认无数据
-        for name in STAT_CANDIDATES:
-            path = self._project_path / name
-            if path.exists():
-                try:
-                    with open(path, 'r', encoding='utf-8') as f:
-                        stat_content = f.read()
-                    loaded_stat_path = path
-                    # 尝试解析为 DataFrame
-                    self.parse_statistics_to_dataframe(path)
-                    break
-                except Exception as e:
-                    self.statusMessage.emit(f"Failed to read or parse {name}: {e}", "error")
-                    continue
+        stat_candidates = get_existing_candidates_by_mtime(self._project_path, STAT_CANDIDATES)
+        for path in stat_candidates:
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    stat_content = f.read()
+                loaded_stat_path = path
+                # 尝试解析为 DataFrame
+                self.parse_statistics_to_dataframe(path)
+                break
+            except Exception as e:
+                self.statusMessage.emit(f"Failed to read or parse {path.name}: {e}", "error")
+                continue
+
         self.stat_edit.setPlainText(stat_content)
         # >>> 滚动到底部 <<<
         self.stat_edit.verticalScrollBar().setValue(
             self.stat_edit.verticalScrollBar().maximum()
         )
-        if loaded_stat_path:
-            self.watcher.addPath(str(loaded_stat_path))
+        for path in stat_candidates:
+            self.watcher.addPath(str(path))
         # --- 更新 UI 控件 ---
         self.update_combo_boxes()
         # === 自动重绘（如果用户之前绘制过）===

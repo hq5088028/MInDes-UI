@@ -6,15 +6,8 @@ from PySide6.QtWidgets import (
     QApplication, QFileDialog, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QTabWidget, QMessageBox, QDialog, QLabel, QPushButton, QSplashScreen
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon
-
-# 导入组件
-from file_browser_widget import FileBrowserWidget
-from build_simulation_widget import BuildSimulationWidget  
-# 按需导入
-# from log_statistics_widget import LogStatisticsWidget
-# from vts_viewer_widget import VTSViewerWidget
 
 def resource_path(relative_path):
     """获取应用图标，兼容开发和 PyInstaller 打包"""
@@ -36,16 +29,37 @@ def get_app_icon():
         return QIcon()
 
 def make_splash():
-    pixmap = QPixmap(420, 220)
+    pixmap = QPixmap(300, 110)
     pixmap.fill(Qt.white)
     splash = QSplashScreen(pixmap)
+    splash._progress_lines = ["Starting MInDes..."]
     splash.setWindowFlag(Qt.WindowStaysOnTopHint)
     splash.showMessage(
-        "Starting MInDes...\nLoading UI shell...",
+        "\n".join(splash._progress_lines + ["Loading UI shell..."]),
         Qt.AlignLeft | Qt.AlignBottom,
         Qt.black,
     )
     return splash
+
+def update_splash_progress(splash, current, total, detail):
+    percent = int(current * 100 / total)
+    line = f"[{current}/{total}] {detail} ({percent}%)"
+
+    if not hasattr(splash, "_progress_lines"):
+        splash._progress_lines = ["Starting MInDes..."]
+
+    if not splash._progress_lines or splash._progress_lines[-1] != line:
+        splash._progress_lines.append(line)
+
+    max_visible_lines = 6
+    visible_lines = splash._progress_lines[-max_visible_lines:]
+
+    splash.showMessage(
+        "\n".join(visible_lines),
+        Qt.AlignLeft | Qt.AlignBottom,
+        Qt.black,
+    )
+    QApplication.processEvents()
 
 class AboutDialog(QDialog):
     def __init__(self, parent=None):
@@ -113,8 +127,9 @@ Copyright © Qi Huang"""
         self.setLayout(layout)
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, startup_progress=None):
         super().__init__()
+        self.startup_progress = startup_progress
         self.setWindowTitle("MInDes - Microstructure Intelligent Design")
         self.resize(1200, 800)
         self.setWindowIcon(get_app_icon())
@@ -133,6 +148,10 @@ class MainWindow(QMainWindow):
         
         self.setup_ui()
 
+    def report_startup_progress(self, current, total, text):
+        if self.startup_progress:
+            self.startup_progress(current, total, text)
+
     def setup_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -149,6 +168,7 @@ class MainWindow(QMainWindow):
 
         self.create_menu_bar()
 
+        from file_browser_widget import FileBrowserWidget
         self.file_browser = FileBrowserWidget()
         self.file_browser.set_current_path(
             str(self.last_dir) if self.last_dir and self.last_dir.is_dir() else self.file_browser.default_path
@@ -169,7 +189,6 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)  # 可选：控件间距
 
         self.tab_widget = QTabWidget()
-        self.tab_widget.currentChanged.connect(self.on_tab_changed)
         right_layout.addWidget(self.tab_widget)  # 将 tab widget 放入布局
 
         splitter.addWidget(right_panel)
@@ -180,7 +199,6 @@ class MainWindow(QMainWindow):
 
     def on_load_vts_folder_requested(self, folder_path: str):
         """切换到 VTS 页面并加载指定文件夹"""
-        self.ensure_vts_tab_loaded()
         self.tab_widget.setCurrentIndex(self.vts_tab_index)
         self.vts_viewer.load_vts(folder_path)
 
@@ -231,7 +249,6 @@ class MainWindow(QMainWindow):
 
     def load_log_statistic_file(self, folder_path: str):
         """切换到 LOG 页面并加载指定文件"""
-        self.ensure_log_tab_loaded()
         self.tab_widget.setCurrentIndex(self.log_tab_index)
         self.log_stat_widget.set_project_path(folder_path)
 
@@ -345,49 +362,22 @@ class MainWindow(QMainWindow):
                 f"Failed to launch solver console:\n{e}"
             )
 
-    def _make_lazy_placeholder(self, text: str) -> QWidget:
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setAlignment(Qt.AlignCenter)
-        label = QLabel(text)
-        label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(label)
-        return widget
-
-    def ensure_log_tab_loaded(self):
-        if self.log_stat_widget is not None:
-            return
-
-        from log_statistics_widget import LogStatisticsWidget
-        self.log_stat_widget = LogStatisticsWidget()
-        self.log_stat_widget.statusMessage.connect(self.route_log_stat_status)
-        self.tab_widget.removeTab(self.log_tab_index)
-        self.tab_widget.insertTab(self.log_tab_index, self.log_stat_widget, "Log && Statistic")
-
-    def ensure_vts_tab_loaded(self):
-        if self.vts_viewer is not None:
-            return
-
-        from vts_viewer_widget import VTSViewerWidget
-        self.vts_viewer = VTSViewerWidget()
-        self.tab_widget.removeTab(self.vts_tab_index)
-        self.tab_widget.insertTab(self.vts_tab_index, self.vts_viewer, "VTS Data Viewer")
-
-    def on_tab_changed(self, index: int):
-        if index == self.log_tab_index:
-            self.ensure_log_tab_loaded()
-            self.tab_widget.setCurrentIndex(self.log_tab_index)
-        elif index == self.vts_tab_index:
-            self.ensure_vts_tab_loaded()
-            self.tab_widget.setCurrentIndex(self.vts_tab_index)
-
     def create_tabs(self):
+        self.report_startup_progress(2, 8, "Loading Build Simulation...")
+        from build_simulation_widget import BuildSimulationWidget
         self.build_widget = BuildSimulationWidget()
         self.tab_widget.addTab(self.build_widget, "Build Simulation")
-        self.log_placeholder = self._make_lazy_placeholder("Log && Statistic will load on first open.")
-        self.log_tab_index = self.tab_widget.addTab(self.log_placeholder, "Log && Statistic")
-        self.vts_placeholder = self._make_lazy_placeholder("VTS Data Viewer will load on first open.")
-        self.vts_tab_index = self.tab_widget.addTab(self.vts_placeholder, "VTS Data Viewer")
+
+        self.report_startup_progress(3, 8, "Loading Log && Statistic...")
+        from log_statistics_widget import LogStatisticsWidget
+        self.log_stat_widget = LogStatisticsWidget(progress_callback=lambda detail: self.report_startup_progress(4, 8, detail))
+        self.log_stat_widget.statusMessage.connect(self.route_log_stat_status)
+        self.log_tab_index = self.tab_widget.addTab(self.log_stat_widget, "Log && Statistic")
+
+        self.report_startup_progress(5, 8, "Loading VTS Data Viewer...")
+        from vts_viewer_widget import VTSViewerWidget
+        self.vts_viewer = VTSViewerWidget(progress_callback=lambda detail: self.report_startup_progress(6, 8, detail))
+        self.vts_tab_index = self.tab_widget.addTab(self.vts_viewer, "VTS Data Viewer")
 
     def route_log_stat_status(self, message: str, level: str):
         """
@@ -453,13 +443,14 @@ if __name__ == "__main__":
     splash.show()
     app.processEvents()
 
-    splash.showMessage("Starting MInDes...\nLoading main window...", Qt.AlignLeft | Qt.AlignBottom, Qt.black)
-    app.processEvents()
-    window = MainWindow()
+    def startup_progress(current, total, text):
+        update_splash_progress(splash, current, total, text)
 
-    splash.showMessage("Starting MInDes...\nPreparing tabs...", Qt.AlignLeft | Qt.AlignBottom, Qt.black)
-    app.processEvents()
+    startup_progress(1, 8, "Loading main window shell...")
+    window = MainWindow(startup_progress=startup_progress)
+
+    startup_progress(8, 8, "Startup complete.")
     window.show()
 
-    splash.finish(window)
+    QTimer.singleShot(500, lambda: splash.finish(window))
     sys.exit(app.exec())
