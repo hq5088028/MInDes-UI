@@ -258,12 +258,10 @@ class MainWindow(QMainWindow):
         dialog.setOption(QFileDialog.DontUseNativeDialog, False)
         dialog.setFileMode(QFileDialog.AnyFile)
         dialog.setNameFilter("MInDes Project (*.mindes);;All Files (*)")
-
         if self.last_dir and self.last_dir.exists():
             dialog.setDirectory(str(self.last_dir))
         elif self.file_browser and self.file_browser.current_path:
             dialog.setDirectory(self.file_browser.current_path)
-
         if dialog.exec():
             selected_files = dialog.selectedFiles()
             if selected_files:
