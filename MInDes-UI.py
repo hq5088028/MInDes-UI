@@ -450,5 +450,13 @@ if __name__ == "__main__":
     startup_progress(8, 8, "Startup complete.")
     window.show()
 
+    # 启动后自动打开命令行传入的 .mindes / 文件夹
+    def open_startup_target():
+        if len(sys.argv) > 1:
+            startup_path = sys.argv[1].strip().strip('"')
+            if startup_path:
+                window.handle_open_path(startup_path)
+
+    QTimer.singleShot(0, open_startup_target)
     QTimer.singleShot(500, lambda: splash.finish(window))
     sys.exit(app.exec())
