@@ -152,7 +152,11 @@ class LineNumberArea(QFrame):
    
 class MindesSyntaxHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
-        super().__init__(parent)
+        if parent is not None:
+            super().__init__(parent)
+        else:
+            print("Error when initializing SyntaxHighlighter")
+            print("QSyntaxHighlighter parent is None")
         
         # ========== 深色彩虹渐变方案 (10种加深颜色) ==========
         # 从深红到深紫的渐变，确保在白色背景下有高对比度
@@ -359,7 +363,11 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
     """专门用于 input_report.txt 文件的高亮器（简化版）"""
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        if parent is not None:
+            super().__init__(parent)
+        else:
+            print("Error when initializing SyntaxHighlighter")
+            print("QSyntaxHighlighter parent is None")
         
         # ========== 颜色定义 ==========
         
@@ -508,7 +516,7 @@ class ProgressOverlayWidget(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setMinimumHeight(24)
-        self.progress_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.progress_bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 border: 1px solid #c8d2dc;
@@ -530,11 +538,11 @@ class ProgressOverlayWidget(QWidget):
 
         self.overlay_label = QLabel("")
         self.overlay_label.setMinimumHeight(24)
-        self.overlay_label.setAlignment(Qt.AlignCenter)
-        self.overlay_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.overlay_label.setCursor(Qt.IBeamCursor)
-        self.overlay_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.overlay_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.overlay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.overlay_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.overlay_label.setCursor(Qt.CursorShape.IBeamCursor)
+        self.overlay_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.overlay_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.overlay_label.setStyleSheet("""
             QLabel {
                 background: transparent;
@@ -618,7 +626,7 @@ class BuildSimulationWidget(QWidget):
                         int(top),
                         self.line_number_area.width() - 4,
                         height,
-                        Qt.AlignRight,
+                        Qt.AlignmentFlag.AlignRight,
                         number
                     )
                 block = block.next()
@@ -631,10 +639,13 @@ class BuildSimulationWidget(QWidget):
             if not self.isReadOnly():
                 selection = QTextEdit.ExtraSelection()
                 line_color = QColor("#ffffcc")  # 淡黄色高亮当前行
-                selection.format.setBackground(line_color)
-                selection.format.setProperty(QTextFormat.FullWidthSelection, True)
-                selection.cursor = self.textCursor()
-                selection.cursor.clearSelection()
+                fmt = QTextCharFormat()
+                fmt.setBackground(line_color)
+                fmt.setProperty(QTextFormat.Property.FullWidthSelection, True)
+                setattr(selection, 'format', fmt)
+                cursor = self.textCursor()
+                cursor.clearSelection()
+                setattr(selection, 'cursor', cursor)
                 extra_selections.append(selection)
             self.setExtraSelections(extra_selections)
     
@@ -664,8 +675,6 @@ class BuildSimulationWidget(QWidget):
         self.build_btn.setEnabled(False)
         self.run_btn.setEnabled(False)
         self.load_solvers()
-        self.switch_to_report_shortcut = QShortcut(QKeySequence("Ctrl+D"), self)
-        self.switch_to_report_shortcut.activated.connect(self._switch_to_input_report_if_needed)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -829,7 +838,7 @@ class BuildSimulationWidget(QWidget):
         self.text_edit.setTabChangesFocus(False)
         # 关键：启用列选择模式
         self.text_edit.setTextInteractionFlags(
-            self.text_edit.textInteractionFlags() | Qt.TextEditable
+            self.text_edit.textInteractionFlags() | Qt.TextInteractionFlag.TextEditable
         )
         # 并设置：
         self.text_edit.setCenterOnScroll(False)
@@ -864,7 +873,7 @@ class BuildSimulationWidget(QWidget):
         self.mindes_highlighter.setDocument(self.text_edit.document())
         self.report_highlighter.setDocument(None)  # 禁用报告高亮器
 
-        self.text_edit.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.text_edit.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.text_edit.customContextMenuRequested.connect(self.show_context_menu)
         layout.addWidget(self.text_edit)
 
@@ -886,12 +895,12 @@ class BuildSimulationWidget(QWidget):
             """)
         self.status_line = QLabel("Ready.")
         self.update_status("Ready.")  # 初始状态设置
-        self.status_line.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.status_line.setCursor(Qt.IBeamCursor)
+        self.status_line.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.status_line.setCursor(Qt.CursorShape.IBeamCursor)
 
         # 右侧进度区域（上：文字，下：进度条）
         self.progress_overlay = ProgressOverlayWidget()
-        self.progress_overlay.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.progress_overlay.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         status_layout.addWidget(self.note_label)
         status_layout.addWidget(self.status_line, 1)      # note 文本控件
@@ -1678,14 +1687,18 @@ class BuildSimulationWidget(QWidget):
         if is_report_file:
             if self.current_highlighter != self.report_highlighter:
                 # 切换到报告高亮器
-                self.mindes_highlighter.setDocument(None)
-                self.report_highlighter.setDocument(self.text_edit.document())
+                if self.mindes_highlighter is not None:
+                    self.mindes_highlighter.setDocument(None)
+                if self.report_highlighter is not None:
+                    self.report_highlighter.setDocument(self.text_edit.document())
                 self.current_highlighter = self.report_highlighter
         else:
             if self.current_highlighter != self.mindes_highlighter:
                 # 切换到 .mindes 高亮器
-                self.report_highlighter.setDocument(None)
-                self.mindes_highlighter.setDocument(self.text_edit.document())
+                if self.report_highlighter is not None:
+                    self.report_highlighter.setDocument(None)
+                if self.mindes_highlighter is not None:
+                    self.mindes_highlighter.setDocument(self.text_edit.document())
                 self.current_highlighter = self.mindes_highlighter
 
     def _build_merged_definitions_data(self, variables, functions):
@@ -1769,7 +1782,7 @@ class BuildSimulationWidget(QWidget):
             return
 
         # 创建非模态浮动窗口
-        popup = QWidget(self, Qt.Window)
+        popup = QWidget(self, Qt.WindowType.Window)
         popup.setWindowTitle("Custom Definitions")
         popup.resize(500, 400)
         layout = QVBoxLayout(popup)
@@ -1778,8 +1791,8 @@ class BuildSimulationWidget(QWidget):
         table = QTableWidget()
         table.setColumnCount(3)
         table.setHorizontalHeaderLabels(["Name", "Value", "Expression"])
-        table.setEditTriggers(QTableWidget.NoEditTriggers)
-        table.setSelectionBehavior(QTableWidget.SelectItems)  # 允许选中单个单元格
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)  # 允许选中单个单元格
         table.setSortingEnabled(True)
 
         all_items = self._build_merged_definitions_data(variables, functions)
@@ -1789,13 +1802,13 @@ class BuildSimulationWidget(QWidget):
 
         # === 列宽调整策略 ===
         header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)   # Name
-        header.setSectionResizeMode(1, QHeaderView.Interactive)        # Expression (可拖)
-        header.setSectionResizeMode(2, QHeaderView.Stretch)           # Value (填充剩余)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)   # Name
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)        # Expression (可拖)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # Value (填充剩余)
 
-        # 存储引用，用于刷新
-        popup.table = table
-        popup.all_items = all_items  # 初始数据（仅用于类型判断，实际刷新会重载）
+        # 存储引用，用于刷新（使用 setattr 以避免类型检查错误）
+        setattr(popup, 'table', table)
+        setattr(popup, 'all_items', all_items)  # 初始数据（仅用于类型判断，实际刷新会重载）
 
         # === 右键菜单 ===
         def show_context_menu(pos):
@@ -1812,7 +1825,7 @@ class BuildSimulationWidget(QWidget):
             elif action == refresh_action:
                 self._refresh_custom_definitions_table(popup)
 
-        table.setContextMenuPolicy(Qt.CustomContextMenu)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         table.customContextMenuRequested.connect(show_context_menu)
 
         layout.addWidget(table)
@@ -1826,7 +1839,10 @@ class BuildSimulationWidget(QWidget):
 
     def _refresh_custom_definitions_table(self, popup_widget):
         """刷新弹窗中的表格内容，并保持与主弹窗一致的合并逻辑"""
-        mindes_base = os.path.splitext(self.current_mindes_file)[0]
+        if self.current_mindes_file is not None:
+            mindes_base = os.path.splitext(self.current_mindes_file)[0]
+        else:
+            print("current_mindes_file lost")
         report_path = os.path.join(mindes_base, "input_report.txt")
 
         if not os.path.exists(report_path):
@@ -1842,7 +1858,11 @@ class BuildSimulationWidget(QWidget):
             all_items.sort(key=lambda x: x["no"])
 
             # 清空并重填表格
-            table = popup_widget.table
+            if hasattr(popup_widget,"table"):
+                table = popup_widget.table
+            else:
+                print("popup widget doesn't has attribute 'table'")
+                return 
             
             self._populate_definition_table(table, all_items)
 
@@ -1923,12 +1943,12 @@ class BuildSimulationWidget(QWidget):
         text_edit.setPlainText('\n'.join(items))
         layout.addWidget(text_edit)
 
-        btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
         layout.addWidget(btn_box)
 
-        if dialog.exec() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             lines = text_edit.toPlainText().splitlines()
             new_tuple = "(" + ", ".join(line.strip() for line in lines if line.strip()) + ")"
             self._replace_selected_text(new_tuple)
