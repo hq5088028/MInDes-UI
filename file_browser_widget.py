@@ -234,11 +234,9 @@ class FileBrowserWidget(QWidget):
         """
         处理重命名结果（仅在右键 Rename 后触发）
         """
-        if not hasattr(item, "_original_name"):
+        if hasattr(item, "_original_name"):
             old_name = getattr(item, "_original_name")
         else:
-            old_name = ""
-            print("old name lost!")
             return
         new_name = item.text().strip()
 
@@ -268,7 +266,7 @@ class FileBrowserWidget(QWidget):
 
         try:
             os.rename(old_path, new_path)
-            setattr(item,"_original_name", new_name)  # 更新原始名
+            setattr(item, "_original_name", new_name)  # 更新原始名
         except Exception as e:
             QMessageBox.critical(self, "Rename failed", f"Cannot rename:\n{e}")
             item.setText(old_name)
