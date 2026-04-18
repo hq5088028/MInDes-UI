@@ -1,7 +1,15 @@
 # file_browser_widget.py
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QFileIconProvider, 
-    QLineEdit, QAbstractItemView, QMessageBox, QMenu, QInputDialog
+    QWidget,
+    QVBoxLayout,
+    QListWidget,
+    QListWidgetItem,
+    QFileIconProvider,
+    QLineEdit,
+    QAbstractItemView,
+    QMessageBox,
+    QMenu,
+    QInputDialog,
 )
 from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher, QSettings
 import os
@@ -9,7 +17,8 @@ import shutil
 import subprocess  # 👈 用于跨平台兼容（可选）
 
 # 允许的文件扩展名（小写）
-ALLOWED_EXTENSIONS = {'.mindes', '.dat', '.txt', '.vts'}
+ALLOWED_EXTENSIONS = {".mindes", ".dat", ".txt", ".vts"}
+
 
 class FileBrowserWidget(QWidget):
     fileDoubleClicked = Signal(str)
@@ -21,8 +30,10 @@ class FileBrowserWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         # 默认路径设为用户 Documents 文件夹，不存在则为用户主目录
-        default_path = os.path.expanduser("~")+os.path.sep+"Documents"
-        open_path = default_path if os.path.isdir(default_path) else os.path.expanduser("~")
+        default_path = os.path.expanduser("~") + os.path.sep + "Documents"
+        open_path = (
+            default_path if os.path.isdir(default_path) else os.path.expanduser("~")
+        )
         self.default_path = open_path
         self.current_path = self.default_path
         # 👇 新增文件系统监听器
@@ -47,7 +58,8 @@ class FileBrowserWidget(QWidget):
         """当目录被外部修改时自动刷新"""
         # 使用 QTimer.singleShot 避免频繁刷新（防抖）
         from PySide6.QtCore import QTimer
-        if not hasattr(self, '_refresh_timer'):
+
+        if not hasattr(self, "_refresh_timer"):
             self._refresh_timer = QTimer()
             self._refresh_timer.setSingleShot(True)
             self._refresh_timer.timeout.connect(self.refresh_view)
@@ -63,7 +75,9 @@ class FileBrowserWidget(QWidget):
         layout.addWidget(self.path_line_edit)
 
         self.list_widget = QListWidget()
-        self.list_widget.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.list_widget.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection
+        )
         self.list_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
         self.list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
@@ -97,7 +111,7 @@ class FileBrowserWidget(QWidget):
         # 获取所有条目（文件夹在前）
         entries = dir_obj.entryInfoList(
             QDir.Filter.AllEntries | QDir.Filter.NoDotAndDotDot,
-            QDir.SortFlag.Name | QDir.SortFlag.DirsFirst
+            QDir.SortFlag.Name | QDir.SortFlag.DirsFirst,
         )
 
         for entry in entries:
@@ -117,20 +131,22 @@ class FileBrowserWidget(QWidget):
             # 默认不可编辑
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             # 但保存原始名称用于重命名校验
-            item._original_name = name
+            setattr(item, "_original_name", name)
 
     def on_path_edited(self):
         new_path = self.path_line_edit.text().strip()
         if not new_path:
             return
         # 自动将 "d:" 转为 "d:\"
-        if len(new_path) == 2 and new_path[1] == ':' and new_path[0].isalpha():
+        if len(new_path) == 2 and new_path[1] == ":" and new_path[0].isalpha():
             new_path += os.sep  # 变成 "d:\"
         if os.path.isdir(new_path):
             normalized = os.path.normpath(new_path)
             self.pathEdited.emit(normalized)
         else:
-            QMessageBox.warning(self, "Invalid path", "Please enter a valid folder path.")
+            QMessageBox.warning(
+                self, "Invalid path", "Please enter a valid folder path."
+            )
             self.path_line_edit.setText(self.current_path)
 
     def on_item_double_clicked(self, item):
@@ -174,7 +190,7 @@ class FileBrowserWidget(QWidget):
             full_path = os.path.join(self.current_path, name)
             load_action = None
             # 如果是 .mindes 文件，额外添加“加载”选项
-            if item_type == "file" and name.lower().endswith('.mindes'):
+            if item_type == "file" and name.lower().endswith(".mindes"):
                 load_action = menu.addAction("Build Simulation")
                 menu.addSeparator()
             load_vts_action = None
@@ -183,16 +199,16 @@ class FileBrowserWidget(QWidget):
                 load_log_statis_action = menu.addAction("Load Log && Statistics Data")
                 load_vts_action = menu.addAction("Load VTS Data")
                 menu.addSeparator()
-            
+
             # 点击了某一项：复制 + 删除 + 重命名
             copy_action = menu.addAction("Copy")
             rename_action = menu.addAction("Rename")
             delete_action = menu.addAction("Delete")
             action = menu.exec(global_pos)
             if action == copy_action:
-                self.copy_selected_items() 
+                self.copy_selected_items()
             elif action == rename_action:
-                self.start_rename_edit(clicked_item) 
+                self.start_rename_edit(clicked_item)
             elif action == delete_action:
                 self.delete_selected_items()
             elif action == load_action:
@@ -214,14 +230,14 @@ class FileBrowserWidget(QWidget):
         """发射信号让主窗口处理 .mindes 文件加载"""
         self.fileDoubleClicked.emit(file_path)  # 直接复用现有信号
 
-    def on_item_renamed(self, item):
+    def on_item_renamed(self, item: QListWidgetItem):
         """
         处理重命名结果（仅在右键 Rename 后触发）
         """
-        if not hasattr(item, '_original_name'):
+        if hasattr(item, "_original_name"):
+            old_name = getattr(item, "_original_name")
+        else:
             return
-
-        old_name = item._original_name
         new_name = item.text().strip()
 
         if new_name == old_name:
@@ -234,7 +250,9 @@ class FileBrowserWidget(QWidget):
 
         invalid_chars = '<>:"/\\|?*'
         if any(c in new_name for c in invalid_chars):
-            QMessageBox.critical(self, "Invalid name", f"Name cannot contain: {invalid_chars}")
+            QMessageBox.critical(
+                self, "Invalid name", f"Name cannot contain: {invalid_chars}"
+            )
             item.setText(old_name)
             return
 
@@ -248,7 +266,7 @@ class FileBrowserWidget(QWidget):
 
         try:
             os.rename(old_path, new_path)
-            item._original_name = new_name  # 更新原始名
+            setattr(item, "_original_name", new_name)  # 更新原始名
         except Exception as e:
             QMessageBox.critical(self, "Rename failed", f"Cannot rename:\n{e}")
             item.setText(old_name)
@@ -270,8 +288,7 @@ class FileBrowserWidget(QWidget):
                     shutil.copy2(src_path, dst_path)  # 保留元数据
             except Exception as e:
                 QMessageBox.critical(
-                    self, "Copy failed",
-                    f"Failed to copy '{old_name}':\n{str(e)}"
+                    self, "Copy failed", f"Failed to copy '{old_name}':\n{str(e)}"
                 )
                 continue
         self.refresh_view()
@@ -318,11 +335,11 @@ class FileBrowserWidget(QWidget):
         """在 Windows 资源管理器中打开当前路径"""
         try:
             # 方法1：使用 os.startfile（仅 Windows）
-            if os.name == 'nt':
+            if os.name == "nt":
                 os.startfile(self.current_path)
             else:
                 # 非 Windows（如 Linux/macOS）可选处理
-                subprocess.Popen(['xdg-open', self.current_path])  # Linux
+                subprocess.Popen(["xdg-open", self.current_path])  # Linux
                 # subprocess.Popen(['open', self.current_path])   # macOS
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Unable to open File Explorer:\n{e}")
@@ -332,7 +349,7 @@ class FileBrowserWidget(QWidget):
         base_name = "New_Simu.mindes"
         full_path = self._get_unique_name(os.path.join(self.current_path, base_name))
         try:
-            with open(full_path, 'w', encoding='utf-8') as f:
+            with open(full_path, "w", encoding="utf-8") as f:
                 f.write("# MInDes input file\n")
             self.refresh_view()
             item = self._find_item_by_name(os.path.basename(full_path))
@@ -368,9 +385,11 @@ class FileBrowserWidget(QWidget):
 
         names = [item.text() for item in items]
         reply = QMessageBox.question(
-            self, "Confirm deletion",
-            f"Are you sure you want to delete the following {len(names)} items?\n" + "\n".join(names),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            self,
+            "Confirm deletion",
+            f"Are you sure you want to delete the following {len(names)} items?\n"
+            + "\n".join(names),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
             for item in items:
@@ -382,5 +401,7 @@ class FileBrowserWidget(QWidget):
                     else:
                         os.remove(full_path)
                 except Exception as e:
-                    QMessageBox.critical(self, "Deletion failed", f"Cannot delete {name}:\n{e}")
+                    QMessageBox.critical(
+                        self, "Deletion failed", f"Cannot delete {name}:\n{e}"
+                    )
             self.refresh_view()

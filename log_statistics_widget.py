@@ -188,8 +188,8 @@ class LogStatisticsWidget(QWidget):
 
         # >>> 横线 <<<
         top_line = QFrame()
-        top_line.setFrameShape(QFrame.HLine)
-        top_line.setFrameShadow(QFrame.Sunken)
+        top_line.setFrameShape(QFrame.Shape.HLine)
+        top_line.setFrameShadow(QFrame.Shadow.Sunken)
         plot_layout.addWidget(top_line)
 
         # Matplotlib 画布
@@ -200,8 +200,8 @@ class LogStatisticsWidget(QWidget):
 
         # >>> 横线 <<<
         bottom_line = QFrame()
-        bottom_line.setFrameShape(QFrame.HLine)
-        bottom_line.setFrameShadow(QFrame.Sunken)
+        bottom_line.setFrameShape(QFrame.Shape.HLine)
+        bottom_line.setFrameShadow(QFrame.Shadow.Sunken)
         plot_layout.addWidget(bottom_line)
 
         # === 操作按钮：Draw / Property / Save ===
@@ -238,7 +238,7 @@ class LogStatisticsWidget(QWidget):
         self.plot_canvas.draw()
 
         # 右键菜单（用于图形调整）
-        self.plot_canvas.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.plot_canvas.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.plot_canvas.customContextMenuRequested.connect(self.show_plot_context_menu)
 
     def export_to_excel(self):
@@ -593,7 +593,11 @@ class LogStatisticsWidget(QWidget):
             return
 
         ax1 = self.plot_figure.axes[0]
-        ax2 = ax1.right_ax if hasattr(ax1, 'right_ax') else None
+        # ax2 = ax1.right_ax if hasattr(ax1, 'right_ax') else None
+        if len(self.plot_figure.axes)>1:
+            ax2 = self.plot_figure.axes[1]
+        else:
+            ax2 = None
 
         # 创建控件并加载缓存值
         title_edit = QLineEdit(self.plot_config["title"])
@@ -609,7 +613,7 @@ class LogStatisticsWidget(QWidget):
         layout.addRow("Title:", title_edit)
         layout.addRow("X Label:", xlabel_edit)
         layout.addRow("Y1 Label:", ylabel1_edit)
-        if ax2:
+        if ax2 and ylabel2_edit:
             layout.addRow("Y2 Label:", ylabel2_edit)
         layout.addRow("Show Box Frame:", box_checkbox)
         layout.addRow("Show Grid:", grid_checkbox)
