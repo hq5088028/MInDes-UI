@@ -1,167 +1,120 @@
+# MInDes.spec
+# Single-entry onedir build for MInDes-UI with embedded tools.
+#
+# Build command:
+#   pyinstaller MInDes.spec --noconfirm
+
 # -*- mode: python ; coding: utf-8 -*-
-"""
-MInDes-UI.spec
 
-放置位置：项目根目录（与 MInDes-UI.py 同级）
-构建命令：pyinstaller --clean --noconfirm MInDes-UI.spec
+block_cipher = None
 
-说明：
-1) 这是针对当前项目的 onedir 封装方案；
-2) solver/ 不打进 PyInstaller 内部，构建后请手动复制到 dist/MInDes-UI/ 同级；
-3) icon/mid.ico 与 icon/logo.png 若存在会自动打包；不存在也不会导致 spec 构建失败；
-4) 该 spec 假定你本地真实项目里 vts_viewer/ 包结构是完整的。
-"""
+# ---------------------------------------------------------------------------
+# Runtime resources
+# ---------------------------------------------------------------------------
+datas = [
+    ('icon', 'icon'),
+]
 
-from pathlib import Path
-from PyInstaller.utils.hooks import (
-    collect_submodules,
-    collect_data_files,
-    collect_dynamic_libs,
-)
-
-
-PROJECT_ROOT = Path(SPECPATH).resolve()
-ENTRY_SCRIPT = PROJECT_ROOT / "MInDes-UI.py"
-APP_NAME = "MInDes-UI"
-ICON_DIR = PROJECT_ROOT / "icon"
-ICON_FILE = ICON_DIR / "mid.ico"
-LOGO_FILE = ICON_DIR / "logo.png"
-
-if not ENTRY_SCRIPT.exists():
-    raise FileNotFoundError(f"Entry script not found: {ENTRY_SCRIPT}")
-
-
-def _safe_collect_submodules(pkg_name: str):
-    try:
-        return collect_submodules(pkg_name)
-    except Exception:
-        return []
-
-
-def _safe_collect_data_files(pkg_name: str):
-    try:
-        return collect_data_files(pkg_name)
-    except Exception:
-        return []
-
-
-def _safe_collect_dynamic_libs(pkg_name: str):
-    try:
-        return collect_dynamic_libs(pkg_name)
-    except Exception:
-        return []
-
-
-# -------------------------
-# Data files
-# -------------------------
-datas = []
-
-# 项目资源：图标 / logo
-if ICON_FILE.exists():
-    datas.append((str(ICON_FILE), "icon"))
-if LOGO_FILE.exists():
-    datas.append((str(LOGO_FILE), "icon"))
-
-# matplotlib 运行时资源（字体、mpl-data 等）
-datas += _safe_collect_data_files("matplotlib")
-
-
-# -------------------------
-# Binary files / dynamic libs
-# -------------------------
-binaries = []
-
-# VTK 动态库；不同环境里可能挂在 vtk 或 vtkmodules 名下，双保险
-binaries += _safe_collect_dynamic_libs("vtk")
-binaries += _safe_collect_dynamic_libs("vtkmodules")
-
-
-# -------------------------
-# Hidden imports
-# -------------------------
+# ---------------------------------------------------------------------------
+# Hidden imports PyInstaller sometimes misses
+# ---------------------------------------------------------------------------
 hiddenimports = [
-    # 明确的动态/间接导入
-    "matplotlib.backends.backend_qtagg",
-    "openpyxl",
-    "vtkmodules.qt.QVTKRenderWindowInteractor",
-
-    # 主模块
-    "build_simulation_widget",
-    "file_browser_widget",
-    "log_statistics_widget",
-    "vts_viewer_widget",
+    'PySide6.QtCore', 'PySide6.QtGui', 'PySide6.QtWidgets',
+    'vtkmodules.all',
+    'vtkmodules.qt.QVTKRenderWindowInteractor',
+    'matplotlib.backends.backend_qtagg',
+    # tools 以包方式被 import, 这里保险起见显式列出
+    'Tools',
+    'Tools.CommonTangentTools',
+    'Tools.CommonTangentTools.common_tangent_o3_gui',
+    'Tools.FittingTools',
+    'Tools.FittingTools.gibbs_fitter_gui',
+    'Tools.FittingTools.fitter_core',
+    # scipy 只用到这三个子模块 + 它们的依赖
+    'scipy.spatial',
+    'scipy.spatial.qhull',
+    'scipy.interpolate',
 ]
 
-# 如果本地项目中存在 vts_viewer/ 包，则补齐其子模块
-VTS_PACKAGE_DIR = PROJECT_ROOT / "vts_viewer"
-if VTS_PACKAGE_DIR.is_dir():
-    hiddenimports += [
-        "vts_viewer",
-        "vts_viewer.data_loader",
-        "vts_viewer.models",
-        "vts_viewer.ui_control_panel",
-        "vts_viewer.ui_plot_over_line",
-        "vts_viewer.ui_vtk_view",
-        "vts_viewer.utils",
-        "vts_viewer.visualization",
-    ]
-
-# 对 VTK / matplotlib 后端做递归补全，减少漏包概率
-hiddenimports += _safe_collect_submodules("vtkmodules")
-hiddenimports += _safe_collect_submodules("matplotlib.backends")
-
-# 去重并排序，方便排查
-hiddenimports = sorted(set(hiddenimports))
-
-
-# -------------------------
-# Excludes
-# -------------------------
+# ---------------------------------------------------------------------------
+# Hard excludes — cut size aggressively.
+# Keep this list conservative: only exclude what we are SURE we don't use.
+# ---------------------------------------------------------------------------
 excludes = [
-    "tkinter",
-    "test",
-    "tests",
-    "unittest",
-    "pytest",
-    "IPython",
-    "jupyter_client",
-    "jupyter_core",
-    "notebook",
+    # Tk 栈 (已不再使用 Tkinter)
+    'tkinter', '_tkinter', 'Tkinter',
+    # PyVista 栈 (已改用原生 VTK)
+    'pyvista', 'pyvistaqt',
+    # matplotlib 的非 Qt 后端
+    'matplotlib.backends.backend_tkagg',
+    'matplotlib.backends.backend_tkcairo',
+    'matplotlib.backends.backend_wx',
+    'matplotlib.backends.backend_wxagg',
+    'matplotlib.backends.backend_gtk3agg',
+    'matplotlib.backends.backend_gtk4agg',
+    'matplotlib.backends.backend_webagg',
+    'matplotlib.backends.backend_nbagg',
+    # Jupyter / IPython (无关)
+    'IPython', 'ipykernel', 'ipython_genutils', 'jupyter',
+    'notebook', 'nbformat', 'nbconvert',
+    'matplotlib.sphinxext',
+    # scipy 不用到的重模块
+    'scipy.stats',
+    'scipy.optimize',
+    'scipy.integrate',
+    'scipy.signal',
+    'scipy.sparse.csgraph',
+    'scipy.sparse.linalg',
+    'scipy.ndimage',
+    'scipy.io',
+    'scipy.fft',
+    'scipy.fftpack',
+    'scipy.odr',
+    'scipy.cluster',
+    'scipy.datasets',
+    'scipy.misc',
+    'scipy.special._ufuncs_cxx',  # 不是全部排掉, 只去掉确认没用的
+    # 其他常见体积大但 MInDes-UI 不用的东西
+    'sympy', 'numba', 'llvmlite',
+    'sphinx', 'docutils',
+    'pytest', 'nose', 'unittest2',
 ]
 
-
-# -------------------------
+# ---------------------------------------------------------------------------
 # Analysis
-# -------------------------
+# ---------------------------------------------------------------------------
 a = Analysis(
-    [str(ENTRY_SCRIPT)],
-    pathex=[str(PROJECT_ROOT)],
-    binaries=binaries,
+    ['MInDes-UI.py'],
+    pathex=['.'],
+    binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
-    hooksconfig={},
     runtime_hooks=[],
     excludes=excludes,
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
     noarchive=False,
 )
 
-pyz = PYZ(a.pure)
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
-    pyz,
-    a.scripts,
-    [],
+    pyz, a.scripts, [],
     exclude_binaries=True,
-    name=APP_NAME,
+    name='MInDes-UI',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=False,
+    icon='icon/mid.ico',
     disable_windowed_traceback=False,
-    icon=str(ICON_FILE) if ICON_FILE.exists() else None,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
 )
 
 coll = COLLECT(
@@ -172,5 +125,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name=APP_NAME,
+    name='MInDes-UI',
 )

@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QSplashScreen,
 )
 from PySide6.QtCore import Qt, QSettings, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon
+from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon, QGuiApplication
 
 
 def resource_path(relative_path):
@@ -102,7 +102,7 @@ class AboutDialog(QDialog):
         title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
 
         # --- 版本和版权信息（多行居中）---
-        info_text = """Version: 0.5
+        info_text = """Version: 1.0
 Copyright © Qi Huang"""
         info_label = QLabel(info_text)
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -149,7 +149,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.startup_progress = startup_progress
         self.setWindowTitle("MInDes - Microstructure Intelligent Design")
-        self.resize(1200, 800)
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        w = int(screen.width() * 0.8)
+        h = int(screen.height() * 0.8)
+        # 给一个合理上下限
+        w = max(1100, min(w, 1800))
+        h = max(760, min(h, 1200))
+        self.resize(w, h)
         self.setWindowIcon(get_app_icon())
         self.current_project_path = None
         self.build_widget = None
@@ -336,6 +342,18 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # --- Tools menu (inserted between File and About) ---
+        tools_menu = menubar.addMenu("Tools")
+        common_tangent_menu = tools_menu.addMenu("CommonTangent")
+        phase2_comp3_action = QAction("Phase2Comp3", self)
+        phase2_comp3_action.triggered.connect(self.open_common_tangent_phase2_comp3)
+        common_tangent_menu.addAction(phase2_comp3_action)
+
+        fitting_menu = tools_menu.addMenu("Fitting")
+        comp3_action = QAction("Comp3", self)
+        comp3_action.triggered.connect(self.open_fitting_comp3)
+        fitting_menu.addAction(comp3_action)
+
         help_menu = menubar.addMenu("About")
         about_action = QAction("About MInDes", self)
         about_action.triggered.connect(self.show_about)
@@ -350,6 +368,65 @@ class MainWindow(QMainWindow):
         """当用户选择 "About MInDes" 菜单项时调用"""
         about_dialog = AboutDialog(self)  # 实例化 AboutDialog
         about_dialog.exec()  # 显示关于对话框
+
+    def open_common_tangent_phase2_comp3(self):
+        """打开 CommonTangent Phase2Comp3 子对话框 (非模态, 不阻塞主界面)."""
+        try:
+            from Tools.CommonTangentTools.common_tangent_o3_gui import (
+                CommonTangentDialog, Ga_default, Gb_default,
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Import Error",
+                f"Failed to import CommonTangent tool:\n{e}",
+            )
+            return
+        try:
+            dlg = CommonTangentDialog(
+                Ga_default, Gb_default, parent=self, n_init=60)
+            dlg.setWindowIcon(get_app_icon())
+            dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            dlg.show()                  # 非模态
+            if not hasattr(self, "_tool_windows"):
+                self._tool_windows = []
+            self._tool_windows.append(dlg)
+            dlg.destroyed.connect(
+                lambda _=None, v=dlg: self._tool_windows.remove(v)
+                if v in self._tool_windows else None
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Launch Error",
+                f"Failed to open CommonTangent Phase2Comp3:\n{e}",
+            )
+
+    def open_fitting_comp3(self):
+        """打开 Fitting Comp3 子对话框 (非模态, 不阻塞主界面)."""
+        try:
+            from Tools.FittingTools.gibbs_fitter_gui import FitterDialog
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Import Error",
+                f"Failed to import Fitting tool:\n{e}",
+            )
+            return
+        try:
+            dlg = FitterDialog(parent=self)
+            dlg.setWindowIcon(get_app_icon())
+            dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            dlg.show()
+            if not hasattr(self, "_tool_windows"):
+                self._tool_windows = []
+            self._tool_windows.append(dlg)
+            dlg.destroyed.connect(
+                lambda _=None, v=dlg: self._tool_windows.remove(v)
+                if v in self._tool_windows else None
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Launch Error",
+                f"Failed to open Fitting Comp3:\n{e}",
+            )
 
     def refresh_license_menu(self):
         self.license_menu.clear()
