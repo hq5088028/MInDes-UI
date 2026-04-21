@@ -43,7 +43,8 @@ def get_app_icon():
 
 
 def make_splash():
-    pixmap = QPixmap("icon/splash.png")
+    splash_path = resource_path(os.path.join("icon", "splash.png"))
+    pixmap = QPixmap(splash_path)
     splash = QSplashScreen(pixmap)
     _progress_lines = ["Starting MInDes..."]
     splash.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
