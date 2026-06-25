@@ -165,6 +165,7 @@ class VTSDataLoaderMixin:
             if self.current_vis_mode == "Clip":
                 self.on_clip_axis_changed(self.clip_axis_combo.currentText())
             self.playback_group.setVisible(True)
+            self.refresh_plot_over_line_for_current_data()
 
             return True
 
@@ -287,6 +288,7 @@ class VTSDataLoaderMixin:
         self._disable_all_interactive_controls(False)
         self.play_button.setEnabled(True)
         self.stop_button.setEnabled(False)
+        self.refresh_plot_over_line_for_current_data()
 
     def _play_next_frame(self):
         if not self.is_sequential_playing:
@@ -304,6 +306,7 @@ class VTSDataLoaderMixin:
             self.playback_status_label.setText(f"✅ Playing: {os.path.basename(self.vts_file_list[index])}")
             # 3. 触发渲染（在 GUI 线程）
             self.update_visualization()
+            self.refresh_plot_over_line_for_current_data()
             if self.current_file_index == len(self.vts_file_list) - 1:
                 self.stop_sequential_playback()
                 return

@@ -1,4 +1,4 @@
-"""Serializable state and CSV loading helpers for CSV Plotter."""
+﻿"""Serializable state and VTS loading helpers for VTS Plotter."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -6,45 +6,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-import numpy as np
-import pandas as pd
-
 
 STATE_VERSION = 1
-
-
-@dataclass
-class CsvDatasetConfig:
-    dataset_id: str = field(default_factory=lambda: uuid4().hex)
-    path: str = ""
-    label: str = ""
-    enabled: bool = True
-    x2d: str = ""
-    y2d: str = ""
-    x3d: str = ""
-    y3d: str = ""
-    z3d: str = ""
-    mode3d: str = "Surface"
-    color_mode: str = "Fixed Color"
-    color: str = "#1f77b4"
-    colormap: str = "Viridis"
-    auto_color_range: bool = True
-    color_min: float = 0.0
-    color_max: float = 1.0
-    opacity: float = 0.85
-    point_size: float = 5.0
-    mesh_color: str = "#202020"
-    mesh_width: float = 1.0
-
-    @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "CsvDatasetConfig":
-        cfg = cls()
-        for key, value in raw.items():
-            if hasattr(cfg, key):
-                setattr(cfg, key, value)
-        if not cfg.dataset_id:
-            cfg.dataset_id = uuid4().hex
-        return cfg
 
 
 @dataclass
@@ -116,12 +79,14 @@ class VtkPlotConfig:
             if force or axis.title in ("X", "Y", "Z"):
                 axis.title = title
             if force or (axis.title_style.color == "#000000" and axis.label_style.color == "#000000"):
-                axis.title_style.color = self.text_color; axis.label_style.color = self.text_color
+                axis.title_style.color = self.text_color
+                axis.label_style.color = self.text_color
             if force or (axis.title_style.size == 16 and axis.label_style.size == 12):
-                axis.title_style.size = self.title_font_size; axis.label_style.size = self.label_font_size
+                axis.title_style.size = self.title_font_size
+                axis.label_style.size = self.label_font_size
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any] | None) -> "VtkPlotConfig":
+    def from_dict(cls, raw: dict[str, Any] | None) -> VtkPlotConfig:
         cfg = cls()
         if isinstance(raw, dict):
             _merge_config_dataclass(cfg, raw)
@@ -130,70 +95,106 @@ class VtkPlotConfig:
         return cfg
 
 
-def _merge_config_dataclass(target, raw):
-    for key, value in raw.items():
-        if not hasattr(target, key): continue
-        current = getattr(target, key)
-        if is_dataclass(current) and isinstance(value, dict): _merge_config_dataclass(current, value)
-        else: setattr(target, key, value)
+@dataclass
+class VtsDatasetConfig:
+    dataset_id: str = field(default_factory=lambda: uuid4().hex)
+    path: str = ""
+    label: str = ""
+    enabled: bool = True
+    field_name: str = ""
+    colormap: str = "Cool-Warm"
+    mode3d: str = "Surface"
+    color_mode: str = "Colormap"
+    color: str = "#1f77b4"
+    auto_color_range: bool = True
+    color_min: float = 0.0
+    color_max: float = 1.0
+    opacity: float = 1.0
+    point_size: float = 3.0
+    mesh_color: str = "#202020"
+    mesh_width: float = 1.0
+    clip_axis: str = "Z"
+    clip_position: float = 0.0
+    slice_axis: str = "Z"
+    slice_position: float = 0.0
+    contour_levels: str = ""
+    glyph_color_mode: str = "Single Color"
+    glyph_size_mode: str = "Magnitude"
+    glyph_scale_factor: float = 1.0
+    filter_enabled: bool = False
+    filter_field: str = ""
+    filter_min: float = 0.0
+    filter_max: float = 1.0
+    subregion_enabled: bool = False
+    subregion_imin: int = 0
+    subregion_imax: int = -1
+    subregion_jmin: int = 0
+    subregion_jmax: int = -1
+    subregion_kmin: int = 0
+    subregion_kmax: int = -1
+    with_boundary: bool = True
+    volume_sample_distance: float = 1.0
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> VtsDatasetConfig:
+        cfg = cls()
+        for key, value in raw.items():
+            if hasattr(cfg, key):
+                setattr(cfg, key, value)
+        if not cfg.dataset_id:
+            cfg.dataset_id = uuid4().hex
+        return cfg
 
 
 @dataclass
-class CsvPlotterState:
+class VtsPlotterState:
     version: int = STATE_VERSION
-    datasets: list[CsvDatasetConfig] = field(default_factory=list)
-    figure: dict[str, Any] = field(default_factory=dict)
+    datasets: list[VtsDatasetConfig] = field(default_factory=list)
     vtk: VtkPlotConfig = field(default_factory=VtkPlotConfig)
     active_dataset_id: str = ""
-    render_order_2d: list[str] = field(default_factory=list)
-    render_order_3d: list[str] = field(default_factory=list)
+    render_order: list[str] = field(default_factory=list)
     splitter_sizes: list[int] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "version": self.version,
             "datasets": [asdict(item) for item in self.datasets],
-            "figure": self.figure,
             "vtk": asdict(self.vtk),
             "active_dataset_id": self.active_dataset_id,
-            "render_order_2d": list(self.render_order_2d),
-            "render_order_3d": list(self.render_order_3d),
+            "render_order": list(self.render_order),
             "splitter_sizes": list(self.splitter_sizes),
         }
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any] | None) -> "CsvPlotterState":
+    def from_dict(cls, raw: dict[str, Any] | None) -> VtsPlotterState:
         if not isinstance(raw, dict) or raw.get("version", STATE_VERSION) != STATE_VERSION:
             return cls()
-        datasets = [CsvDatasetConfig.from_dict(item) for item in raw.get("datasets", []) if isinstance(item, dict)]
+        datasets = [VtsDatasetConfig.from_dict(item) for item in raw.get("datasets", []) if isinstance(item, dict)]
         dataset_ids = [item.dataset_id for item in datasets]
+
         def normalized_order(key):
             order = [value for value in raw.get(key, []) if value in dataset_ids]
             return order + [value for value in dataset_ids if value not in order]
+
         return cls(
             datasets=datasets,
-            figure=raw.get("figure", {}) if isinstance(raw.get("figure", {}), dict) else {},
             vtk=VtkPlotConfig.from_dict(raw.get("vtk")),
             active_dataset_id=str(raw.get("active_dataset_id", "")),
-            render_order_2d=normalized_order("render_order_2d"),
-            render_order_3d=normalized_order("render_order_3d"),
+            render_order=normalized_order("render_order"),
             splitter_sizes=[int(value) for value in raw.get("splitter_sizes", []) if isinstance(value, (int, float))],
         )
 
 
-def load_csv(path: str) -> pd.DataFrame:
-    """Read a comma-separated file without altering its columns or row order."""
-    return pd.read_csv(path, encoding="utf-8-sig")
+def _merge_config_dataclass(target, raw):
+    for key, value in raw.items():
+        if not hasattr(target, key):
+            continue
+        current = getattr(target, key)
+        if is_dataclass(current) and isinstance(value, dict):
+            _merge_config_dataclass(current, value)
+        else:
+            setattr(target, key, value)
 
 
-def numeric_series(frame: pd.DataFrame, column: str) -> np.ndarray:
-    """Convert a selected column to float; non-numeric and Inf become NaN."""
-    if not column or column not in frame.columns:
-        return np.full(len(frame), np.nan, dtype=float)
-    values = pd.to_numeric(frame[column], errors="coerce").to_numpy(dtype=float)
-    values[~np.isfinite(values)] = np.nan
-    return values
-
-
-def dataset_display_name(config: CsvDatasetConfig) -> str:
-    return config.label or Path(config.path).stem or "CSV"
+def dataset_display_name(config: VtsDatasetConfig) -> str:
+    return config.label or Path(config.path).stem or "VTS"

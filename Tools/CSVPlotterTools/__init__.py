@@ -1,8 +1,8 @@
 """Multi-file CSV plotting tool."""
 
-from .models import CsvDatasetConfig, CsvPlotterState, VtkPlotConfig
+from .models import CsvDatasetConfig, CsvPlotterState, VtkAxisConfig, VtkPlotConfig, VtkTextStyle
 
-__all__ = ["CSVPlotterDialog", "CsvDatasetConfig", "CsvPlotterState", "VtkPlotConfig"]
+__all__ = ["CSVPlotterDialog", "CsvDatasetConfig", "CsvPlotterState", "VtkAxisConfig", "VtkPlotConfig", "VtkTextStyle"]
 
 
 def __getattr__(name):

@@ -29,6 +29,7 @@ class PlotOverLineMixin:
             self.start_plot_over_line()
             self.line_endpoint_group.setVisible(True)
             self.line_style_group.setVisible(True)  # 🔑 显示样式组
+            self.y_axis_range_group.setVisible(True)
             for w in [self.p1x, self.p1y, self.p1z, self.p2x, self.p2y, self.p2z]:
                 w.setEnabled(True)
             self.line_endpoint_group.findChild(QPushButton).setEnabled(True)
@@ -39,6 +40,7 @@ class PlotOverLineMixin:
             self.end_plot_over_line()
             self.line_endpoint_group.setVisible(False)
             self.line_style_group.setVisible(False)  # 🔑 隐藏
+            self.y_axis_range_group.setVisible(False)
             self.tab_widget.setCurrentIndex(0)
     
     def start_plot_over_line(self):
@@ -143,6 +145,17 @@ class PlotOverLineMixin:
         self.active_line_data = pd.DataFrame(data_dict)
         self.update_plot_and_table()
 
+    def refresh_plot_over_line_for_current_data(self):
+        """Re-sample the active line after the displayed VTS dataset changes."""
+        if (
+            not self.current_data
+            or not self.plot_line_checkbox.isChecked()
+            or self.active_line_data is None
+            or not self.line_widget
+        ):
+            return
+        self.on_line_changed(None, None)
+
     def _update_line_input_fields(self, p1, p2):
         self.plot_line_p1 = list(p1)
         self.plot_line_p2 = list(p2)
@@ -196,14 +209,30 @@ class PlotOverLineMixin:
 
         # === Y 轴刻度 ===
         numeric_data = self.active_line_data.select_dtypes(include=[np.number])
-        y_cols = [col for col in numeric_data.columns if col != 'arc_length' and col != 'vtkValidPointMask']
+        y_cols = [
+            col for col in numeric_data.columns
+            if col != 'arc_length'
+            and col != 'vtkValidPointMask'
+            and self._line_styles.get(col, {}).get('visible', True)
+        ]
         if y_cols:
             y_vals = numeric_data[y_cols]
-            y_min, y_max = y_vals.min().min(), y_vals.max().max()
-            y_range = y_max - y_min
-            margin = y_range * 0.05 if y_range > 0 else abs(y_min) * 0.1 or 0.1
-            y_ticks = np.linspace(y_min - margin, y_max + margin, num=8)
-            ax.set_yticks(y_ticks)
+            finite_values = y_vals.to_numpy(dtype=float)
+            finite_values = finite_values[np.isfinite(finite_values)]
+            if finite_values.size:
+                y_min, y_max = finite_values.min(), finite_values.max()
+                if self.auto_y_range_checkbox.isChecked():
+                    y_range = y_max - y_min
+                    margin = y_range * 0.05 if y_range > 0 else abs(y_min) * 0.1 or 0.1
+                    lower, upper = y_min - margin, y_max + margin
+                    self._set_y_range_inputs(lower, upper)
+                else:
+                    lower, upper = self._last_valid_y_range
+                y_ticks = np.linspace(lower, upper, num=8)
+                ax.set_yticks(y_ticks)
+                ax.set_ylim(lower, upper)
+            else:
+                ax.set_yticks([])
         else:
             ax.set_yticks([])
 
@@ -212,6 +241,36 @@ class PlotOverLineMixin:
         ax.grid(True)
         ax.legend(fontsize=8)
         self.plot_canvas.draw()
+
+    def _set_y_range_inputs(self, lower, upper):
+        self._last_valid_y_range = (float(lower), float(upper))
+        self.y_min_spin.blockSignals(True)
+        self.y_max_spin.blockSignals(True)
+        self.y_min_spin.setValue(lower)
+        self.y_max_spin.setValue(upper)
+        self.y_min_spin.blockSignals(False)
+        self.y_max_spin.blockSignals(False)
+
+    def toggle_y_axis_range(self, automatic):
+        self.y_min_spin.setEnabled(not automatic)
+        self.y_max_spin.setEnabled(not automatic)
+        if not automatic:
+            lower = self.y_min_spin.value()
+            upper = self.y_max_spin.value()
+            if lower < upper:
+                self._last_valid_y_range = (lower, upper)
+        self.update_plot_and_table()
+
+    def apply_manual_y_axis_range(self):
+        if self.auto_y_range_checkbox.isChecked():
+            return
+        lower = self.y_min_spin.value()
+        upper = self.y_max_spin.value()
+        if lower >= upper:
+            self._set_y_range_inputs(*self._last_valid_y_range)
+            return
+        self._last_valid_y_range = (lower, upper)
+        self.update_plot_and_table()
 
     def _rebuild_line_style_controls(self):
         # 清空旧控件
@@ -281,19 +340,28 @@ class PlotOverLineMixin:
         if self.active_line_data is None:
             return
 
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save Line Data", "", "Excel Files (*.xlsx);;All Files (*)"
+        path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save Line Data",
+            "",
+            "CSV Files (*.csv);;Excel Files (*.xlsx);;All Files (*)",
         )
         if not path:
             return
-        if not path.endswith(".xlsx"):
-            path += ".xlsx"
+
+        extension = os.path.splitext(path)[1].lower()
+        if extension not in (".csv", ".xlsx"):
+            extension = ".xlsx" if selected_filter.startswith("Excel Files") else ".csv"
+            path += extension
 
         df = self.active_line_data.copy()
         for col in df.select_dtypes(include=['object']).columns:
             df[col] = df[col].apply(clean_excel_string)
         df = df.fillna('')
 
-        df.to_excel(path, index=False)
+        if extension == ".xlsx":
+            df.to_excel(path, index=False)
+        else:
+            df.to_csv(path, index=False, encoding="utf-8-sig")
         self.playback_status_label.setText(f"✅ Exported to {os.path.basename(path)}")
 

@@ -11,7 +11,7 @@
 
 CSV 文件格式: 三列 x1, x2, G (表头可有可无), 要求 x1>=0, x2>=0, x1+x2<=1.
 
-依赖: PySide6, vtk, numpy, pandas, scipy, matplotlib (均已在 MInDes-UI 中).
+依赖: PySide6, vtk, numpy, pandas, matplotlib.
 """
 from __future__ import annotations
 
@@ -19,13 +19,29 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from scipy.spatial import ConvexHull
-from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
+try:
+    from .common_tangent_core import (
+        CompositionSection, LinearTriangleInterpolator, PhaseTable,
+        compute_common_tangent as _core_compute_common_tangent,
+        lower_hull_simplices as _core_lower_hull_simplices,
+        phase_fraction as _core_phase_fraction,
+        triangle_grid as _core_triangle_grid,
+    )
+except ImportError:  # Support direct execution from this directory.
+    from common_tangent_core import (
+        CompositionSection, LinearTriangleInterpolator, PhaseTable,
+        compute_common_tangent as _core_compute_common_tangent,
+        lower_hull_simplices as _core_lower_hull_simplices,
+        phase_fraction as _core_phase_fraction,
+        triangle_grid as _core_triangle_grid,
+    )
 
 from PySide6.QtWidgets import (
     QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QDoubleSpinBox, QSpinBox, QPushButton, QSplitter,
-    QFileDialog, QMessageBox, QGroupBox,
+    QFileDialog, QMessageBox, QGroupBox, QComboBox, QTableWidget,
+    QTableWidgetItem, QDialogButtonBox, QListWidget, QListWidgetItem,
+    QFormLayout,
 )
 from PySide6.QtCore import Qt, QTimer
 
@@ -61,24 +77,79 @@ class PhaseGFunction:
         G = np.asarray(G, float)
         if not (len(x1) == len(x2) == len(G)):
             raise ValueError("x1, x2, G must have same length")
-        pts = np.column_stack([x1, x2])
-        lin = LinearNDInterpolator(pts, G)
-        nn = NearestNDInterpolator(pts, G)
+        interpolator = LinearTriangleInterpolator(x1, x2, G)
 
         def _f(a, b):
             a = np.atleast_1d(a).astype(float)
             b = np.atleast_1d(b).astype(float)
-            val = lin(a, b)
-            mask = np.isnan(val)
-            if mask.any():
-                val[mask] = nn(a[mask], b[mask])
-            return val
+            return interpolator(a, b)
 
-        meta = {"source": "table", "n_points": int(len(x1)),
-                "x1_range": (float(x1.min()), float(x1.max())),
-                "x2_range": (float(x2.min()), float(x2.max())),
-                "G_range":  (float(G.min()),  float(G.max()))}
+        finite = np.isfinite(x1) & np.isfinite(x2) & np.isfinite(G)
+        meta = {"source": "table", "n_points": int(finite.sum()),
+                "x1_range": (float(x1[finite].min()), float(x1[finite].max())),
+                "x2_range": (float(x2[finite].min()), float(x2[finite].max())),
+                "G_range":  (float(G[finite].min()),  float(G[finite].max()))}
         return cls(_f, label=label, meta=meta)
+
+
+class ColumnMappingDialog(QDialog):
+    def __init__(self, frame, parent=None):
+        super().__init__(parent); self.setWindowTitle("Map composition and Gibbs columns"); self.resize(430, 480)
+        layout = QVBoxLayout(self); form = QFormLayout(); layout.addLayout(form)
+        self.g_combo = QComboBox(); self.g_combo.addItems([str(value) for value in frame.columns]); form.addRow("Gibbs energy:", self.g_combo)
+        names = [str(value).strip().lower() for value in frame.columns]
+        suggested = next((index for index, value in enumerate(names) if value in ("g", "gibbs", "gibbs_energy") or value.startswith("fchem")), len(names) - 1)
+        self.g_combo.setCurrentIndex(max(0, suggested)); layout.addWidget(QLabel("Composition columns (select at least three):"))
+        self.columns = QListWidget(); layout.addWidget(self.columns, 1)
+        for column in frame.columns:
+            item = QListWidgetItem(str(column)); item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            numeric = pd.to_numeric(frame[column], errors="coerce").notna().sum() >= max(3, len(frame) // 2)
+            item.setCheckState(Qt.CheckState.Checked if numeric and str(column) != self.g_combo.currentText() else Qt.CheckState.Unchecked); self.columns.addItem(item)
+        self.g_combo.currentTextChanged.connect(self._g_changed)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel); layout.addWidget(buttons)
+        buttons.accepted.connect(self._accept); buttons.rejected.connect(self.reject)
+
+    def _g_changed(self, name):
+        for index in range(self.columns.count()):
+            if self.columns.item(index).text() == name: self.columns.item(index).setCheckState(Qt.CheckState.Unchecked)
+
+    def selected_components(self):
+        return [self.columns.item(index).text() for index in range(self.columns.count()) if self.columns.item(index).checkState() == Qt.CheckState.Checked]
+
+    def _accept(self):
+        selected = self.selected_components()
+        if self.g_combo.currentText() in selected:
+            QMessageBox.warning(self, "Column mapping", "The Gibbs-energy column cannot also be a composition column.")
+            return
+        if len(selected) < 3: QMessageBox.warning(self, "Column mapping", "Select at least three composition columns."); return
+        self.accept()
+
+
+def _read_csv_frame(path):
+    frame = pd.read_csv(path)
+    try: numeric_headers = all(np.isfinite(float(value)) for value in frame.columns)
+    except (TypeError, ValueError): numeric_headers = False
+    if numeric_headers:
+        frame = pd.read_csv(path, header=None)
+        if frame.shape[1] == 3: frame.columns = ["x1", "x2", "G"]
+        else: frame.columns = [f"column_{index + 1}" for index in range(frame.shape[1])]
+    return frame
+
+
+def load_csv_phase_table(path, parent=None, label=""):
+    try: frame = _read_csv_frame(path)
+    except Exception as exc: raise ValueError(f"Failed to read CSV: {exc}") from exc
+    if frame.shape[1] < 3: raise ValueError("CSV must contain composition columns and a Gibbs-energy column.")
+    if list(map(str, frame.columns)) == ["x1", "x2", "G"]:
+        x1 = pd.to_numeric(frame["x1"], errors="coerce").to_numpy(float); x2 = pd.to_numeric(frame["x2"], errors="coerce").to_numpy(float)
+        compositions = np.column_stack([x1, x2, 1.0 - x1 - x2]); gibbs = pd.to_numeric(frame["G"], errors="coerce").to_numpy(float)
+        return PhaseTable(("x1", "x2", "x3"), compositions, gibbs, label)
+    dialog = ColumnMappingDialog(frame, parent)
+    if dialog.exec() != QDialog.DialogCode.Accepted: return None
+    components = dialog.selected_components(); g_column = dialog.g_combo.currentText()
+    compositions = np.column_stack([pd.to_numeric(frame[value], errors="coerce").to_numpy(float) for value in components])
+    gibbs = pd.to_numeric(frame[g_column], errors="coerce").to_numpy(float)
+    return PhaseTable(tuple(components), compositions, gibbs, label)
 
 
 def load_csv_phase(path, label=""):
@@ -114,82 +185,19 @@ def load_csv_phase(path, label=""):
 # 核心算法 (原样保留)
 # =============================================================
 def triangle_grid(n):
-    pts = []
-    for i in range(n + 1):
-        for j in range(n + 1 - i):
-            pts.append((i / n, j / n))
-    return np.array(pts)
+    return _core_triangle_grid(n)
 
 
 def lower_hull_simplices(points3d):
-    hull = ConvexHull(points3d)
-    simplices = []
-    for simplex, eq in zip(hull.simplices, hull.equations):
-        if eq[2] < -1e-12:
-            simplices.append(simplex)
-    return np.array(simplices)
+    return _core_lower_hull_simplices(points3d)
 
 
 def compute_common_tangent(Ga_func, Gb_func, n=60):
-    grid = triangle_grid(n)
-    Ga = np.asarray(Ga_func(grid[:, 0], grid[:, 1]), float)
-    Gb = np.asarray(Gb_func(grid[:, 0], grid[:, 1]), float)
-    big = np.nanmax([np.nanmax(Ga), np.nanmax(Gb)]) + 1e3
-    Ga = np.where(np.isnan(Ga), big, Ga)
-    Gb = np.where(np.isnan(Gb), big, Gb)
-
-    pts_a = np.column_stack([grid, Ga])
-    pts_b = np.column_stack([grid, Gb])
-    all_points = np.vstack([pts_a, pts_b])
-    M = len(grid)
-    label = np.concatenate([np.zeros(M, int), np.ones(M, int)])
-
-    simplices = lower_hull_simplices(all_points)
-
-    tie_segments_xy = []
-    tie_segments_3d = []
-    mixed_faces_3d = []
-    for s in simplices:
-        ls = label[s]
-        if ls.min() == 0 and ls.max() == 1:
-            mixed_faces_3d.append(all_points[s])
-            for i in range(3):
-                for j in range(i + 1, 3):
-                    if label[s[i]] != label[s[j]]:
-                        a_idx = s[i] if label[s[i]] == 0 else s[j]
-                        b_idx = s[j] if label[s[j]] == 1 else s[i]
-                        tie_segments_xy.append(
-                            (all_points[a_idx, :2], all_points[b_idx, :2])
-                        )
-                        tie_segments_3d.append(
-                            (all_points[a_idx], all_points[b_idx])
-                        )
-    return dict(
-        grid=grid, all_points=all_points, phase_label=label,
-        simplices=simplices,
-        tie_segments_xy=tie_segments_xy,
-        tie_segments_3d=tie_segments_3d,
-        mixed_faces_3d=mixed_faces_3d,
-    )
+    return _core_compute_common_tangent(Ga_func, Gb_func, n)
 
 
 def phase_fraction(x_total, tie_segments_xy):
-    x_total = np.array(x_total, float)
-    best = None
-    best_d = np.inf
-    for pa, pb in tie_segments_xy:
-        pa = np.asarray(pa, float)
-        pb = np.asarray(pb, float)
-        v = pb - pa
-        L2 = v @ v
-        if L2 < 1e-14:
-            continue
-        t = np.clip((x_total - pa) @ v / L2, 0.0, 1.0)
-        d = np.linalg.norm(x_total - (pa + t * v))
-        if d < best_d:
-            best_d = d
-            best = (pa, pb, 1.0 - t, t, d)
-    return best
+    return _core_phase_fraction(x_total, tie_segments_xy)
 
 
 # =============================================================
@@ -287,6 +295,9 @@ class CommonTangentDialog(QDialog):
 
     def __init__(self, Ga_func=None, Gb_func=None, parent=None, n_init=60):
         super().__init__(parent)
+        self.phase_table_a = None; self.phase_table_b = None
+        self.section_a = None; self.section_b = None
+        self.component_names = ("x1", "x2", "x3"); self.active_components = self.component_names
         self.phase_a = self._wrap(Ga_func, "alpha") if Ga_func else None
         self.phase_b = self._wrap(Gb_func, "beta") if Gb_func else None
         self.result = None
@@ -341,6 +352,67 @@ class CommonTangentDialog(QDialog):
         return f if isinstance(f, PhaseGFunction) \
             else PhaseGFunction.from_callable(f, label=label)
 
+    def _fixed_table_values(self):
+        result = {}
+        for row in range(self.fixed_table.rowCount()):
+            name = self.fixed_table.item(row, 0).text()
+            try:
+                result[name] = (
+                    float(self.fixed_table.item(row, 1).text()),
+                    float(self.fixed_table.item(row, 2).text()))
+            except (AttributeError, ValueError) as exc:
+                raise ValueError(
+                    f"Fixed value and tolerance for {name} must be numbers.") from exc
+        return result
+
+    def _refresh_fixed_rows(self, *_):
+        if getattr(self, "_updating_section", False): return
+        try:
+            previous = self._fixed_table_values()
+        except ValueError:
+            previous = {}
+        active = {combo.currentText() for combo in self.active_combos}
+        fixed = [name for name in self.component_names if name not in active]
+        self.fixed_table.setRowCount(len(fixed))
+        for row, name in enumerate(fixed):
+            value, tolerance = previous.get(name, (0.0, 1e-6))
+            name_item = QTableWidgetItem(name); name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.fixed_table.setItem(row, 0, name_item); self.fixed_table.setItem(row, 1, QTableWidgetItem(f"{value:.8g}")); self.fixed_table.setItem(row, 2, QTableWidgetItem(f"{tolerance:.8g}"))
+
+    def _configure_component_ui(self, components):
+        self.component_names = tuple(components); self._updating_section = True
+        for index, combo in enumerate(self.active_combos):
+            combo.clear(); combo.addItems(self.component_names); combo.setCurrentIndex(min(index, len(self.component_names) - 1))
+        self._updating_section = False; self._refresh_fixed_rows(); self._update_dynamic_labels()
+
+    def _apply_section(self):
+        active = tuple(combo.currentText() for combo in self.active_combos)
+        if len(set(active)) != 3: QMessageBox.warning(self, "Section", "Choose three distinct active components."); return
+        self.active_components = active
+        if self.phase_table_a is not None or self.phase_table_b is not None:
+            if self.phase_table_a is None or self.phase_table_b is None: QMessageBox.information(self, "Section", "Load both phase tables first."); return
+            try:
+                values = self._fixed_table_values(); fixed = {name: pair[0] for name, pair in values.items()}; tolerances = {name: pair[1] for name, pair in values.items()}
+                self.section_a = self.phase_table_a.section(active, fixed, tolerances); self.section_b = self.phase_table_b.section(active, fixed, tolerances)
+            except Exception as exc: QMessageBox.critical(self, "Invalid section", str(exc)); return
+            self.phase_a, self.phase_b = self.section_a, self.section_b
+        self._update_dynamic_labels()
+        total = self.section_a.active_total if self.section_a is not None else 1.0
+        self.spin_x1.setValue(0.5 * total)
+        self.spin_x2.setValue(0.2 * total)
+        self.on_compute()
+
+    def _update_dynamic_labels(self):
+        a, b, c = self.active_components
+        if hasattr(self, "axes"):
+            self.axes.SetXTitle(a); self.axes.SetYTitle(b); self.axes.SetZTitle("G (scaled)")
+        if hasattr(self, "lbl_input_a"):
+            self.lbl_input_a.setText(f"{a}:"); self.lbl_input_b.setText(f"{b}:")
+            total = self.section_a.active_total if self.section_a is not None else 1.0
+            self.inp_group.setTitle(f"Input composition ({c} = {total:.4g} − {a} − {b})")
+            for spin in (self.spin_x1, self.spin_x2): spin.setRange(0.0, total)
+        if hasattr(self, "ax2d"): self._init_2d_empty()
+
     # --------- UI ---------
     def _build_ui(self, n_init):
         from PySide6.QtWidgets import QSizePolicy
@@ -350,10 +422,10 @@ class CommonTangentDialog(QDialog):
         root.setSpacing(6)
 
         banner = QLabel(
-            "<b>Ternary system</b> (x1 + x2 + x3 = 1). "
+            "<b>Constrained ternary section at fixed T/P.</b> "
             "Both phases must be at the <b>same temperature</b>, "
             "with consistent reference state and units. "
-            "CSV columns: <b>x1, x2, G</b> (header optional)."
+            "For multicomponent data choose three active components and fix all remaining components."
         )
         banner.setStyleSheet(
             "background:#fff8dc; padding:6px; border:1px solid #d2b48c;"
@@ -363,28 +435,40 @@ class CommonTangentDialog(QDialog):
                              QSizePolicy.Policy.Fixed)
         root.addWidget(banner)
 
+        section_group = QGroupBox("Multicomponent section")
+        section_layout = QVBoxLayout(section_group); active_row = QHBoxLayout(); section_layout.addLayout(active_row)
+        self.active_combos = []
+        for index in range(3):
+            combo = QComboBox(); combo.addItems(self.component_names); combo.setCurrentIndex(index)
+            active_row.addWidget(QLabel(f"Active {index + 1}:")); active_row.addWidget(combo); self.active_combos.append(combo)
+            combo.currentTextChanged.connect(self._refresh_fixed_rows)
+        self.btn_apply_section = QPushButton("Apply section"); self.btn_apply_section.clicked.connect(self._apply_section); active_row.addWidget(self.btn_apply_section); active_row.addStretch()
+        self.fixed_table = QTableWidget(0, 3); self.fixed_table.setHorizontalHeaderLabels(["Fixed component", "Value", "Tolerance"])
+        self.fixed_table.verticalHeader().setVisible(False); self.fixed_table.setMaximumHeight(130); section_layout.addWidget(self.fixed_table)
+        self.section_group = section_group; root.addWidget(section_group)
+
         # -------------------------
         # 顶部双图区域：固定 1:1 等宽，不再使用 splitter
         # 这样既满足左右固定等宽，也可显著减少拖动 splitter 时的残影问题
         # -------------------------
         self._layout_refresh_timer = QTimer(self)
         self._layout_refresh_timer.setSingleShot(True)
+        self._layout_refresh_timer.setInterval(60)
         self._layout_refresh_timer.timeout.connect(self._refresh_views_after_layout)
 
-        plots_row = QWidget()
-        plots_row.setAutoFillBackground(True)
-        plots_row.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
-        plots_row.setStyleSheet("background: white;")
-        plots_lay = QHBoxLayout(plots_row)
+        self.plots_row = QWidget()
+        self.plots_row.setAutoFillBackground(True)
+        self.plots_row.setStyleSheet("background: white;")
+        plots_lay = QHBoxLayout(self.plots_row)
         plots_lay.setContentsMargins(0, 0, 0, 0)
         plots_lay.setSpacing(0)
-        root.addWidget(plots_row, stretch=1)
+        root.addWidget(self.plots_row, stretch=1)
 
         # ---- 左: VTK 3D 视图 ----
-        vtk_holder = QWidget()
-        vtk_holder.setAutoFillBackground(True)
-        vtk_holder.setStyleSheet("background: white;")
-        vtk_lay = QVBoxLayout(vtk_holder)
+        self.vtk_holder = QWidget()
+        self.vtk_holder.setAutoFillBackground(True)
+        self.vtk_holder.setStyleSheet("background: white;")
+        vtk_lay = QVBoxLayout(self.vtk_holder)
         vtk_lay.setContentsMargins(0, 0, 0, 0)
         vtk_lay.setSpacing(0)
 
@@ -396,10 +480,7 @@ class CommonTangentDialog(QDialog):
         self._vtk_top_spacer.setStyleSheet("background: white;")
         vtk_lay.addWidget(self._vtk_top_spacer)
 
-        self.vtk_widget = QVTKRenderWindowInteractor(vtk_holder)
-        self.vtk_widget.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
-        self.vtk_widget.setAutoFillBackground(True)
-        self.vtk_widget.setStyleSheet("background: white;")
+        self.vtk_widget = QVTKRenderWindowInteractor(self.vtk_holder)
         vtk_lay.addWidget(self.vtk_widget, stretch=1)
 
         self.renderer = vtk.vtkRenderer()
@@ -447,15 +528,14 @@ class CommonTangentDialog(QDialog):
         self._scalar_bar_b.SetWidth(0.06)
         self._scalar_bar_b.SetHeight(0.5)
 
-        plots_lay.addWidget(vtk_holder, 1)
+        plots_lay.addWidget(self.vtk_holder, 1)
 
         # ---- 右: matplotlib 2D 三角图 ----
-        right = QWidget()
-        right.setAutoFillBackground(True)
-        right.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
-        right.setStyleSheet("background: white;")
+        self.matplotlib_holder = QWidget()
+        self.matplotlib_holder.setAutoFillBackground(True)
+        self.matplotlib_holder.setStyleSheet("background: white;")
 
-        right_lay = QVBoxLayout(right)
+        right_lay = QVBoxLayout(self.matplotlib_holder)
         right_lay.setContentsMargins(0, 0, 0, 0)
         right_lay.setSpacing(0)
 
@@ -469,18 +549,17 @@ class CommonTangentDialog(QDialog):
         self.canvas.setSizePolicy(QSizePolicy.Policy.Expanding,
                                   QSizePolicy.Policy.Expanding)
         self.canvas.setMinimumSize(100, 100)
-        self.canvas.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         self.canvas.setAutoFillBackground(True)
         self.canvas.setStyleSheet("background: white;")
 
-        self.nav_toolbar = NavToolbar(self.canvas, right)
+        self.nav_toolbar = NavToolbar(self.canvas, self.matplotlib_holder)
         self.nav_toolbar.setSizePolicy(QSizePolicy.Policy.Expanding,
                                        QSizePolicy.Policy.Fixed)
 
         right_lay.addWidget(self.nav_toolbar)
         right_lay.addWidget(self.canvas, stretch=1)
 
-        plots_lay.addWidget(right, 1)
+        plots_lay.addWidget(self.matplotlib_holder, 1)
         plots_lay.setStretch(0, 1)
         plots_lay.setStretch(1, 1)
 
@@ -538,9 +617,10 @@ class CommonTangentDialog(QDialog):
         comp_lay.addStretch(1)
         ctrl_row.addWidget(comp_group, stretch=1)
 
-        inp_group = QGroupBox("Input composition  (x3 = 1 − x1 − x2)")
-        inp_lay = QHBoxLayout(inp_group)
-        inp_lay.addWidget(QLabel("x1:"))
+        self.inp_group = QGroupBox("Input composition  (x3 = 1 − x1 − x2)")
+        inp_lay = QHBoxLayout(self.inp_group)
+        self.lbl_input_a = QLabel("x1:")
+        inp_lay.addWidget(self.lbl_input_a)
         self.spin_x1 = QDoubleSpinBox()
         self.spin_x1.setRange(0.0, 1.0)
         self.spin_x1.setSingleStep(0.01)
@@ -548,7 +628,8 @@ class CommonTangentDialog(QDialog):
         self.spin_x1.setValue(0.50)
         inp_lay.addWidget(self.spin_x1)
 
-        inp_lay.addWidget(QLabel("x2:"))
+        self.lbl_input_b = QLabel("x2:")
+        inp_lay.addWidget(self.lbl_input_b)
         self.spin_x2 = QDoubleSpinBox()
         self.spin_x2.setRange(0.0, 1.0)
         self.spin_x2.setSingleStep(0.01)
@@ -560,7 +641,7 @@ class CommonTangentDialog(QDialog):
         self.btn_update_pt.clicked.connect(self.on_update_point)
         inp_lay.addWidget(self.btn_update_pt)
         inp_lay.addStretch(1)
-        ctrl_row.addWidget(inp_group, stretch=2)
+        ctrl_row.addWidget(self.inp_group, stretch=2)
 
         root.addWidget(ctrl_bar)
 
@@ -579,17 +660,18 @@ class CommonTangentDialog(QDialog):
         self.ax2d.clear()
         self.ax2d.set_facecolor("white")
 
+        a, b, c = self.active_components
         self.ax2d.plot([0, 1, 0, 0], [0, 0, 1, 0], "k-", lw=1)
-        self.ax2d.text(1.02, -0.02, "A  (x1=1)", fontsize=9)
-        self.ax2d.text(-0.05, 1.03, "B  (x2=1)", fontsize=9)
-        self.ax2d.text(-0.08, -0.05, "C  (x3=1)", fontsize=9)
-        self.ax2d.set_xlabel("x1")
-        self.ax2d.set_ylabel("x2")
+        self.ax2d.text(1.02, -0.02, f"{a}=1", fontsize=9)
+        self.ax2d.text(-0.05, 1.03, f"{b}=1", fontsize=9)
+        self.ax2d.text(-0.08, -0.05, f"{c}=1", fontsize=9)
+        self.ax2d.set_xlabel(a)
+        self.ax2d.set_ylabel(b)
         self.ax2d.set_aspect("equal")
         self.ax2d.set_xlim(-0.1, 1.15)
         self.ax2d.set_ylim(-0.1, 1.15)
         self.ax2d.set_title(
-            "Tie-lines on composition triangle (A-B-C)\n"
+            f"Tie-lines on constrained {a}-{b}-{c} section\n"
             "(load phases and press Compute)")
         self.canvas.draw()
 
@@ -614,41 +696,34 @@ class CommonTangentDialog(QDialog):
         except Exception:
             pass
 
-    def _refresh_views_after_layout(self):
-        # 保证左右顶部对齐
-        self._sync_vtk_top_spacer_height()
+    def _schedule_view_refresh(self):
+        """Coalesce Qt, Matplotlib and native VTK redraws after layout settles."""
+        if not self._closing and hasattr(self, "_layout_refresh_timer"):
+            self._layout_refresh_timer.start()
 
-        # Matplotlib 做一次完整重绘，清掉 stale buffer
+    def _refresh_views_after_layout(self):
+        # First erase exposed areas through the normal Qt backing store.  The
+        # QVTK widget paints directly to a Win32 DC and therefore must render
+        # only after its ordinary Qt containers have reached final geometry.
+        self._sync_vtk_top_spacer_height()
+        for container in (
+                getattr(self, "plots_row", None),
+                getattr(self, "vtk_holder", None),
+                getattr(self, "matplotlib_holder", None)):
+            if container is not None:
+                container.repaint()
+
         if hasattr(self, "canvas") and self.canvas is not None:
             try:
                 self.canvas.draw()
             except Exception:
                 pass
 
-        # VTK 在布局稳定后再渲染一次
         self._safe_render_vtk()
-
-        # 强制底部控件重新盖住上方绘图区，进一步抑制虚影
-        try:
-            if hasattr(self, "ctrl_bar") and self.ctrl_bar is not None:
-                self.ctrl_bar.update()
-                self.ctrl_bar.raise_()
-            if hasattr(self, "lbl_result") and self.lbl_result is not None:
-                self.lbl_result.update()
-                self.lbl_result.raise_()
-            self.update()
-        except Exception:
-            pass
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-
-        if hasattr(self, "_vtk_top_spacer") and hasattr(self, "nav_toolbar"):
-            self._sync_vtk_top_spacer_height()
-
-        # 统一在布局稳定后刷新两侧视图，避免 resize 过程中产生重复虚影
-        if hasattr(self, "_layout_refresh_timer") and not self._closing:
-            self._layout_refresh_timer.start(0)
+        self._schedule_view_refresh()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -662,31 +737,13 @@ class CommonTangentDialog(QDialog):
     def _finish_first_show(self):
         if self._closing:
             return
-    
-        # 重新按父窗口/屏幕再校正一次大小，确保是最终几何
-        self._set_adaptive_dialog_size(self.parentWidget())
-    
+
         self._sync_vtk_top_spacer_height()
-    
+
         if self._pending_initial_compute:
             self._pending_initial_compute = False
             self.on_compute()
-        else:
-            try:
-                self.canvas.draw()
-            except Exception:
-                pass
-            self._safe_render_vtk()
-    
-        # 让底部控件最后再刷一遍，覆盖掉旧残影
-        try:
-            self.ctrl_bar.update()
-            self.ctrl_bar.raise_()
-            self.lbl_result.update()
-            self.lbl_result.raise_()
-            self.update()
-        except Exception:
-            pass
+        self._schedule_view_refresh()
 
     # --------- 槽 ---------
     def on_load_csv(self, which):
@@ -696,22 +753,54 @@ class CommonTangentDialog(QDialog):
         if not path:
             return
         try:
-            phase = load_csv_phase(path, label=which)
+            table = load_csv_phase_table(path, parent=self, label=which)
         except Exception as e:
             QMessageBox.critical(self, "Failed to load CSV", str(e))
             return
-        m = phase.meta
-        info = (f"{os.path.basename(path)} "
-                f"(n={m['n_points']}, "
-                f"G∈[{m['G_range'][0]:.3g},{m['G_range'][1]:.3g}])")
+        if table is None:
+            return
+        info = (f"{os.path.basename(path)} (n={len(table.gibbs)}, "
+                f"components={', '.join(table.components)}, "
+                f"G∈[{table.gibbs.min():.3g},{table.gibbs.max():.3g}])")
         if which == "alpha":
-            self.phase_a = phase
+            self.phase_table_a = table
+            self.phase_a = None
+            self.section_a = None
             self.lbl_src_a.setText(f"α: {info}")
         else:
-            self.phase_b = phase
+            self.phase_table_b = table
+            self.phase_b = None
+            self.section_b = None
             self.lbl_src_b.setText(f"β: {info}")
-        if self.phase_a is not None and self.phase_b is not None:
-            self.on_compute()
+        if self.phase_table_a is None or self.phase_table_b is None:
+            self.lbl_result.setText("Load the second phase table, then configure the constrained section.")
+            return
+        if set(self.phase_table_a.components) != set(self.phase_table_b.components):
+            QMessageBox.critical(
+                self, "Incompatible phase tables",
+                "The two phases must contain the same component columns.\n"
+                f"α: {', '.join(self.phase_table_a.components)}\n"
+                f"β: {', '.join(self.phase_table_b.components)}")
+            if which == "alpha":
+                self.phase_table_a = None
+                self.lbl_src_a.setText("α: incompatible table; load another CSV")
+            else:
+                self.phase_table_b = None
+                self.lbl_src_b.setText("β: incompatible table; load another CSV")
+            return
+        canonical = self.phase_table_a.components
+        if self.phase_table_b.components != canonical:
+            order = [self.phase_table_b.components.index(name) for name in canonical]
+            self.phase_table_b = PhaseTable(
+                canonical, self.phase_table_b.compositions[:, order],
+                self.phase_table_b.gibbs, self.phase_table_b.label)
+        self._configure_component_ui(canonical)
+        if len(canonical) == 3:
+            self._apply_section()
+        else:
+            self.lbl_result.setText(
+                "Choose three active components, enter every fixed fraction and tolerance, "
+                "then press Apply section.")
 
     def on_compute(self):
         if self.phase_a is None or self.phase_b is None:
@@ -810,6 +899,10 @@ class CommonTangentDialog(QDialog):
         x_range = (0.0, 1.0)
         y_range = (0.0, 1.0)
         z_range = (g_min * self._zscale, g_max * self._zscale)
+        a_name, b_name, _ = self.active_components
+        self.axes.SetXTitle(a_name)
+        self.axes.SetYTitle(b_name)
+        self.axes.SetZTitle("G (scaled)")
         self.axes.SetBounds(
             x_range[0], x_range[1],
             y_range[0], y_range[1],
@@ -824,17 +917,17 @@ class CommonTangentDialog(QDialog):
         cam.Azimuth(30)
         cam.Elevation(25)
         self.renderer.ResetCameraClippingRange()
-        self._safe_render_vtk()
 
     def draw_2d(self):
         self.fig.patch.set_facecolor("white")
         self.ax2d.clear()
         self.ax2d.set_facecolor("white")
 
+        a_name, b_name, c_name = self.active_components
         self.ax2d.plot([0, 1, 0, 0], [0, 0, 1, 0], "k-", lw=1)
-        self.ax2d.text(1.02, -0.02, "A  (x1=1)", fontsize=9)
-        self.ax2d.text(-0.05, 1.03, "B  (x2=1)", fontsize=9)
-        self.ax2d.text(-0.08, -0.05, "C  (x3=1)", fontsize=9)
+        self.ax2d.text(1.02, -0.02, f"{a_name}=1", fontsize=9)
+        self.ax2d.text(-0.05, 1.03, f"{b_name}=1", fontsize=9)
+        self.ax2d.text(-0.08, -0.05, f"{c_name}=1", fontsize=9)
 
         tie_xy = self.result["tie_segments_xy"]
         for pa, pb in tie_xy:
@@ -857,48 +950,61 @@ class CommonTangentDialog(QDialog):
             [], [], "-", color="limegreen", lw=2.5,
             label="active tie-line", zorder=4)
 
-        self.ax2d.set_xlabel("x1")
-        self.ax2d.set_ylabel("x2")
+        self.ax2d.set_xlabel(a_name)
+        self.ax2d.set_ylabel(b_name)
         self.ax2d.set_aspect("equal")
         self.ax2d.set_xlim(-0.1, 1.15)
         self.ax2d.set_ylim(-0.1, 1.15)
-        self.ax2d.set_title("Tie-lines on composition triangle (A-B-C)")
+        self.ax2d.set_title(
+            f"Tie-lines on constrained {a_name}-{b_name}-{c_name} section")
         self.ax2d.legend(loc="upper right", fontsize=8)
-
-        # 这里用 draw()，比 draw_idle() 更强，优先消除 splitter 拖动后的残影
-        self.canvas.draw()
 
     def on_update_point(self):
         if self.result is None:
             return
         x1 = self.spin_x1.value()
         x2 = self.spin_x2.value()
-        if x1 + x2 > 1.0 + 1e-9:
+        active_total = self.section_a.active_total if self.section_a is not None else 1.0
+        if x1 + x2 > active_total + 1e-9:
             self.lbl_result.setText(
-                "⚠ Invalid input: x1 + x2 must be ≤ 1 (ternary constraint).")
+                f"Invalid input: the first two active fractions must sum to at most {active_total:.6g}.")
+            self._schedule_view_refresh()
             return
-        fr = phase_fraction((x1, x2), self.result["tie_segments_xy"])
+        u1, u2 = x1 / active_total, x2 / active_total
+        fr = phase_fraction((u1, u2), self.result["tie_segments_xy"])
         if fr is None:
             self.lbl_result.setText(
                 "No tie-line found — composition likely in a single-phase "
                 "region.")
+            self._schedule_view_refresh()
             return
-        pa, pb, fa, fb, d = fr
-        x3 = 1.0 - x1 - x2
-        pa3 = 1.0 - pa[0] - pa[1]
-        pb3 = 1.0 - pb[0] - pb[1]
+        pa, pb, fa, fb, _ = fr
+        if self.section_a is not None:
+            input_full = self.section_a.full_composition(u1, u2)
+            alpha_full = self.section_a.full_composition(pa[0], pa[1])
+            beta_full = self.section_b.full_composition(pb[0], pb[1])
+            names = self.section_a.components
+        else:
+            input_full = np.asarray([u1, u2, 1.0 - u1 - u2])
+            alpha_full = np.asarray([pa[0], pa[1], 1.0 - pa[0] - pa[1]])
+            beta_full = np.asarray([pb[0], pb[1], 1.0 - pb[0] - pb[1]])
+            names = self.active_components
+        projected = fa * alpha_full + fb * beta_full
+        distance = float(np.linalg.norm(input_full - projected))
+        fmt = lambda values: ", ".join(
+            f"{name}={value:.4f}" for name, value in zip(names, values))
         msg = (
-            f"Input  (x1,x2,x3) = ({x1:.3f}, {x2:.3f}, {x3:.3f})   "
-            f"| dist to nearest tie-line = {d:.4f}\n"
-            f"α composition  (x1,x2,x3) = ({pa[0]:.3f}, {pa[1]:.3f}, {pa3:.3f})\n"
-            f"β composition  (x1,x2,x3) = ({pb[0]:.3f}, {pb[1]:.3f}, {pb3:.3f})\n"
-            f"Phase fractions (lever rule, molar basis): "
-            f"f_α = {fa:.4f},  f_β = {fb:.4f}"
+            f"Overall: {fmt(input_full)}\n"
+            f"α: {fmt(alpha_full)}\n"
+            f"β: {fmt(beta_full)}\n"
+            f"Phase fractions (lever rule): f_α={fa:.4f}, f_β={fb:.4f}   |   "
+            f"nearest tie-line distance={distance:.5g}   |   "
+            f"grid n={self.result['grid_n']} (Δu={self.result['grid_resolution']:.5g})"
         )
         self.lbl_result.setText(msg)
-        self._input_scatter.set_offsets([[x1, x2]])
+        self._input_scatter.set_offsets([[u1, u2]])
         self._active_tie.set_data([pa[0], pb[0]], [pa[1], pb[1]])
-        self.canvas.draw()
+        self._schedule_view_refresh()
 
     def closeEvent(self, event):
         self._closing = True

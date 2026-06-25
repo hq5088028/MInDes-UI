@@ -66,6 +66,7 @@ class VTKViewMixin:
         # plot lines 初始化
         self._line_styles = {}
         self.active_line_data = None  # 单条线数据 DataFrame
+        self._last_valid_y_range = (0.0, 1.0)
         self.line_widget = None
         self.DEFAULT_COLOR_CYCLE = [
             (0.12156862745098039, 0.4666666666666667, 0.7058823529411765),  # blue

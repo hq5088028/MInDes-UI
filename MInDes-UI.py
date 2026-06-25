@@ -348,6 +348,10 @@ class MainWindow(QMainWindow):
         csv_plotter_action = QAction("CSV Plotter", self)
         csv_plotter_action.triggered.connect(self.open_csv_plotter)
         tools_menu.addAction(csv_plotter_action)
+        vts_plotter_action = QAction("VTS Plotter", self)
+        vts_plotter_action.triggered.connect(self.open_vts_plotter)
+        tools_menu.addAction(vts_plotter_action)
+
 
         thermo_calc_menu = tools_menu.addMenu("Thermo-Calc")
 
@@ -393,6 +397,24 @@ class MainWindow(QMainWindow):
             )
         except Exception as exc:
             QMessageBox.critical(self, "Launch Error", f"Failed to open CSV Plotter:\n{exc}")
+
+    def open_vts_plotter(self):
+        """Open the standalone multi-file VTS plotting tool."""
+        try:
+            from Tools.VTSPlotterTools.vts_plotter_gui import VTSPlotterDialog
+            dialog = VTSPlotterDialog(parent=self)
+            dialog.setWindowIcon(get_app_icon())
+            dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+            dialog.show()
+            if not hasattr(self, "_tool_windows"):
+                self._tool_windows = []
+            self._tool_windows.append(dialog)
+            dialog.destroyed.connect(
+                lambda _=None, value=dialog: self._tool_windows.remove(value)
+                if value in self._tool_windows else None
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Launch Error", f"Failed to open VTS Plotter:\n{exc}")
 
     def open_common_tangent_phase2_comp3(self):
         """打开 CommonTangent Phase2Comp3 子对话框 (非模态, 不阻塞主界面)."""

@@ -381,7 +381,7 @@ class ControlPanelMixin:
         self.set_line_btn.setEnabled(False)
         button_layout.addWidget(self.set_line_btn)
 
-        self.export_excel_btn = QPushButton("📤 Export Excel")
+        self.export_excel_btn = QPushButton("📤 Export Data")
         self.export_excel_btn.clicked.connect(self.export_line_data)
         button_layout.addWidget(self.export_excel_btn)
 
@@ -398,6 +398,30 @@ class ControlPanelMixin:
         # Single line style controls
         self.line_style_group = self._create_line_style_group()
         layout.addWidget(self.line_style_group)
+
+        self.y_axis_range_group = QGroupBox("Y Axis Range")
+        y_range_layout = QGridLayout()
+        self.auto_y_range_checkbox = QCheckBox("Auto Y Range")
+        self.auto_y_range_checkbox.setChecked(True)
+        self.auto_y_range_checkbox.toggled.connect(self.toggle_y_axis_range)
+        y_range_layout.addWidget(self.auto_y_range_checkbox, 0, 0, 1, 4)
+
+        self.y_min_spin = QDoubleSpinBox()
+        self.y_max_spin = QDoubleSpinBox()
+        for spin in (self.y_min_spin, self.y_max_spin):
+            spin.setRange(-1e12, 1e12)
+            spin.setDecimals(6)
+            spin.setEnabled(False)
+            spin.editingFinished.connect(self.apply_manual_y_axis_range)
+        self.y_max_spin.setValue(1.0)
+
+        y_range_layout.addWidget(QLabel("Min:"), 1, 0)
+        y_range_layout.addWidget(self.y_min_spin, 1, 1)
+        y_range_layout.addWidget(QLabel("Max:"), 1, 2)
+        y_range_layout.addWidget(self.y_max_spin, 1, 3)
+        self.y_axis_range_group.setLayout(y_range_layout)
+        self.y_axis_range_group.setVisible(False)
+        layout.addWidget(self.y_axis_range_group)
 
         layout.addStretch()
         # =====================================================
@@ -640,6 +664,9 @@ class ControlPanelMixin:
             self.save_btn,                      
             self.set_line_btn,                 
             self.export_excel_btn,
+            self.auto_y_range_checkbox,
+            self.y_min_spin,
+            self.y_max_spin,
             self.bg_color_combo,
             self.refresh_btn,             
             # 坐标输入框（虽被 group 覆盖，但显式更安全）
@@ -649,6 +676,10 @@ class ControlPanelMixin:
         for w in widgets:
             if w is not None:
                 w.setDisabled(disable)
+        if not disable:
+            manual_y_range = not self.auto_y_range_checkbox.isChecked()
+            self.y_min_spin.setEnabled(manual_y_range)
+            self.y_max_spin.setEnabled(manual_y_range)
 
         # 原有 group 循环保留（作为兜底）
         for group in [self.clip_group, self.contour_group, self.line_endpoint_group]:

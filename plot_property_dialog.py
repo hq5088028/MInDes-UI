@@ -96,8 +96,9 @@ class FontStyleEditor(QGroupBox):
 
 class PlotPropertyDialog(QDialog):
     def __init__(self, config: FigureConfig, columns: list[str], apply_callback,
-                 save_defaults_callback, parent=None, *, shared_y_axis=False,
-                 curve_names=None, curve_columns=None):
+                 save_format_callback, parent=None, *, shared_y_axis=False,
+                 curve_names=None, curve_columns=None, initial_curve_id=None,
+                 load_format_callback=None, format_templates=None):
         super().__init__(parent)
         self.setWindowTitle("Figure Properties")
         self.resize(980, 720)
@@ -106,8 +107,12 @@ class PlotPropertyDialog(QDialog):
         self.shared_y_axis = bool(shared_y_axis)
         self.curve_names = dict(curve_names or {})
         self.curve_columns = dict(curve_columns or {})
+        self.initial_curve_id = initial_curve_id
+        self._initial_curve_applied = False
         self._apply_callback = apply_callback
-        self._save_defaults_callback = save_defaults_callback
+        self._save_format_callback = save_format_callback
+        self._load_format_callback = load_format_callback
+        self.format_templates = list(format_templates or [])
         self._loading = False
         self._last_unit = self.config.unit
 
@@ -124,14 +129,17 @@ class PlotPropertyDialog(QDialog):
 
         buttons = QHBoxLayout(); root.addLayout(buttons)
         self.factory_btn = QPushButton("Restore Factory")
-        self.default_btn = QPushButton("Save as Default")
+        self.default_btn = QPushButton("Save Format...")
+        self.load_format_btn = QPushButton("Load Format...")
         self.apply_btn = QPushButton("Apply")
         self.ok_btn = QPushButton("OK")
         self.cancel_btn = QPushButton("Cancel")
-        buttons.addWidget(self.factory_btn); buttons.addWidget(self.default_btn); buttons.addStretch()
+        buttons.addWidget(self.factory_btn); buttons.addWidget(self.default_btn); buttons.addWidget(self.load_format_btn); buttons.addStretch()
         buttons.addWidget(self.apply_btn); buttons.addWidget(self.ok_btn); buttons.addWidget(self.cancel_btn)
         self.factory_btn.clicked.connect(self._restore_factory)
-        self.default_btn.clicked.connect(self._save_defaults)
+        self.default_btn.clicked.connect(self._save_format)
+        self.load_format_btn.clicked.connect(self._load_format)
+        self.load_format_btn.setEnabled(self._load_format_callback is not None)
         self.apply_btn.clicked.connect(self._apply)
         self.ok_btn.clicked.connect(self._accept)
         self.cancel_btn.clicked.connect(self.reject)
@@ -245,7 +253,9 @@ class PlotPropertyDialog(QDialog):
     def _build_curves(self):
         lay = self._page(); top = QHBoxLayout(); lay.addLayout(top)
         self.curve_combo = QComboBox(); self.up_btn = QPushButton("Move Up"); self.down_btn = QPushButton("Move Down")
-        top.addWidget(self.curve_combo, 1); top.addWidget(self.up_btn); top.addWidget(self.down_btn)
+        self.curve_position_label = QLabel()
+        top.addWidget(QLabel("Active dataset:")); top.addWidget(self.curve_combo, 1)
+        top.addWidget(self.curve_position_label); top.addWidget(self.up_btn); top.addWidget(self.down_btn)
         form = QFormLayout(); lay.addLayout(form)
         self.curve_visible = QCheckBox("Show"); self.legend_edit = QLineEdit()
         self.line_color = ColorButton(); self.line_width = self._double(0.1, 20, 2)
@@ -324,6 +334,11 @@ class PlotPropertyDialog(QDialog):
         names = self._curve_names()
         for combo in (self.text_curve_combo, self.curve_combo):
             combo.clear(); combo.addItems(names)
+        if not self._initial_curve_applied and self.initial_curve_id:
+            initial_index = next((index for index, curve in enumerate(c.curves) if curve.column == self.initial_curve_id), -1)
+            if initial_index >= 0:
+                self.curve_combo.setCurrentIndex(initial_index); self.text_curve_combo.setCurrentIndex(initial_index)
+            self._initial_curve_applied = True
         for combo in (self.axis_combo, self.grid_axis_combo):
             combo.clear(); combo.addItem("X Axis")
             combo.addItems(["Y Axis"] if self.shared_y_axis else names)
@@ -415,6 +430,7 @@ class PlotPropertyDialog(QDialog):
     def _load_curve(self, *_):
         if self._loading or self.curve_combo.currentIndex() < 0: return
         self._loading = True; c = self.config.curves[self.curve_combo.currentIndex()]; e = c.error
+        self.curve_position_label.setText(f"{self.curve_combo.currentIndex() + 1}/{len(self.config.curves)} (top first)")
         available = self.curve_columns.get(c.column, self.columns)
         self.error_column.clear(); self.error_column.addItems(available)
         self.curve_visible.setChecked(c.visible); self.legend_edit.setText(c.legend_text); self.line_color.set_color(c.color); self.line_width.setValue(c.linewidth); self.line_style.setCurrentText(c.linestyle)
@@ -433,6 +449,7 @@ class PlotPropertyDialog(QDialog):
         if self.config.curves[idx].side != self.config.curves[new].side: return
         self.config.curves[idx], self.config.curves[new] = self.config.curves[new], self.config.curves[idx]
         self._load_all(); self.curve_combo.setCurrentIndex(new)
+        self._load_curve()
 
     def _validate(self):
         self._save_overall(); self._save_curve_text(); self._save_axis(); self._save_grid(); self._save_curve()
@@ -461,10 +478,16 @@ class PlotPropertyDialog(QDialog):
     def _accept(self):
         if self._validate(): self._apply_callback(self.config.copy()); self.accept()
 
-    def _save_defaults(self):
+    def _save_format(self):
         if self._validate():
-            self._save_defaults_callback(self.config.copy())
-            QMessageBox.information(self, "Defaults", "Figure style saved as the global default.")
+            self._save_format_callback(self.config.copy(), list(self.format_templates))
+
+    def _load_format(self):
+        if self._load_format_callback is None or not self._validate(): return
+        loaded = self._load_format_callback(self.config.copy(), list(self.format_templates))
+        if loaded is None: return
+        self.config, self.format_templates = loaded
+        self._last_unit = self.config.unit; self._load_all()
 
     def _restore_factory(self):
         old = [(c.column, c.side) for c in self.config.curves]

@@ -28,19 +28,18 @@ hiddenimports = [
     'Tools',
     'Tools.CSVPlotterTools',
     'Tools.CSVPlotterTools.models',
+    'Tools.CSVPlotterTools.dataset_card',
+    'Tools.CSVPlotterTools.style_formats',
     'Tools.CSVPlotterTools.rendering',
     'Tools.CSVPlotterTools.vtk_utils',
     'Tools.CSVPlotterTools.vtk_properties',
     'Tools.CSVPlotterTools.csv_plotter_gui',
     'Tools.CommonTangentTools',
     'Tools.CommonTangentTools.common_tangent_o3_gui',
+    'Tools.CommonTangentTools.common_tangent_core',
     'Tools.FittingTools',
     'Tools.FittingTools.gibbs_fitter_gui',
     'Tools.FittingTools.fitter_core',
-    # scipy 只用到这三个子模块 + 它们的依赖
-    'scipy.spatial',
-    'scipy.spatial.qhull',
-    'scipy.interpolate',
 ]
 
 # ---------------------------------------------------------------------------
@@ -65,22 +64,6 @@ excludes = [
     'IPython', 'ipykernel', 'ipython_genutils', 'jupyter',
     'notebook', 'nbformat', 'nbconvert',
     'matplotlib.sphinxext',
-    # scipy 不用到的重模块
-    'scipy.stats',
-    'scipy.optimize',
-    'scipy.integrate',
-    'scipy.signal',
-    'scipy.sparse.csgraph',
-    'scipy.sparse.linalg',
-    'scipy.ndimage',
-    'scipy.io',
-    'scipy.fft',
-    'scipy.fftpack',
-    'scipy.odr',
-    'scipy.cluster',
-    'scipy.datasets',
-    'scipy.misc',
-    'scipy.special._ufuncs_cxx',  # 不是全部排掉, 只去掉确认没用的
     # 其他常见体积大但 MInDes-UI 不用的东西
     'sympy', 'numba', 'llvmlite',
     'sphinx', 'docutils',
