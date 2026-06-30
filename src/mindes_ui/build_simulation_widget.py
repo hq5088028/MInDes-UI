@@ -1,9 +1,12 @@
 # build_simulation_widget.py
+from __future__ import annotations
+
 import os
 import sys
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 from .log_statistics_widget import STAT_CANDIDATES, get_existing_candidates_by_mtime
 from PySide6.QtWidgets import (
     QWidget,
@@ -35,6 +38,7 @@ from PySide6.QtGui import (
     QFont,
     QKeySequence,
     QTextFormat,
+    QTextDocument,
 )
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject, QTimer
 
@@ -62,7 +66,7 @@ class SolverRunner(QObject):
     error = Signal(str)
     output_received = Signal(str)  # 可选：用于实时日志
 
-    def __init__(self, solver_path, input_base, cwd, cleanup_files=None, omp_threads=4):
+    def __init__(self, solver_path: str, input_base: str | None, cwd: str, cleanup_files: list[str] | None = None, omp_threads: int = 4) -> None:
         super().__init__()
         self.solver_path = solver_path
         self.input_base = input_base
@@ -73,14 +77,14 @@ class SolverRunner(QObject):
         self._canceled = False
         self._current_run_mode = None
 
-    def _cleanup_files(self):
+    def _cleanup_files(self) -> None:
         for f in self.cleanup_files:
             try:
                 os.remove(f)
             except OSError:
                 pass
 
-    def run(self):
+    def run(self) -> None:
         try:
             # 设置环境变量：限制 OpenMP 线程数
             env = os.environ.copy()
@@ -147,7 +151,7 @@ class SolverRunner(QObject):
         finally:
             self._proc = None
 
-    def cancel(self):
+    def cancel(self) -> None:
         """槽函数：由 worker 所在线程执行，安全取消任务"""
         self._canceled = True
         if self._proc and self._proc.poll() is None:  # 进程仍在运行
@@ -163,24 +167,23 @@ class SolverRunner(QObject):
 
 
 class LineNumberArea(QFrame):
-    def __init__(self, editor):
+    def __init__(self, editor: BuildSimulationWidget.CodeEditor) -> None:
         super().__init__(editor)
         self.editor = editor
 
-    def sizeHint(self):
+    def sizeHint(self) -> QSize:
         return QSize(self.editor.line_number_area_width(), 0)
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: Any) -> None:
         self.editor.line_number_area_paint_event(event)
 
 
 class MindesSyntaxHighlighter(QSyntaxHighlighter):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QTextDocument | QTextEdit | None = None) -> None:
         if parent is not None:
-            super().__init__(parent)
+            super().__init__(parent)  # type: ignore[arg-type]
         else:
-            print("Error when initializing SyntaxHighlighter")
-            print("QSyntaxHighlighter parent is None")
+            super().__init__()  # type: ignore[arg-type]
 
         # ========== 深色彩虹渐变方案 (10种加深颜色) ==========
         # 从深红到深紫的渐变，确保在白色背景下有高对比度
@@ -234,7 +237,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         self.tuple_pattern = re.compile(r"\([^)]+\)")
         self.macro_pattern = re.compile(r"\$[^$]+\$")
 
-    def _create_format(self, color, bold=False):
+    def _create_format(self, color: str | QColor, bold: bool = False) -> QTextCharFormat:
         """创建文本格式的辅助方法"""
         fmt = QTextCharFormat()
         fmt.setForeground(QColor(color))
@@ -242,7 +245,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
             fmt.setFontWeight(QFont.Weight.Bold)
         return fmt
 
-    def _get_token_color_index(self, token_index):
+    def _get_token_color_index(self, token_index: int) -> int:
         """根据token索引获取彩虹色索引"""
         if token_index < len(self.rainbow_colors):
             return token_index
@@ -250,7 +253,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
             # 超过10个token，循环使用第10个颜色（深紫色）
             return len(self.rainbow_colors) - 1
 
-    def highlightBlock(self, text):
+    def highlightBlock(self, text: str) -> None:
         """高亮处理一个文本块"""
         # Highlight regular syntax only before the first comment marker. The
         # comment is formatted last so it always has the highest priority.
@@ -304,7 +307,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         if comment_pos != -1:
             self.setFormat(comment_pos, len(text) - comment_pos, self.comment_format)
     
-    def _highlight_value_content(self, start_pos, text):
+    def _highlight_value_content(self, start_pos: int, text: str):
         """高亮右侧值的具体内容"""
         # 1. 高亮宏变量 $...$
         for match in self.macro_pattern.finditer(text):
@@ -372,7 +375,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
                     self.value_formats["at_content"],
                 )
 
-    def _highlight_symbols(self, start_pos, text):
+    def _highlight_symbols(self, start_pos: int, text: str) -> None:
         """高亮特殊符号"""
         for i, char in enumerate(text):
             pos = start_pos + i
@@ -387,7 +390,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
                 elif char == "$":
                     self.setFormat(pos, 1, self.symbol_formats["$"])
 
-    def _is_inside_special(self, text, position, symbols):
+    def _is_inside_special(self, text: str, position: int, symbols: list[str]) -> bool:
         """检查位置是否在特殊结构内"""
         for i in range(position):
             if text[i] in symbols:
@@ -414,12 +417,11 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
 class ReportSyntaxHighlighter(QSyntaxHighlighter):
     """专门用于 input_report.txt 文件的高亮器（简化版）"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QTextDocument | QTextEdit | None = None) -> None:
         if parent is not None:
-            super().__init__(parent)
+            super().__init__(parent)  # type: ignore[arg-type]
         else:
-            print("Error when initializing SyntaxHighlighter")
-            print("QSyntaxHighlighter parent is None")
+            super().__init__()  # type: ignore[arg-type]
 
         # ========== 颜色定义 ==========
 
@@ -475,7 +477,7 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
         self.separator_format = QTextCharFormat()
         self.separator_format.setForeground(QColor("#000000"))
 
-    def highlightBlock(self, text):
+    def highlightBlock(self, text: str) -> None:
         """高亮处理一个文本块"""
         text_line = text.rstrip()
 
@@ -563,7 +565,7 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
 
 
 class ProgressOverlayWidget(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
         grid = QGridLayout(self)
@@ -623,10 +625,10 @@ class ProgressOverlayWidget(QWidget):
         grid.addWidget(self.progress_bar, 0, 0)
         grid.addWidget(self.overlay_label, 0, 0)
 
-    def set_overlay_text(self, text: str):
+    def set_overlay_text(self, text: str) -> None:
         self.overlay_label.setText(text)
 
-    def set_progress_value(self, value: float | None):
+    def set_progress_value(self, value: float | None) -> None:
         if value is None:
             self.progress_bar.setValue(0)
         else:
@@ -640,7 +642,7 @@ class BuildSimulationWidget(QWidget):
     requestCancelSolver = Signal()  # 请求在线程中取消 solver
 
     class CodeEditor(QPlainTextEdit):
-        def __init__(self, parent=None):
+        def __init__(self, parent: QWidget | None = None) -> None:
             super().__init__(parent)
             self.line_number_area = LineNumberArea(self)
             self.blockCountChanged.connect(self.update_line_number_area_width)
@@ -649,7 +651,7 @@ class BuildSimulationWidget(QWidget):
             self.update_line_number_area_width()
             self.highlight_current_line()
 
-        def line_number_area_width(self):
+        def line_number_area_width(self) -> int:
             digits = 1
             max_num = max(1, self.blockCount())
             while max_num >= 10:
@@ -658,10 +660,10 @@ class BuildSimulationWidget(QWidget):
             space = 8 + self.fontMetrics().horizontalAdvance("9") * digits
             return space
 
-        def update_line_number_area_width(self):
+        def update_line_number_area_width(self) -> None:
             self.setViewportMargins(self.line_number_area_width(), 0, 0, 0)
 
-        def update_line_number_area(self, rect, dy):
+        def update_line_number_area(self, rect: Any, dy: int) -> None:
             if dy:
                 self.line_number_area.scroll(0, dy)
             else:
@@ -671,14 +673,14 @@ class BuildSimulationWidget(QWidget):
             if rect.contains(self.viewport().rect()):
                 self.update_line_number_area_width()
 
-        def resizeEvent(self, event):
+        def resizeEvent(self, event: Any) -> None:
             super().resizeEvent(event)
             cr = self.contentsRect()
             self.line_number_area.setGeometry(
                 QRect(cr.left(), cr.top(), self.line_number_area_width(), cr.height())
             )
 
-        def line_number_area_paint_event(self, event):
+        def line_number_area_paint_event(self, event: Any) -> None:
             painter = QPainter(self.line_number_area)
             painter.setFont(self.font())
             painter.fillRect(event.rect(), QColor(EDITOR_BACKGROUND))  # 淡灰色背景
@@ -708,8 +710,8 @@ class BuildSimulationWidget(QWidget):
                 bottom = top + self.blockBoundingRect(block).height()
                 block_number += 1
 
-        def highlight_current_line(self):
-            extra_selections = []
+        def highlight_current_line(self) -> None:
+            extra_selections: list[QTextEdit.ExtraSelection] = []
             if not self.isReadOnly():
                 selection = QTextEdit.ExtraSelection()
                 line_color = QColor("#ffffcc")  # 淡黄色高亮当前行
@@ -723,7 +725,7 @@ class BuildSimulationWidget(QWidget):
                 extra_selections.append(selection)
             self.setExtraSelections(extra_selections)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.current_mindes_file = None  # 当前加载的 .mindes 文件绝对路径
         self._project_path = None
@@ -752,7 +754,7 @@ class BuildSimulationWidget(QWidget):
         self.run_btn.setEnabled(False)
         self.load_solvers()
 
-    def setup_ui(self):
+    def setup_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
@@ -1020,13 +1022,13 @@ class BuildSimulationWidget(QWidget):
         progress_value: float | None = None,
         sim_step_value: str | None = None,
         stat_file_found: bool = False,
-    ):
+    ) -> None:
         solver_name = self._get_solver_display_name()
         mindes_name = self._get_mindes_display_name()
 
         # run 过程中：显示 statistic 文件相关信息
         if self.is_running and self._current_run_mode == "run":
-            parts = []
+            parts: list[str] = []
             if stat_file_found:
                 if progress_value is not None:
                     parts.append(f"progress {progress_value * 100:.1f}%")
@@ -1050,7 +1052,7 @@ class BuildSimulationWidget(QWidget):
 
     def _find_first_matching_column_index(
         self, header: list[str], candidates: list[str]
-    ):
+    ) -> int | None:
         header_map = {name.strip().lower(): idx for idx, name in enumerate(header)}
         for candidate in candidates:
             idx = header_map.get(candidate.strip().lower())
@@ -1058,10 +1060,10 @@ class BuildSimulationWidget(QWidget):
                 return idx
         return None
 
-    def _reset_inline_progress(self):
+    def _reset_inline_progress(self) -> None:
         self._update_progress_overlay()
 
-    def _switch_to_input_report_if_needed(self):
+    def _switch_to_input_report_if_needed(self) -> None:
         """.mindes 文件 和 report 文件互相切换"""
         if self.current_mindes_file:
             if self.is_showing_report:
@@ -1070,13 +1072,13 @@ class BuildSimulationWidget(QWidget):
                 self.save_current_content()
                 self.show_input_report()
 
-    def load_solvers(self):
+    def load_solvers(self) -> None:
         """扫描 solver/ 目录下的子文件夹，每个子文件夹视为一个求解器（含 MInDes.exe）"""
         if not self.solver_dir.exists():
             self.update_status("Error: solver directory not found.", error=True)
             return
 
-        solvers = []
+        solvers: list[tuple[str, str]] = []
         for item in self.solver_dir.iterdir():
             if item.is_dir():
                 exe_path = item / "MInDes.exe"
@@ -1094,19 +1096,19 @@ class BuildSimulationWidget(QWidget):
         else:
             self.update_status("No solvers found in 'solver/' directory.", warning=True)
 
-    def on_solver_selected(self, name):
+    def on_solver_selected(self, name: str) -> None:
         data = self.solver_combo.currentData()
         if data:
             self.selected_solver_path = data
             self.update_status(f"Solver selected: {name}")
         self._update_progress_overlay()
 
-    def _update_editor_actions(self):
+    def _update_editor_actions(self) -> None:
         has_file = bool(self.current_mindes_file)
         self.save_btn.setEnabled(has_file and not self.is_showing_report)
         self.debug_edit_btn.setEnabled(has_file)
 
-    def _apply_editor_mode(self):
+    def _apply_editor_mode(self) -> None:
         """根据当前显示状态统一刷新编辑器的可编辑性与相关按钮状态。"""
         is_report_mode = bool(self.is_showing_report)
         self.text_edit.setReadOnly(is_report_mode)
@@ -1141,7 +1143,7 @@ class BuildSimulationWidget(QWidget):
         warning: bool = False,
         success: bool = False,
         info: bool = False,
-    ):
+    ) -> None:
         self.is_running = running
         has_file = bool(self.current_mindes_file)
         can_start = has_file and not running
@@ -1161,7 +1163,7 @@ class BuildSimulationWidget(QWidget):
                 info=info,
             )
 
-    def _clear_solver_refs(self):
+    def _clear_solver_refs(self) -> None:
         self._close_progress_dialog()
         self.solver_thread = None
         self.solver_worker = None
@@ -1174,7 +1176,7 @@ class BuildSimulationWidget(QWidget):
             self.solver_combo.setEnabled(True)
             self._update_editor_actions()
 
-    def set_mindes_content(self, file_path: str, content: str):
+    def set_mindes_content(self, file_path: str, content: str) -> None:
         """由主窗口调用：设置当前 .mindes 文件路径和内容"""
         self.current_mindes_file = os.path.abspath(file_path)
         self._project_path = Path(self.current_mindes_file).with_suffix("")
@@ -1190,7 +1192,7 @@ class BuildSimulationWidget(QWidget):
         # TODO: 可在此处添加语法高亮/着色逻辑（预留）
         # self.highlight_text()
 
-    def _find_progress_stat_file(self):
+    def _find_progress_stat_file(self) -> Path | None:
         if not self._project_path or not self._project_path.exists():
             return None
         stat_candidates = get_existing_candidates_by_mtime(
@@ -1198,7 +1200,7 @@ class BuildSimulationWidget(QWidget):
         )
         return stat_candidates[0] if stat_candidates else None
 
-    def _read_latest_progress_info(self, stat_path: Path):
+    def _read_latest_progress_info(self, stat_path: Path) -> tuple[float | None, str | None]:
         try:
             with open(stat_path, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
@@ -1249,7 +1251,7 @@ class BuildSimulationWidget(QWidget):
 
         return progress_value, sim_step_value
 
-    def _poll_simulation_progress(self):
+    def _poll_simulation_progress(self) -> None:
         if not self.is_running or self._current_run_mode != "run":
             return
         # 还没锁定统计文件，就持续查找
@@ -1266,13 +1268,13 @@ class BuildSimulationWidget(QWidget):
             stat_file_found=True,
         )
 
-    def _close_progress_dialog(self):
+    def _close_progress_dialog(self) -> None:
         if self._progress_timer.isActive():
             self._progress_timer.stop()
         self._progress_stat_path = None
         self._reset_inline_progress()
 
-    def on_solver_started(self):
+    def on_solver_started(self) -> None:
         """进程已成功启动，启用 Cancel 按钮"""
         self._set_running_state(True, "Solver started.", success=True)
 
@@ -1284,7 +1286,7 @@ class BuildSimulationWidget(QWidget):
         else:
             self._reset_inline_progress()
 
-    def on_solver_finished(self):
+    def on_solver_finished(self) -> None:
         result_dir = (
             os.path.splitext(self.current_mindes_file)[0]
             if self.current_mindes_file
@@ -1295,23 +1297,23 @@ class BuildSimulationWidget(QWidget):
         if result_dir:
             self.simulationFinished.emit(result_dir)
 
-    def on_solver_error(self, error_msg):
+    def on_solver_error(self, error_msg: str) -> None:
         self._close_progress_dialog()
         self._set_running_state(False, f"Error: {error_msg}", error=True)
         QMessageBox.critical(self, "Solver Error", error_msg)
 
-    def _reset_buttons(self):
+    def _reset_buttons(self) -> None:
         """恢复按钮状态"""
         self._set_running_state(False)
 
-    def cancel_solver(self):
+    def cancel_solver(self) -> None:
         """取消正在运行的求解器"""
         if self.solver_worker and self.is_running:
             self.cancel_btn.setEnabled(False)
             self.update_status("Terminating solver...", warning=True)
             self.solver_worker.cancel()
 
-    def execute_solver(self, mode: str):
+    def execute_solver(self, mode: str) -> None:
         if not self.current_mindes_file:
             QMessageBox.warning(self, "No File", "Please load a .mindes file first.")
             return
@@ -1395,7 +1397,7 @@ class BuildSimulationWidget(QWidget):
         self.cancel_btn.setEnabled(True)
         self.solver_thread.start()
 
-    def on_worker_done(self):
+    def on_worker_done(self) -> None:
         """兼容旧接口：统一通过线程 finished 完成清理。"""
         if self.solver_thread and self.solver_thread.isRunning():
             self.solver_thread.quit()
@@ -1423,7 +1425,7 @@ class BuildSimulationWidget(QWidget):
             return False
         return True
 
-    def show_context_menu(self, pos):
+    def show_context_menu(self, pos: Any) -> None:
         """右键菜单处理"""
         menu = QMenu(self)
         cursor = self.text_edit.textCursor()
@@ -1491,7 +1493,7 @@ class BuildSimulationWidget(QWidget):
             if action == read_write_action:
                 self._switch_to_input_report_if_needed()
 
-    def _refresh_parsed_definitions(self):
+    def _refresh_parsed_definitions(self) -> None:
         """重新读取 input_report.txt 并更新 self.parsed_definitions"""
         if not self.current_mindes_file:
             self.parsed_definitions = None
@@ -1511,11 +1513,11 @@ class BuildSimulationWidget(QWidget):
             self.update_status(f"Failed to reload definitions: {e}", error=True)
             self.parsed_definitions = None
 
-    def on_solver_canceled(self):
+    def on_solver_canceled(self) -> None:
         self._close_progress_dialog()
         self._set_running_state(False, "Solver canceled by user.", warning=True)
 
-    def show_input_report(self):
+    def show_input_report(self) -> None:
         """显示 input_report.txt 文件"""
         if not self.current_mindes_file:
             return
@@ -1545,7 +1547,7 @@ class BuildSimulationWidget(QWidget):
         cursor.insertText(new_text)
         self.text_edit.setTextCursor(cursor)
 
-    def show_mindes_file(self):
+    def show_mindes_file(self) -> None:
         """切换回 .mindes 文件显示"""
         if not self.current_mindes_file:
             return
@@ -1568,7 +1570,7 @@ class BuildSimulationWidget(QWidget):
         warning: bool = False,
         success: bool = False,
         info: bool = False,
-    ):
+    ) -> None:
         """更新状态栏消息和颜色"""
         self.status_line.setText(message)
 
@@ -1628,11 +1630,11 @@ class BuildSimulationWidget(QWidget):
                 }
             """)
 
-    def get_current_content(self):
+    def get_current_content(self) -> str:
         """获取当前文本编辑器的内容"""
         return self.text_edit.toPlainText()
 
-    def save_current_content(self):
+    def save_current_content(self) -> bool:
         """保存当前内容到 .mindes 文件（如果存在）"""
         if self.current_mindes_file and not self.is_showing_report:
             try:
@@ -1648,7 +1650,7 @@ class BuildSimulationWidget(QWidget):
                 return False
         return False
 
-    def parse_input_report(self, report_path: str):
+    def parse_input_report(self, report_path: str) -> dict[str, list[dict[str, Any]]]:
         """增强版解析：通过定位权威区块位置，避免用户输入干扰"""
         with open(report_path, "r", encoding="utf-8") as f:
             lines = [line.rstrip("\n") for line in f.readlines()]
@@ -1680,11 +1682,11 @@ class BuildSimulationWidget(QWidget):
         )
 
         # === 初始化结果容器 ===
-        variables = []
-        functions = []
-        parameters = []
-        macros = []
-        func_names = set()
+        variables: list[dict[str, Any]] = []
+        functions: list[dict[str, Any]] = []
+        parameters: list[dict[str, str]] = []
+        macros: list[dict[str, str]] = []
+        func_names: set[str] = set()
 
         # === 第二阶段：按区块位置解析 ===
 
@@ -1736,7 +1738,7 @@ class BuildSimulationWidget(QWidget):
             "macros": macros,
         }
 
-    def _extract_builtin_functions_from_line(self, line: str) -> set:
+    def _extract_builtin_functions_from_line(self, line: str) -> set[str]:
         """从单行 'default functions : "..."' 中提取函数名"""
         default_hardcoded = {
             "pow",
@@ -1758,7 +1760,7 @@ class BuildSimulationWidget(QWidget):
         import re
 
         matches = re.findall(r'"([^"]+)"', line)
-        builtin_set = set()
+        builtin_set: set[str] = set()
         for match in matches:
             func_name = match.split("(", 1)[0].strip()
             if func_name:
@@ -1779,8 +1781,8 @@ class BuildSimulationWidget(QWidget):
         return False
 
     def _parse_function_line(
-        self, line: str, functions: list, func_names: set, builtin_funcs: set
-    ):
+        self, line: str, functions: list[dict[str, Any]], func_names: set[str], builtin_funcs: set[str]
+    ) -> None:
         parts = [p.strip().replace("\t", " ") for p in line.split("|")]
         parts = [p for p in parts if p]
         if len(parts) >= 3:
@@ -1792,7 +1794,7 @@ class BuildSimulationWidget(QWidget):
                     functions.append({"no": no, "name": name, "expr": cleaned_expr})
                     func_names.add(name)
 
-    def _parse_variable_line(self, line: str, variables: list, func_names: set):
+    def _parse_variable_line(self, line: str, variables: list[dict[str, Any]], func_names: set[str]) -> None:
         parts = [p.strip().replace("\t", " ") for p in line.split("|")]
         parts = [p for p in parts if p]
         if len(parts) >= 3:
@@ -1803,7 +1805,7 @@ class BuildSimulationWidget(QWidget):
                 if not name.isdigit() and name not in func_names:
                     variables.append({"no": no, "name": name, "value": value})
 
-    def _parse_parameter_line(self, line: str, parameters: list):
+    def _parse_parameter_line(self, line: str, parameters: list[dict[str, str]]) -> None:
         import re
 
         match = re.match(r">\s*\[([^\]]+)\]\s*([^=]+?)\s*=\s*(.+)", line)
@@ -1818,7 +1820,7 @@ class BuildSimulationWidget(QWidget):
                 return
             parameters.append({"tag": tag, "name": name, "value": value})
 
-    def _parse_macro_line(self, line: str, macros: list):
+    def _parse_macro_line(self, line: str, macros: list[dict[str, str]]) -> None:
         """
         解析宏定义行，支持一行多个宏（以逗号分隔的 $...$ = ... 模式）
         示例：
@@ -1875,7 +1877,7 @@ class BuildSimulationWidget(QWidget):
                     self.mindes_highlighter.setDocument(self.text_edit.document())
                 self.current_highlighter = self.mindes_highlighter
 
-    def _build_merged_definitions_data(self, variables, functions):
+    def _build_merged_definitions_data(self, variables: list[dict[str, Any]], functions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """
         将变量列表和函数列表按名称合并，生成用于表格显示的统一数据列表。
 
@@ -1887,7 +1889,7 @@ class BuildSimulationWidget(QWidget):
             - has_var: bool
             - has_func: bool
         """
-        name_map = {}
+        name_map: dict[str, dict[str, Any]] = {}
 
         # 处理变量
         for var in variables:
@@ -1924,7 +1926,7 @@ class BuildSimulationWidget(QWidget):
         all_items.sort(key=lambda x: x["no"])
         return all_items
 
-    def _populate_definition_table(self, table: QTableWidget, items: list):
+    def _populate_definition_table(self, table: QTableWidget, items: list[dict[str, Any]]) -> None:
         """
         将合并后的定义项列表填充到 QTableWidget 中。
 
@@ -1947,7 +1949,7 @@ class BuildSimulationWidget(QWidget):
             table.setItem(row, 1, QTableWidgetItem(item["value"]))
             table.setItem(row, 2, QTableWidgetItem(item["expression"]))
 
-    def show_custom_definitions_popup(self):
+    def show_custom_definitions_popup(self) -> None:
         variables = (
             self.parsed_definitions.get("variables", [])
             if self.parsed_definitions
@@ -2003,7 +2005,7 @@ class BuildSimulationWidget(QWidget):
         )  # 初始数据（仅用于类型判断，实际刷新会重载）
 
         # === 右键菜单 ===
-        def show_context_menu(pos):
+        def show_context_menu(pos: Any) -> None:
             context_menu = QMenu(popup)
             copy_action = context_menu.addAction("Copy")
             refresh_action = context_menu.addAction("Refresh")
@@ -2029,7 +2031,7 @@ class BuildSimulationWidget(QWidget):
         popup.raise_()
         popup.activateWindow()
 
-    def _refresh_custom_definitions_table(self, popup_widget):
+    def _refresh_custom_definitions_table(self, popup_widget: QWidget) -> None:
         """刷新弹窗中的表格内容，并保持与主弹窗一致的合并逻辑"""
         if self.current_mindes_file is None:
             print("current_mindes_file lost")
@@ -2052,10 +2054,9 @@ class BuildSimulationWidget(QWidget):
             all_items.sort(key=lambda x: x["no"])
 
             # 清空并重填表格
-            if hasattr(popup_widget, "table"):
-                table = popup_widget.table
-            else:
-                print("popup widget doesn't has attribute 'table'")
+            table: Any = getattr(popup_widget, "table", None)
+            if table is None:
+                print("popup widget doesn't have attribute 'table'")
                 return
 
             self._populate_definition_table(table, all_items)
@@ -2114,7 +2115,7 @@ class BuildSimulationWidget(QWidget):
         """判断选中文本是否符合任一 Input Helper 的触发条件"""
         return self._is_tuple_pattern(text)
 
-    def _launch_input_helper(self, selected_text: str):
+    def _launch_input_helper(self, selected_text: str) -> None:
         """根据选中文本类型，启动对应的 Input Helper 弹窗"""
         text = selected_text.strip()
 
@@ -2130,7 +2131,7 @@ class BuildSimulationWidget(QWidget):
         # 匹配 (a, b, c) 形式的元组
         return re.fullmatch(r"\([^)]+\)", text.strip()) is not None
 
-    def _show_tuple_helper(self, current_text: str):
+    def _show_tuple_helper(self, current_text: str) -> None:
         """辅助生成元组 (a, b, c)"""
         dialog = QDialog(self)
         dialog.setWindowTitle("Tuple Helper")

@@ -76,7 +76,7 @@ class FitterDialog(QDialog):
         # state
         self.df: pd.DataFrame | None = None
         self.csv_path: str | None = None
-        self.result: fc.FitResult | None = None
+        self.fit_result: fc.FitResult | None = None
 
         self._build_ui()
 
@@ -267,7 +267,7 @@ class FitterDialog(QDialog):
             f"x2 in [{df['x2'].min():.3g}, {df['x2'].max():.3g}], "
             f"G in [{df['G'].min():.4g}, {df['G'].max():.4g}]."
         )
-        self.result = None
+        self.fit_result = None
         self._render_raw_only()
 
     def on_fit(self):
@@ -288,7 +288,7 @@ class FitterDialog(QDialog):
         except Exception as e:
             QMessageBox.critical(self, "Fit failed", f"{e}\n\n{traceback.format_exc()}")
             return
-        self.result = result
+        self.fit_result = result
         self._refresh_summary()
         self._refresh_coeff_table()
         self._refresh_plots()
@@ -299,7 +299,7 @@ class FitterDialog(QDialog):
         )
 
     def on_export_coeffs(self):
-        if self.result is None:
+        if self.fit_result is None:
             QMessageBox.information(self, "No fit", "Run a fit first.")
             return
         path, _ = QFileDialog.getSaveFileName(
@@ -308,22 +308,22 @@ class FitterDialog(QDialog):
         if not path:
             return
         try:
-            table = fc.coeff_table(self.result)
+            table = fc.coeff_table(self.fit_result)
             with open(path, "w", encoding="utf-8", newline="") as f:
-                f.write(f"# mode,{self.result.mode}\n")
-                f.write(f"# degrees,{','.join(map(str, self.result.degrees))}\n")
-                f.write(f"# n_points,{self.result.n_points}\n")
-                f.write(f"# n_params,{self.result.n_params}\n")
-                f.write(f"# rmse,{self.result.rmse}\n")
-                f.write(f"# max_abs_err,{self.result.max_abs_err}\n")
-                f.write(f"# r2,{self.result.r2}\n")
+                f.write(f"# mode,{self.fit_result.mode}\n")
+                f.write(f"# degrees,{','.join(map(str, self.fit_result.degrees))}\n")
+                f.write(f"# n_points,{self.fit_result.n_points}\n")
+                f.write(f"# n_params,{self.fit_result.n_params}\n")
+                f.write(f"# rmse,{self.fit_result.rmse}\n")
+                f.write(f"# max_abs_err,{self.fit_result.max_abs_err}\n")
+                f.write(f"# r2,{self.fit_result.r2}\n")
                 table.to_csv(f, index=False)
             QMessageBox.information(self, "Saved", f"Wrote {path}")
         except Exception as e:
             QMessageBox.critical(self, "Save failed", str(e))
 
     def on_export_data(self):
-        if self.result is None or self.df is None:
+        if self.fit_result is None or self.df is None:
             QMessageBox.information(self, "No fit", "Run a fit first.")
             return
         path, _ = QFileDialog.getSaveFileName(
@@ -335,7 +335,7 @@ class FitterDialog(QDialog):
             x1 = self.df["x1"].to_numpy()
             x2 = self.df["x2"].to_numpy()
             G_true = self.df["G"].to_numpy()
-            G_fit = fc.predict(self.result, x1, x2)
+            G_fit = fc.predict(self.fit_result, x1, x2)
             out = pd.DataFrame(
                 {
                     "x1": x1,
@@ -353,7 +353,7 @@ class FitterDialog(QDialog):
 
     # -- rendering ----------------------------------------------------------
     def _refresh_summary(self):
-        r = self.result
+        r = self.fit_result
         if r is None:
             self.lbl_summary.setText("(no fit yet)")
             return
@@ -370,13 +370,13 @@ class FitterDialog(QDialog):
 
     def _refresh_coeff_table(self):
         self.tbl_coef.setRowCount(0)
-        if self.result is None:
+        if self.fit_result is None:
             return
-        is_bivar = self.result.mode == "bivariate"
+        is_bivar = self.fit_result.mode == "bivariate"
         # 第 3 列的显示/隐藏由 setColumnHidden 控制, 比改 header 稳
         self.tbl_coef.setColumnHidden(2, is_bivar)
 
-        for exps, c in zip(self.result.terms, self.result.coeffs):
+        for exps, c in zip(self.fit_result.terms, self.fit_result.coeffs):
             row = self.tbl_coef.rowCount()
             self.tbl_coef.insertRow(row)
             self.tbl_coef.setItem(row, 0, QTableWidgetItem(str(exps[0])))
@@ -417,7 +417,7 @@ class FitterDialog(QDialog):
         self.tab_res["canvas"].draw_idle()
 
     def _refresh_plots(self):
-        if self.df is None or self.result is None:
+        if self.df is None or self.fit_result is None:
             return
         self._plot_3d()
         self._plot_contours()
@@ -434,11 +434,11 @@ class FitterDialog(QDialog):
         fig.clf()
         ax = fig.add_subplot(111, projection="3d")
         df = self.df
-        if df is None or self.result is None:
+        if df is None or self.fit_result is None:
             return
         ax.scatter(df["x1"], df["x2"], df["G"], s=5, c="k", alpha=0.25, label="data")
         X1, X2, mask = self._grid_over_simplex()
-        Z = fc.predict(self.result, X1, X2)
+        Z = fc.predict(self.fit_result, X1, X2)
         Zm = np.where(mask, Z, np.nan)
         ax.plot_surface(
             X1, X2, Zm, cmap="viridis", alpha=0.75, linewidth=0, antialiased=True
@@ -448,7 +448,7 @@ class FitterDialog(QDialog):
         ax.set_zlabel("G")
         ax.set_title(
             f"Data (black dots) vs fitted surface — "
-            f"mode={self.result.mode}, degrees={self.result.degrees}"
+            f"mode={self.fit_result.mode}, degrees={self.fit_result.degrees}"
         )
         self.tab_3d["canvas"].draw_idle()
 
@@ -458,7 +458,7 @@ class FitterDialog(QDialog):
         df = self.df
 
         from matplotlib.tri import Triangulation
-        if df is None or self.result is None:
+        if df is None or self.fit_result is None:
             return
         tri = Triangulation(df["x1"].to_numpy(), df["x2"].to_numpy())
 
@@ -473,11 +473,11 @@ class FitterDialog(QDialog):
 
         ax2 = fig.add_subplot(1, 2, 2)
         X1, X2, mask = self._grid_over_simplex()
-        Z = fc.predict(self.result, X1, X2)
+        Z = fc.predict(self.fit_result, X1, X2)
         Zm = np.where(mask, Z, np.nan)
         levels = tcf1.levels
         cf2 = ax2.contourf(X1, X2, Zm, levels=levels, cmap="viridis")
-        ax2.set_title(f"Fitted G ({self.result.mode}, {self.result.degrees})")
+        ax2.set_title(f"Fitted G ({self.fit_result.mode}, {self.fit_result.degrees})")
         ax2.set_xlabel("x1")
         ax2.set_ylabel("x2")
         ax2.set_aspect("equal")
@@ -491,9 +491,9 @@ class FitterDialog(QDialog):
         fig = self.tab_res["fig"]
         fig.clf()
         df = self.df
-        if df is None or self.result is None:
+        if df is None or self.fit_result is None:
             return
-        G_fit = fc.predict(self.result, df["x1"].to_numpy(), df["x2"].to_numpy())
+        G_fit = fc.predict(self.fit_result, df["x1"].to_numpy(), df["x2"].to_numpy())
         resid = df["G"].values - G_fit
 
         ax1 = fig.add_subplot(1, 2, 1)
@@ -513,8 +513,8 @@ class FitterDialog(QDialog):
         ax2.set_xlabel("residual")
         ax2.set_ylabel("count")
         ax2.set_title(
-            f"Residual histogram\nRMSE={self.result.rmse:.4g}, "
-            f"max|err|={self.result.max_abs_err:.4g}"
+            f"Residual histogram\nRMSE={self.fit_result.rmse:.4g}, "
+            f"max|err|={self.fit_result.max_abs_err:.4g}"
         )
 
         fig.tight_layout()

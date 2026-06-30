@@ -1,7 +1,9 @@
 # log_statistics_widget.py
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import pandas as pd
 from PySide6.QtWidgets import (
@@ -49,7 +51,7 @@ def get_existing_candidates_by_mtime(
     返回 base_dir 下所有命中的候选文件，按“最后写入时间”从新到旧排序。
     若写入时间相同，则按 candidates 中的先后顺序决定优先级。
     """
-    ranked = []
+    ranked: list[tuple[int, int, Path]] = []
 
     for priority, name in enumerate(candidates):
         path = base_dir / name
@@ -76,7 +78,7 @@ class LogStatisticsWidget(QWidget):
     # 状态信号：(message, level) 其中 level in {"info", "warning", "error"}
     statusMessage = Signal(str, str)
 
-    def __init__(self, parent=None, progress_callback=None):
+    def __init__(self, parent: QWidget | None = None, progress_callback: Callable[[str], None] | None = None) -> None:
         super().__init__(parent)
         self.progress_callback = progress_callback
         self._project_path: Optional[Path] = None  # .mindes 同名结果目录
@@ -89,6 +91,8 @@ class LogStatisticsWidget(QWidget):
         self._parse_retry_count = 0
         self.log_content = ""
         self.stat_content = ""
+        self.plot_canvas: Any  # FigureCanvasQTAgg — typed at class level to satisfy strict mode
+
         # 绘图监控
         self.is_drawing = False
 
@@ -127,9 +131,6 @@ class LogStatisticsWidget(QWidget):
         # 将传入的 project_folder 视为 _project_path（无后缀的基础路径）
         base_path = Path(project_folder).resolve()
         self._project_path = base_path  # 这就是结果目录路径
-
-        # 推导对应的 .mindes 文件路径
-        mindes_path = base_path.with_suffix(".mindes")
 
         # 如果目录不存在，不报错，等运行后生成
         if not self._project_path.exists():
@@ -446,7 +447,7 @@ class LogStatisticsWidget(QWidget):
             if not self._refresh_timer.isActive():
                 self._refresh_timer.start()
         # --- 发送状态消息 ---
-        msg_parts = []
+        msg_parts: list[str] = []
         if loaded_log_path:
             if loaded_log_path.name != "Log.txt":
                 msg_parts.append(f"legacy log: {loaded_log_path.name}")
@@ -492,7 +493,7 @@ class LogStatisticsWidget(QWidget):
         try:
             # 主路径：标准表格格式（支持空格、制表符分隔）
             df = pd.read_csv(
-                stat_handled := str(stat_file),
+                str(stat_file),
                 comment="#",
                 sep=r"\s+",
                 skip_blank_lines=True,
@@ -562,7 +563,7 @@ class LogStatisticsWidget(QWidget):
             self.figure_update_label.clear()
             self._commit_figure_dataframe(pending)
 
-    def _stage_figure_dataframe(self, df: pd.DataFrame, force=False):
+    def _stage_figure_dataframe(self, df: pd.DataFrame, force: bool = False) -> None:
         if self._figure_lock_count and not force:
             self._pending_figure_df = df.copy()
             self.figure_update_label.setText("Figure update queued")
@@ -652,7 +653,7 @@ class LogStatisticsWidget(QWidget):
             self.statusMessage.emit(f"Failed to save figure: {e}", "error")
             QMessageBox.critical(self, "Save Error", f"Failed to save figure:\n{e}")
 
-    def show_plot_context_menu(self, pos):
+    def show_plot_context_menu(self, pos: Any) -> None:
         menu = QMenu(self)
         draw_action = menu.addAction("Draw (Ctrl+D)")
         save_action = menu.addAction("Save (Ctrl+S)")

@@ -23,7 +23,6 @@ import pandas as pd
 
 try:
     from .common_tangent_core import (
-        CompositionSection,
         LinearTriangleInterpolator,
         PhaseTable,
         compute_common_tangent as _core_compute_common_tangent,
@@ -291,7 +290,6 @@ def phase_fraction(x_total, tie_segments_xy):
 # =============================================================
 def _build_surface_vtk(grid, G_values, zscale=1.0):
     """将 (x1, x2, G) 散点三角剖分, 返回带标量 "G" 的 vtkPolyData."""
-    n = len(grid)
     points = vtk.vtkPoints()
     for (x, y), z in zip(grid, G_values):
         points.InsertNextPoint(float(x), float(y), float(z) * zscale)
@@ -1224,11 +1222,11 @@ class CommonTangentDialog(QDialog):
 # =============================================================
 # Demo 函数 (保留, 供独立运行测试)
 # =============================================================
-def Ga_default(x1, x2):
+def Ga_default(x1: float, x2: float) -> float:
     return 2.0 * (x1 - 0.2) ** 2 + 2.0 * (x2 - 0.2) ** 2 - 0.5
 
 
-def Gb_default(x1, x2):
+def Gb_default(x1: float, x2: float) -> float:
     return 2.0 * (x1 - 0.6) ** 2 + 2.0 * (x2 - 0.2) ** 2 - 0.3
 
 

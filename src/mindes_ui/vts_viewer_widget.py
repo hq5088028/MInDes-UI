@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import queue
 import threading
+from typing import Callable
 from PySide6.QtWidgets import QWidget, QHBoxLayout
 import vtk
 from .vts_viewer.ui_vtk_view import VTKViewMixin
@@ -17,7 +20,9 @@ class VTSViewerWidget(
     VisualizationMixin,
     PlotOverLineMixin,
 ):
-    def __init__(self, parent=None, progress_callback=None):
+    progress_callback: Callable[[str], None] | None
+
+    def __init__(self, parent: QWidget | None = None, progress_callback: Callable[[str], None] | None = None) -> None:
         vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow())  # 禁用vts的自动弹窗
         super().__init__(parent)
         self.progress_callback = progress_callback

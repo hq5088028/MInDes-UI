@@ -68,7 +68,7 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Playback
         # =====================================================
-        self.playback_group = QGroupBox("Playback Control")
+        self.playback_group: QGroupBox = QGroupBox("Playback Control")
         playback_layout = QVBoxLayout()
 
         play_btns = QHBoxLayout()
@@ -76,11 +76,11 @@ class ControlPanelMixin(_Base):
         self.draw_btns.clicked.connect(self.update_visualization)
         play_btns.addWidget(self.draw_btns)
 
-        self.play_button = QPushButton("▶ Play")
+        self.play_button: QPushButton = QPushButton("▶ Play")
         self.play_button.clicked.connect(self.start_sequential_playback)
         play_btns.addWidget(self.play_button)
 
-        self.stop_button = QPushButton("⏹ Stop")
+        self.stop_button: QPushButton = QPushButton("⏹ Stop")
         self.stop_button.clicked.connect(self.stop_sequential_playback)
         self.stop_button.setEnabled(False)
         play_btns.addWidget(self.stop_button)
@@ -88,12 +88,12 @@ class ControlPanelMixin(_Base):
         playback_layout.addLayout(play_btns)
 
         auto_layout = QHBoxLayout()
-        self.auto_update_checkbox = QCheckBox("Auto Update")
+        self.auto_update_checkbox: QCheckBox = QCheckBox("Auto Update")
         self.auto_update_checkbox.stateChanged.connect(self.toggle_auto_update)
         auto_layout.addWidget(self.auto_update_checkbox)
 
         auto_layout.addWidget(QLabel("Interval:"))
-        self.auto_update_interval_combo = QComboBox()
+        self.auto_update_interval_combo: QComboBox = QComboBox()
         self.auto_update_interval_combo.addItems(
             ["0.02s", "0.05s", "0.1s", "0.2s", "0.5s"]
         )
@@ -116,7 +116,7 @@ class ControlPanelMixin(_Base):
 
         file_layout = QHBoxLayout()
         file_layout.addWidget(QLabel("VTS Files:"))
-        self.file_combo = QComboBox()
+        self.file_combo: QComboBox = QComboBox()
         self.file_combo.currentIndexChanged.connect(self.on_file_combo_changed)
         self.file_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.file_combo.setSizePolicy(
@@ -136,7 +136,7 @@ class ControlPanelMixin(_Base):
 
         field_layout = QHBoxLayout()
         field_layout.addWidget(QLabel("Data Fields:"))
-        self.field_combo = QComboBox()
+        self.field_combo: QComboBox = QComboBox()
         self.field_combo.currentTextChanged.connect(self.on_field_selection_changed)
         self.field_combo.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
@@ -153,7 +153,7 @@ class ControlPanelMixin(_Base):
 
         map_layout = QHBoxLayout()
         map_layout.addWidget(QLabel("Colormap:"))
-        self.colormap_combo = QComboBox()
+        self.colormap_combo: QComboBox = QComboBox()
         self.colormap_combo.addItems(
             ["Cool-Warm", "Rainbow", "Grayscale", "Viridis", "Plasma"]
         )
@@ -203,7 +203,7 @@ class ControlPanelMixin(_Base):
         # =====================================================
         map_layout = QHBoxLayout()
         map_layout.addWidget(QLabel("Draw Mode:"))
-        self.vis_mode_combo = QComboBox()
+        self.vis_mode_combo: QComboBox = QComboBox()
         self.vis_mode_combo.addItems(
             ["Surface", "Surface with Grid", "Clip", "Contour", "Vector Arrows"]
         )
@@ -221,7 +221,7 @@ class ControlPanelMixin(_Base):
         self.clip_group = QGroupBox("Clip Plane")
         clip_layout = QVBoxLayout()
 
-        self.clip_axis_combo = QComboBox()
+        self.clip_axis_combo: QComboBox = QComboBox()
         self.clip_axis_combo.addItems(["X", "Y", "Z"])
         self.clip_axis_combo.currentTextChanged.connect(self.on_clip_axis_changed)
         clip_layout.addWidget(QLabel("Clip Axis:"))
@@ -251,13 +251,13 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Vector Arrows Controls (Glyph)
         # =====================================================
-        self.glyph_group = QGroupBox("Vector Arrows")
+        self.glyph_group: QGroupBox = QGroupBox("Vector Arrows")
         glyph_layout = QVBoxLayout()
 
         # 颜色模式
         color_mode_layout = QHBoxLayout()
         color_mode_layout.addWidget(QLabel("Color Mode:"))
-        self.glyph_color_mode_combo = QComboBox()
+        self.glyph_color_mode_combo: QComboBox = QComboBox()
         self.glyph_color_mode_combo.addItems(["Single Color", "Colormap"])
         self.glyph_color_mode_combo.currentTextChanged.connect(
             self.on_glyph_color_mode_changed
@@ -266,14 +266,14 @@ class ControlPanelMixin(_Base):
         glyph_layout.addLayout(color_mode_layout)
 
         # 设置箭头颜色按钮（仅 Single Color 时可用）
-        self.arrow_color_btn = QPushButton("Set Arrow Color")
+        self.arrow_color_btn: QPushButton = QPushButton("Set Arrow Color")
         self.arrow_color_btn.clicked.connect(self.pick_arrow_color)
         glyph_layout.addWidget(self.arrow_color_btn)
 
         # 箭头大小模式
         size_mode_layout = QHBoxLayout()
         size_mode_layout.addWidget(QLabel("Size Mode:"))
-        self.glyph_size_mode_combo = QComboBox()
+        self.glyph_size_mode_combo: QComboBox = QComboBox()
         self.glyph_size_mode_combo.addItems(["Magnitude", "Uniform"])
         size_mode_layout.addWidget(self.glyph_size_mode_combo)
         glyph_layout.addLayout(size_mode_layout)
@@ -282,7 +282,7 @@ class ControlPanelMixin(_Base):
         scale_layout = QHBoxLayout()
         scale_layout.addWidget(QLabel("Scale Factor:"))
         # 创建 QLineEdit 代替 QSlider
-        self.glyph_scale_edit = QLineEdit()
+        self.glyph_scale_edit: QLineEdit = QLineEdit()
         self.glyph_scale_edit.setText("1.0")  # 默认值 1.0
         # 设置数值验证器：只允许正浮点数，范围 0.00001 ~ 100000.0（可调）
         validator = QDoubleValidator(0.00001, 100000.0, 5)  # 5 位小数
@@ -308,7 +308,7 @@ class ControlPanelMixin(_Base):
         # Opacity
         # =====================================================
         op_layout = QHBoxLayout()
-        self.opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.opacity_slider: QSlider = QSlider(Qt.Orientation.Horizontal)
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(100)
         self.opacity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
@@ -323,7 +323,7 @@ class ControlPanelMixin(_Base):
         playback_layout.addLayout(op_layout)
 
         # With boundary
-        self.show_with_boundary_checkbox = QCheckBox("With Boundary")
+        self.show_with_boundary_checkbox: QCheckBox = QCheckBox("With Boundary")
         self.show_with_boundary_checkbox.setChecked(True)
         playback_layout.addWidget(self.show_with_boundary_checkbox)
 
@@ -333,7 +333,7 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Plot Over Line
         # =====================================================
-        self.plot_line_checkbox = QCheckBox("📏 Plot Over Line")
+        self.plot_line_checkbox: QCheckBox = QCheckBox("📏 Plot Over Line")
         self.plot_line_checkbox.stateChanged.connect(self.toggle_plot_over_line)
         self.plot_line_checkbox.setVisible(False)
         layout.addWidget(self.plot_line_checkbox)
@@ -358,7 +358,7 @@ class ControlPanelMixin(_Base):
             # w.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         # 辅助：右对齐标签（需 from PyQt5.QtCore import Qt）
-        def right_label(text):
+        def right_label(text: str):
             label = QLabel(text)
             label.setAlignment(
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
@@ -713,11 +713,15 @@ class ControlPanelMixin(_Base):
 
         # 原有 group 循环保留（作为兜底）
         for group in [self.clip_group, self.contour_group, self.line_endpoint_group]:
-            if group and group.layout():
-                for i in range(group.layout().count()):
-                    item = group.layout().itemAt(i)
-                    if item.widget():
-                        item.widget().setDisabled(disable)
+            if group:
+                layout = group.layout()
+                if layout is not None:
+                    for i in range(layout.count()):
+                        item = layout.itemAt(i)
+                        if item is not None:
+                            w = item.widget()
+                            if w is not None:
+                                w.setDisabled(disable)
 
     # =====================================================
     # Colormap

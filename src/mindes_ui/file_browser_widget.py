@@ -1,4 +1,7 @@
 # file_browser_widget.py
+from __future__ import annotations
+
+from typing import Any
 from PySide6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -26,7 +29,7 @@ class FileBrowserWidget(QWidget):
     loadVtsFolderRequested = Signal(str)  # 发射一个字符串（文件夹路径）
     loadLogStatisticFolderRequested = Signal(str)  # 发射一个字符串（文件夹路径）
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         # 默认路径设为用户 Documents 文件夹，不存在则为用户主目录
         default_path = os.path.expanduser("~") + os.path.sep + "Documents"
@@ -53,7 +56,7 @@ class FileBrowserWidget(QWidget):
         else:
             QMessageBox.warning(self, "Invalid path", f"Path does not exist: \n{path}")
 
-    def on_directory_changed(self):
+    def on_directory_changed(self) -> None:
         """当目录被外部修改时自动刷新"""
         # 使用 QTimer.singleShot 避免频繁刷新（防抖）
         from PySide6.QtCore import QTimer
@@ -64,7 +67,7 @@ class FileBrowserWidget(QWidget):
             self._refresh_timer.timeout.connect(self.refresh_view)
         self._refresh_timer.start(100)  # 100ms 防抖
 
-    def init_ui(self):
+    def init_ui(self) -> None:
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -101,7 +104,7 @@ class FileBrowserWidget(QWidget):
         _, ext = os.path.splitext(filename)
         return ext.lower() in ALLOWED_EXTENSIONS
 
-    def refresh_view(self):
+    def refresh_view(self) -> None:
         self.path_line_edit.setText(self.current_path)
         self.list_widget.clear()
 
@@ -140,7 +143,7 @@ class FileBrowserWidget(QWidget):
             # 但保存原始名称用于重命名校验
             setattr(item, "_original_name", name)
 
-    def on_path_edited(self):
+    def on_path_edited(self) -> None:
         new_path = self.path_line_edit.text().strip()
         if not new_path:
             return
@@ -156,8 +159,8 @@ class FileBrowserWidget(QWidget):
             )
             self.path_line_edit.setText(self.current_path)
 
-    def on_item_double_clicked(self, item):
-        item_type = item.data(Qt.ItemDataRole.UserRole)
+    def on_item_double_clicked(self, item: QListWidgetItem) -> None:
+        item_type: Any = item.data(Qt.ItemDataRole.UserRole)
         name = item.text()
 
         if item_type == "parent_dir":
@@ -170,13 +173,13 @@ class FileBrowserWidget(QWidget):
             file_path = os.path.join(self.current_path, name)
             self.fileDoubleClicked.emit(file_path)
 
-    def show_context_menu(self, pos):
+    def show_context_menu(self, pos: Any) -> None:
         """在空白处或选中项上右键显示菜单"""
-        global_pos = self.list_widget.mapToGlobal(pos)
+        global_pos: Any = self.list_widget.mapToGlobal(pos)
         menu = QMenu()
 
         # 判断是否点击在空白区域（无选中项）
-        clicked_item = self.list_widget.itemAt(pos)
+        clicked_item = self.list_widget.itemAt(pos)  # type: ignore[assignment]
         if clicked_item is None:
             # 空白处：只允许新建
             new_folder_action = menu.addAction("New folder")
@@ -225,7 +228,7 @@ class FileBrowserWidget(QWidget):
             elif load_vts_action and action == load_vts_action:
                 self.loadVtsFolderRequested.emit(full_path)
 
-    def start_rename_edit(self, item):
+    def start_rename_edit(self, item: QListWidgetItem) -> None:
         """启动内联重命名编辑模式"""
         # 设置当前项为可编辑（临时）
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
@@ -278,7 +281,7 @@ class FileBrowserWidget(QWidget):
             QMessageBox.critical(self, "Rename failed", f"Cannot rename:\n{e}")
             item.setText(old_name)
 
-    def copy_selected_items(self):
+    def copy_selected_items(self) -> None:
         """复制选中的文件或文件夹，添加 _copy 后缀"""
         items = self.list_widget.selectedItems()
         if not items:
@@ -324,7 +327,7 @@ class FileBrowserWidget(QWidget):
             counter += 1
         return candidate
 
-    def create_new_folder(self):
+    def create_new_folder(self) -> None:
         """创建默认名为 'New_Folder' 的文件夹并进入重命名"""
         base_name = "New_Folder"
         full_path = self._get_unique_name(os.path.join(self.current_path, base_name))
@@ -338,7 +341,7 @@ class FileBrowserWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Unable to create folder:\n{e}")
 
-    def open_in_explorer(self):
+    def open_in_explorer(self) -> None:
         """在 Windows 资源管理器中打开当前路径"""
         try:
             # 方法1：使用 os.startfile（仅 Windows）
@@ -351,7 +354,7 @@ class FileBrowserWidget(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Unable to open File Explorer:\n{e}")
 
-    def create_new_mindes_file(self):
+    def create_new_mindes_file(self) -> None:
         """创建默认名为 'New_Simu.mindes' 的文件并进入重命名"""
         base_name = "New_Simu.mindes"
         full_path = self._get_unique_name(os.path.join(self.current_path, base_name))
@@ -377,7 +380,7 @@ class FileBrowserWidget(QWidget):
                 return candidate
             counter += 1
 
-    def _find_item_by_name(self, name: str):
+    def _find_item_by_name(self, name: str) -> QListWidgetItem | None:
         """在 list_widget 中查找文本为 name 的 item"""
         for i in range(self.list_widget.count()):
             item = self.list_widget.item(i)
@@ -385,7 +388,7 @@ class FileBrowserWidget(QWidget):
                 return item
         return None
 
-    def delete_selected_items(self):
+    def delete_selected_items(self) -> None:
         items = self.list_widget.selectedItems()
         if not items:
             return

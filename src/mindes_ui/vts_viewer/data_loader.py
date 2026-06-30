@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import Qt, QTimer
+from vtkmodules.vtkCommonCore import vtkAbstractArray
 
 if TYPE_CHECKING:
     from ._types import VTSViewerProtocol as _Base
@@ -39,7 +40,9 @@ class VTSDataLoaderMixin(_Base):
         if folder_path == "":
             if not os.path.isdir(folder_path):
                 QMessageBox.critical(
-                    cast(QWidget, self), "Invalid Path", f"Not a valid directory:\n{folder_path}"
+                    cast(QWidget, self),
+                    "Invalid Path",
+                    f"Not a valid directory:\n{folder_path}",
                 )
                 return
             self._load_vts_interactive()
@@ -50,7 +53,9 @@ class VTSDataLoaderMixin(_Base):
     # Interactive load
     # =====================================================
     def _load_vts_interactive(self) -> None:
-        folder = QFileDialog.getExistingDirectory(cast(QWidget, self), "Select VTS Output Folder")
+        folder = QFileDialog.getExistingDirectory(
+            cast(QWidget, self), "Select VTS Output Folder"
+        )
         if folder:
             self._load_vts_from_folder_or_series(folder)
 
@@ -61,7 +66,9 @@ class VTSDataLoaderMixin(_Base):
         vts_files = glob.glob(os.path.join(folder, "*.vts"))
         if not vts_files:
             QMessageBox.warning(
-                cast(QWidget, self), "No Files", "No .vts files found in the selected folder."
+                cast(QWidget, self),
+                "No Files",
+                "No .vts files found in the selected folder.",
             )
             return
 
@@ -72,7 +79,9 @@ class VTSDataLoaderMixin(_Base):
                 prefixes.add(prefix)
 
         if not prefixes:
-            QMessageBox.warning(cast(QWidget, self), "No Valid Series", "No valid VTS series found.")
+            QMessageBox.warning(
+                cast(QWidget, self), "No Valid Series", "No valid VTS series found."
+            )
             return
 
         prefixes = sorted(prefixes)
@@ -117,7 +126,9 @@ class VTSDataLoaderMixin(_Base):
         files.sort(key=extract_index)
 
         if not files:
-            QMessageBox.warning(cast(QWidget, self), "No Files", "No matching .vts files found.")
+            QMessageBox.warning(
+                cast(QWidget, self), "No Files", "No matching .vts files found."
+            )
             return
 
         self.vts_folder = folder
@@ -199,6 +210,8 @@ class VTSDataLoaderMixin(_Base):
 
         # 提取数字并排序（与 auto-update 逻辑一致）
         def extract_number(f):
+            if self.vts_prefix is None:
+                return -1
             base = os.path.basename(f)
             num_str = base[len(self.vts_prefix) :].split(".")[0]
             digits = "".join(filter(str.isdigit, num_str))
@@ -458,7 +471,7 @@ class VTSDataLoaderMixin(_Base):
             self.vts_file_list
         ):
             fname = os.path.basename(self.vts_file_list[self.current_file_index])
-            self.playback_status_label.setText("✅ Loaded")
+            self.playback_status_label.setText(f"✅ Loaded: {fname}")
         else:
             self.playback_status_label.setText("⚠️ No data")
 
@@ -549,10 +562,13 @@ class VTSDataLoaderMixin(_Base):
         # 2. 清空并重新填充
         self.field_combo.clear()
 
-        point_data = self.current_data.GetPointData()
+        data = self.current_data
+        if data is None:
+            return
+        point_data = data.GetPointData()
         fields = []  # 每项: (display_name, name, type)
         for i in range(point_data.GetNumberOfArrays()):
-            arr = point_data.GetArray(i)
+            arr: vtkAbstractArray = point_data.GetArray(i)
             name = arr.GetName()
             if not name:
                 continue

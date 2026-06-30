@@ -49,7 +49,7 @@ class PlotOverLineMixin(_Base):
             self.y_axis_range_group.setVisible(True)
             for w in [self.p1x, self.p1y, self.p1z, self.p2x, self.p2y, self.p2z]:
                 w.setEnabled(True)
-            self.line_endpoint_group.findChild(QPushButton).setEnabled(True)
+            self.line_endpoint_group.findChild(QPushButton, "").setEnabled(True)  # type: ignore[union-attr]
             self.tab_widget.setCurrentIndex(1)
             # 初始化样式
             # self.line_visible_checkbox.setChecked(True)
@@ -71,7 +71,10 @@ class PlotOverLineMixin(_Base):
             p1 = self.plot_line_p1
             p2 = self.plot_line_p2
         else:
-            bounds = self.current_data.GetBounds()
+            data = self.current_data
+            if data is None:
+                return
+            bounds = data.GetBounds()
             p1 = [bounds[0], bounds[2], bounds[4]]
             p2 = [bounds[1], bounds[3], bounds[5]]
             # Save these as initial defaults
@@ -310,8 +313,9 @@ class PlotOverLineMixin(_Base):
         # 清空旧控件
         while self.line_style_layout.count():
             child = self.line_style_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            w = child.widget()
+            if w is not None:
+                w.deleteLater()
 
         if self.active_line_data is None:
             return
