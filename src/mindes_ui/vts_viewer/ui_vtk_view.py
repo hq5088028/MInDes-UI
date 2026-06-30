@@ -1,4 +1,8 @@
-# ui_vtk_view.py
+"""VTK render window and Plot-Over-Line tab container (mixin)."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import vtk
 
 from PySide6.QtWidgets import (
@@ -15,14 +19,14 @@ from matplotlib.figure import Figure
 
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
+if TYPE_CHECKING:
+    from ._types import VTSViewerProtocol as _Base
+else:
+    _Base = object
 
-class VTKViewMixin:
-    """
-    负责：
-    - VTK RenderWindow + Renderer + Interactor
-    - TabWidget（3D View / Plot Over Line）
-    - Plot Over Line 的 UI 容器（不含逻辑）
-    """
+
+class VTKViewMixin(_Base):
+    """Creates the VTK render window, matplotlib figure, and Plot-Over-Line tab."""
 
     def _create_vtk_and_tabs(self):
         # =========================

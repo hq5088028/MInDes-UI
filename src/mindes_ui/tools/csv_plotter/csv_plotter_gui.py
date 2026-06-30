@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
@@ -66,7 +66,6 @@ from .vtk_utils import (
     hex_to_rgb,
     make_lookup_table,
 )
-
 
 STATE_KEY = "csv_plotter/state_v1"
 UI_STATE_KEY = "csv_plotter/ui_v2"
@@ -111,7 +110,7 @@ class CSVPlotterDialog(QDialog):
 
     def _load_state(self):
         try:
-            raw = json.loads(self.settings.value(UI_STATE_KEY, "{}", type=str))
+            raw = json.loads(str(self.settings.value(UI_STATE_KEY, "{}", type=str)))
         except (TypeError, ValueError, json.JSONDecodeError):
             raw = {}
         sizes = raw.get("splitter_sizes", []) if isinstance(raw, dict) else []
@@ -123,7 +122,7 @@ class CSVPlotterDialog(QDialog):
 
     def _migrate_legacy_state(self):
         try:
-            legacy_raw = json.loads(self.settings.value(STATE_KEY, "{}", type=str))
+            legacy_raw = json.loads(str(self.settings.value(STATE_KEY, "{}", type=str)))
         except (TypeError, ValueError, json.JSONDecodeError):
             legacy_raw = {}
         legacy = CsvPlotterState.from_dict(legacy_raw)
@@ -133,8 +132,10 @@ class CSVPlotterDialog(QDialog):
                 try:
                     figure = FigureConfig.from_dict(
                         json.loads(
-                            self.settings.value(
-                                "csv_plotter/default_2d_v1", "{}", type=str
+                            str(
+                                self.settings.value(
+                                    "csv_plotter/default_2d_v1", "{}", type=str
+                                )
                             )
                         )
                     )
@@ -160,7 +161,7 @@ class CSVPlotterDialog(QDialog):
 
     def _load_2d_visual_style(self):
         try:
-            raw = json.loads(self.settings.value(STYLE_2D_KEY, "{}", type=str))
+            raw = json.loads(str(self.settings.value(STYLE_2D_KEY, "{}", type=str)))
             style, templates = parse_2d_style_payload(raw)
             return apply_2d_visual_style(FigureConfig(), style, templates), templates
         except (TypeError, ValueError, json.JSONDecodeError):
@@ -168,7 +169,7 @@ class CSVPlotterDialog(QDialog):
 
     def _load_3d_visual_style(self):
         try:
-            raw = json.loads(self.settings.value(STYLE_3D_KEY, "{}", type=str))
+            raw = json.loads(str(self.settings.value(STYLE_3D_KEY, "{}", type=str)))
             style, templates = parse_3d_style_payload(raw)
             return apply_3d_visual_style(VtkPlotConfig(), style), templates
         except (TypeError, ValueError, json.JSONDecodeError):
@@ -267,7 +268,7 @@ class CSVPlotterDialog(QDialog):
         layout.addWidget(NavigationToolbar(self.canvas, page))
         self.plot_scroll = QScrollArea()
         self.plot_scroll.setWidgetResizable(False)
-        self.plot_scroll.setAlignment(Qt.AlignCenter)
+        self.plot_scroll.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.plot_scroll.setWidget(self.canvas)
         layout.addWidget(self.plot_scroll, 1)
         buttons = QHBoxLayout()
@@ -504,9 +505,11 @@ class CSVPlotterDialog(QDialog):
         state = (
             Qt.CheckState.Unchecked
             if not checked
-            else Qt.CheckState.Checked
-            if checked == len(available)
-            else Qt.CheckState.PartiallyChecked
+            else (
+                Qt.CheckState.Checked
+                if checked == len(available)
+                else Qt.CheckState.PartiallyChecked
+            )
         )
         with QSignalBlocker(self.select_all):
             self.select_all.setCheckState(state)
@@ -753,6 +756,8 @@ class CSVPlotterDialog(QDialog):
         dialog = None
 
         def apply_config(config):
+            if dialog is None:
+                return
             active = (
                 config.curves[dialog.curve_combo.currentIndex()].column
                 if config.curves and dialog.curve_combo.currentIndex() >= 0
@@ -930,8 +935,10 @@ class CSVPlotterDialog(QDialog):
         span = np.where(raw_max > raw_min, raw_max - raw_min, 1.0)
         factors = np.array([cfg.x_scale, cfg.y_scale, cfg.z_scale], float)
         scale = factors / span if cfg.auto_normalize else factors
+
         def transform(points):
             return (np.asarray(points) - raw_min) * scale
+
         fallback_messages = []
         lut_by_id = {}
         actor_entries = []
@@ -1221,13 +1228,14 @@ class CSVPlotterDialog(QDialog):
         capture.ReadFrontBufferOff()
         capture.Update()
         suffix = Path(path).suffix.lower()
-        writer = (
-            vtk.vtkPNGWriter()
-            if suffix == ".png"
-            else vtk.vtkJPEGWriter()
-            if suffix in (".jpg", ".jpeg")
-            else vtk.vtkTIFFWriter()
-        )
+        
+        if suffix == ".png":
+            writer = vtk.vtkPNGWriter()
+        elif suffix in (".jpg", ".jpeg"):
+            writer =  vtk.vtkJPEGWriter()
+        else:
+            writer = vtk.vtkTIFFWriter()
+        
         writer.SetFileName(path)
         writer.SetInputConnection(capture.GetOutputPort())
         writer.Write()

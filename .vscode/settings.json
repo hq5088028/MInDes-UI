@@ -1,3 +1,4 @@
 {
-    "python.analysis.languageServerMode": "full"
+    "python.analysis.diagnosticMode": "workspace",
+    "editor.defaultFormatter": "ms-python.black-formatter"
 }

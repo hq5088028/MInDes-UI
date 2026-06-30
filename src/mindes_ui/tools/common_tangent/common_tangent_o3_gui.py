@@ -69,7 +69,7 @@ from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
+from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavToolbar
 from PySide6.QtGui import QGuiApplication
 
 
@@ -389,7 +389,7 @@ class CommonTangentDialog(QDialog):
         self.active_components = self.component_names
         self.phase_a = self._wrap(Ga_func, "alpha") if Ga_func else None
         self.phase_b = self._wrap(Gb_func, "beta") if Gb_func else None
-        self.result = None
+        self.tangent_result = None
 
         self.setWindowTitle("Two-phase Gibbs common-tangent viewer  (ternary A-B-C)")
         self.setWindowFlag(Qt.WindowType.Window, True)  # 允许最大化/最小化按钮
@@ -446,11 +446,18 @@ class CommonTangentDialog(QDialog):
     def _fixed_table_values(self):
         result = {}
         for row in range(self.fixed_table.rowCount()):
-            name = self.fixed_table.item(row, 0).text()
+            name_item = self.fixed_table.item(row, 0)
+            if name_item is None:
+                continue
+            name = name_item.text()
             try:
+                value_item = self.fixed_table.item(row, 1)
+                tolerance_item = self.fixed_table.item(row, 2)
+                if value_item is None or tolerance_item is None:
+                    continue
                 result[name] = (
-                    float(self.fixed_table.item(row, 1).text()),
-                    float(self.fixed_table.item(row, 2).text()),
+                    float(value_item.text()),
+                    float(tolerance_item.text()),
                 )
             except (AttributeError, ValueError) as exc:
                 raise ValueError(
@@ -965,7 +972,9 @@ class CommonTangentDialog(QDialog):
             return
         n = self.spin_n.value()
         try:
-            self.result = compute_common_tangent(self.phase_a, self.phase_b, n=n)
+            self.tangent_result = compute_common_tangent(
+                self.phase_a, self.phase_b, n=n
+            )
         except Exception as e:
             QMessageBox.critical(self, "Compute failed", str(e))
             return
@@ -976,8 +985,11 @@ class CommonTangentDialog(QDialog):
     # --------- 3D 绘制 ---------
     def draw_3d(self):
         self.renderer.RemoveAllViewProps()
-
-        grid = self.result["grid"]
+        if self.tangent_result is None:
+            return
+        if self.phase_a is None or self.phase_b is None:
+            return
+        grid = self.tangent_result["grid"]
         Ga = np.asarray(self.phase_a(grid[:, 0], grid[:, 1]), float)
         Gb = np.asarray(self.phase_b(grid[:, 0], grid[:, 1]), float)
 
@@ -1017,7 +1029,7 @@ class CommonTangentDialog(QDialog):
 
         # 混合相三角片(金色)
         mixed_pd = _build_mixed_faces_vtk(
-            self.result["mixed_faces_3d"], zscale=self._zscale
+            self.tangent_result["mixed_faces_3d"], zscale=self._zscale
         )
         if mixed_pd is not None:
             m = vtk.vtkPolyDataMapper()
@@ -1033,7 +1045,7 @@ class CommonTangentDialog(QDialog):
 
         # tie lines(黑色细线)
         tie_pd = _build_tie_lines_vtk(
-            self.result["tie_segments_3d"], zscale=self._zscale
+            self.tangent_result["tie_segments_3d"], zscale=self._zscale
         )
         if tie_pd is not None:
             m = vtk.vtkPolyDataMapper()
@@ -1088,7 +1100,9 @@ class CommonTangentDialog(QDialog):
         self.ax2d.text(-0.05, 1.03, f"{b_name}=1", fontsize=9)
         self.ax2d.text(-0.08, -0.05, f"{c_name}=1", fontsize=9)
 
-        tie_xy = self.result["tie_segments_xy"]
+        if self.tangent_result is None:
+            return
+        tie_xy = self.tangent_result["tie_segments_xy"]
         for pa, pb in tie_xy:
             self.ax2d.plot(
                 [pa[0], pb[0]], [pa[1], pb[1]], "-", color="gray", alpha=0.35, lw=0.8
@@ -1133,7 +1147,7 @@ class CommonTangentDialog(QDialog):
         self.ax2d.legend(loc="upper right", fontsize=8)
 
     def on_update_point(self):
-        if self.result is None:
+        if self.tangent_result is None:
             return
         x1 = self.spin_x1.value()
         x2 = self.spin_x2.value()
@@ -1147,7 +1161,7 @@ class CommonTangentDialog(QDialog):
             self._schedule_view_refresh()
             return
         u1, u2 = x1 / active_total, x2 / active_total
-        fr = phase_fraction((u1, u2), self.result["tie_segments_xy"])
+        fr = phase_fraction((u1, u2), self.tangent_result["tie_segments_xy"])
         if fr is None:
             self.lbl_result.setText(
                 "No tie-line found — composition likely in a single-phase region."
@@ -1155,7 +1169,7 @@ class CommonTangentDialog(QDialog):
             self._schedule_view_refresh()
             return
         pa, pb, fa, fb, _ = fr
-        if self.section_a is not None:
+        if self.section_a is not None and self.section_b is not None:
             input_full = self.section_a.full_composition(u1, u2)
             alpha_full = self.section_a.full_composition(pa[0], pa[1])
             beta_full = self.section_b.full_composition(pb[0], pb[1])
@@ -1167,17 +1181,19 @@ class CommonTangentDialog(QDialog):
             names = self.active_components
         projected = fa * alpha_full + fb * beta_full
         distance = float(np.linalg.norm(input_full - projected))
+
         def fmt(values):
             return ", ".join(
-            f"{name}={value:.4f}" for name, value in zip(names, values)
-        )
+                f"{name}={value:.4f}" for name, value in zip(names, values)
+            )
+
         msg = (
             f"Overall: {fmt(input_full)}\n"
             f"α: {fmt(alpha_full)}\n"
             f"β: {fmt(beta_full)}\n"
             f"Phase fractions (lever rule): f_α={fa:.4f}, f_β={fb:.4f}   |   "
             f"nearest tie-line distance={distance:.5g}   |   "
-            f"grid n={self.result['grid_n']} (Δu={self.result['grid_resolution']:.5g})"
+            f"grid n={self.tangent_result['grid_n']} (Δu={self.tangent_result['grid_resolution']:.5g})"
         )
         self.lbl_result.setText(msg)
         self._input_scatter.set_offsets([[u1, u2]])

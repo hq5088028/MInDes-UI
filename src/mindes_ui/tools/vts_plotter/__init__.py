@@ -9,7 +9,7 @@ from .models import (
 )
 
 __all__ = [
-    "VTSPlotterDialog",
+    "VTSPlotterDialog", # pyright: ignore[reportUnsupportedDunderAll]
     "VtsDatasetConfig",
     "VtsPlotterState",
     "VtkAxisConfig",

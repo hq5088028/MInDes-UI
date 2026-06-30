@@ -6,6 +6,8 @@ import math
 
 import vtk
 
+from pathlib import Path
+
 
 def load_vts_file(path: str) -> vtk.vtkStructuredGrid | None:
     """Load a .vts file and return a vtkStructuredGrid."""
@@ -524,7 +526,7 @@ def render_scene(
     lut = make_lookup_table(config.colormap, (config.color_min, config.color_max))
 
     # Apply data pipeline
-    processed = apply_data_pipeline(grid, config)
+    processed = apply_data_pipeline(vtk.vtkStructuredGrid.SafeDownCast(grid), config)
     if processed.GetNumberOfPoints() == 0:
         return []
 
@@ -669,8 +671,8 @@ def _add_legend_if_needed(renderer, vtk_config, actors, datasets):
 def hex_to_rgb(color: str):
     color = color.lstrip("#")
     if len(color) != 6:
-        return 0.0, 0.0, 0.0
-    return tuple(int(color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+        return [0.0, 0.0, 0.0]
+    return list(int(color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
 
 
 def reset_view(renderer, vtk_widget, axis=None):
@@ -703,6 +705,3 @@ def reset_view(renderer, vtk_widget, axis=None):
 
     renderer.ResetCameraClippingRange()
     vtk_widget.GetRenderWindow().Render()
-
-
-from pathlib import Path

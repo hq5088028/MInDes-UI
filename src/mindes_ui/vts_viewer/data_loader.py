@@ -1,4 +1,8 @@
-# data_loader.py
+"""VTS file scanning, loading, and sequential-playback logic (mixin)."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
 import os
 import glob
 import vtk
@@ -15,27 +19,27 @@ from PySide6.QtWidgets import (
     QLabel,
     QComboBox,
     QPushButton,
+    QWidget,
 )
 from PySide6.QtCore import Qt, QTimer
 
+if TYPE_CHECKING:
+    from ._types import VTSViewerProtocol as _Base
+else:
+    _Base = object
 
-class VTSDataLoaderMixin:
-    """
-    负责：
-    - VTS 文件扫描 / 加载
-    - 系列识别
-    - 播放（Play / Stop）
-    - Auto Update
-    """
+
+class VTSDataLoaderMixin(_Base):
+    """Handles VTS folder loading, series detection, and playback."""
 
     # =====================================================
     # Public entry
     # =====================================================
-    def load_vts(self, folder_path: str = ""):
+    def load_vts(self, folder_path: str = "") -> None:
         if folder_path == "":
             if not os.path.isdir(folder_path):
                 QMessageBox.critical(
-                    self, "Invalid Path", f"Not a valid directory:\n{folder_path}"
+                    cast(QWidget, self), "Invalid Path", f"Not a valid directory:\n{folder_path}"
                 )
                 return
             self._load_vts_interactive()
@@ -45,19 +49,19 @@ class VTSDataLoaderMixin:
     # =====================================================
     # Interactive load
     # =====================================================
-    def _load_vts_interactive(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select VTS Output Folder")
+    def _load_vts_interactive(self) -> None:
+        folder = QFileDialog.getExistingDirectory(cast(QWidget, self), "Select VTS Output Folder")
         if folder:
             self._load_vts_from_folder_or_series(folder)
 
     # =====================================================
     # Detect series
     # =====================================================
-    def _load_vts_from_folder_or_series(self, folder: str):
+    def _load_vts_from_folder_or_series(self, folder: str) -> None:
         vts_files = glob.glob(os.path.join(folder, "*.vts"))
         if not vts_files:
             QMessageBox.warning(
-                self, "No Files", "No .vts files found in the selected folder."
+                cast(QWidget, self), "No Files", "No .vts files found in the selected folder."
             )
             return
 
@@ -68,13 +72,13 @@ class VTSDataLoaderMixin:
                 prefixes.add(prefix)
 
         if not prefixes:
-            QMessageBox.warning(self, "No Valid Series", "No valid VTS series found.")
+            QMessageBox.warning(cast(QWidget, self), "No Valid Series", "No valid VTS series found.")
             return
 
         prefixes = sorted(prefixes)
 
         # Multiple series → dialog
-        dialog = QDialog(self)
+        dialog = QDialog(cast(QWidget, self))
         dialog.setWindowTitle("Select VTS Series")
 
         layout = QVBoxLayout(dialog)
@@ -94,13 +98,13 @@ class VTSDataLoaderMixin:
         ok_btn.clicked.connect(dialog.accept)
         cancel_btn.clicked.connect(dialog.reject)
 
-        if dialog.exec() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             self.load_vts_from_folder(folder, combo.currentText())
 
     # =====================================================
     # Folder load
     # =====================================================
-    def load_vts_from_folder(self, folder: str, prefix: str):
+    def load_vts_from_folder(self, folder: str, prefix: str) -> None:
         pattern = os.path.join(folder, f"{prefix}*.vts")
         files = glob.glob(pattern)
 
@@ -113,7 +117,7 @@ class VTSDataLoaderMixin:
         files.sort(key=extract_index)
 
         if not files:
-            QMessageBox.warning(self, "No Files", "No matching .vts files found.")
+            QMessageBox.warning(cast(QWidget, self), "No Files", "No matching .vts files found.")
             return
 
         self.vts_folder = folder
@@ -392,7 +396,7 @@ class VTSDataLoaderMixin:
         interval_ms = int(float(interval_text[:-1]) * 1000)
 
         if not self.auto_update_timer:
-            self.auto_update_timer = QTimer(self)
+            self.auto_update_timer = QTimer(cast(QWidget, self))
             self.auto_update_timer.timeout.connect(self.draw_new_vts_files)
         self.auto_update_timer.stop()
         self.auto_update_timer.start(interval_ms)

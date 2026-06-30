@@ -1,15 +1,20 @@
-# visualization.py
-import vtk
+"""VTK visualization pipeline: actors, mappers, colormaps (mixin)."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import math
+import vtk
 from PySide6.QtCore import Qt
 
+if TYPE_CHECKING:
+    from ._types import VTSViewerProtocol as _Base
+else:
+    _Base = object
 
-class VisualizationMixin:
-    """
-    VTK 可视化核心：
-    - actor / mapper / pipeline
-    - update_visualization 统一入口
-    """
+
+class VisualizationMixin(_Base):
+    """VTK rendering: surface, wireframe, clip, contour, arrows."""
 
     # =====================================================
     # Public entry
@@ -670,3 +675,9 @@ class VisualizationMixin:
             g = a[1] + f * (b[1] - a[1])
             b_ = a[2] + f * (b[2] - a[2])
             lut.SetTableValue(i, r, g, b_, 1.0)
+
+    def _setup_rainbow_lut(self, lut):
+        pass
+
+    def _setup_grayscale_lut(self, lut):
+        pass

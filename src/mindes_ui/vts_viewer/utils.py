@@ -1,3 +1,7 @@
+"""String-sanitization utilities for Excel-export compatibility."""
+
+from __future__ import annotations
+
 import re
 
 

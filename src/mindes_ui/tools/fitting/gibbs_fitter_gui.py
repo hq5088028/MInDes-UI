@@ -52,7 +52,7 @@ import matplotlib
 matplotlib.use("QtAgg")  # 显式指定, 避免误拉 TkAgg
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavToolbar
+from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavToolbar
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 
 try:
@@ -60,7 +60,7 @@ try:
     from . import fitter_core as fc
 except ImportError:
     # 独立脚本运行 (python gibbs_fitter_gui.py) 时的 fallback
-    import fitter_core as fc
+    import fitter_core as fc # type: ignore
 
 APP_TITLE = "Ternary Gibbs Free Energy Polynomial Fitter"
 DEFAULT_GRID_N = 80
@@ -434,6 +434,8 @@ class FitterDialog(QDialog):
         fig.clf()
         ax = fig.add_subplot(111, projection="3d")
         df = self.df
+        if df is None or self.result is None:
+            return
         ax.scatter(df["x1"], df["x2"], df["G"], s=5, c="k", alpha=0.25, label="data")
         X1, X2, mask = self._grid_over_simplex()
         Z = fc.predict(self.result, X1, X2)
@@ -456,8 +458,9 @@ class FitterDialog(QDialog):
         df = self.df
 
         from matplotlib.tri import Triangulation
-
-        tri = Triangulation(df["x1"].values, df["x2"].values)
+        if df is None or self.result is None:
+            return
+        tri = Triangulation(df["x1"].to_numpy(), df["x2"].to_numpy())
 
         ax1 = fig.add_subplot(1, 2, 1)
         tcf1 = ax1.tricontourf(tri, df["G"].values, levels=20, cmap="viridis")
@@ -488,7 +491,9 @@ class FitterDialog(QDialog):
         fig = self.tab_res["fig"]
         fig.clf()
         df = self.df
-        G_fit = fc.predict(self.result, df["x1"].values, df["x2"].values)
+        if df is None or self.result is None:
+            return
+        G_fit = fc.predict(self.result, df["x1"].to_numpy(), df["x2"].to_numpy())
         resid = df["G"].values - G_fit
 
         ax1 = fig.add_subplot(1, 2, 1)

@@ -317,5 +317,5 @@ def make_lookup_table(name: str, value_range: tuple[float, float]):
 def hex_to_rgb(color: str):
     color = color.lstrip("#")
     if len(color) != 6:
-        return 0.0, 0.0, 0.0
-    return tuple(int(color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+        return [0.0, 0.0, 0.0]
+    return list(int(color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))

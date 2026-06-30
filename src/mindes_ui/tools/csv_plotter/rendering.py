@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shutil
+from typing import Any
 
 import numpy as np
 from matplotlib import ticker
@@ -39,7 +40,7 @@ def apply_locator_formatter(axis, style):
         elif style.scale == "SymLog":
             axis.set_minor_locator(
                 ticker.SymmetricalLogLocator(
-                    base=10, linthresh=1.0, subs=np.arange(2, 10)
+                    base=10, linthresh=1.0, subs=np.arange(2, 10).tolist()
                 )
             )
         else:
@@ -242,7 +243,7 @@ def render_shared_figure(figure, config, series):
         ax.spines[name].set_linewidth(style.spine_width)
         ax.spines[name].set_color(style.spine_color)
     if config.legend.visible and handles:
-        kwargs = dict(
+        kwargs: dict[str, Any] = dict(
             loc=config.legend.location,
             ncol=config.legend.columns,
             frameon=config.legend.frame_visible,

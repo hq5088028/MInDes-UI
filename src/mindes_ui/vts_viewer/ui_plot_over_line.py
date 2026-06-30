@@ -1,3 +1,14 @@
+"""Plot-Over-Line probe sampling and 2D chart (mixin)."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, cast
+import os
+import math
+import vtk
+import pandas as pd
+import numpy as np
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
@@ -11,21 +22,19 @@ from PySide6.QtWidgets import (
     QColorDialog,
     QFileDialog,
 )
-import vtk
-import os
-import math
-import pandas as pd
-import numpy as np
+from vtkmodules.vtkCommonCore import vtkCommand
+from vtkmodules.vtkInteractionWidgets import vtkLineWidget
 from .models import PandasModel
 from .utils import clean_excel_string
 
+if TYPE_CHECKING:
+    from ._types import VTSViewerProtocol as _Base
+else:
+    _Base = object
 
-class PlotOverLineMixin:
-    """
-    左侧控制面板 UI
-    - 只创建控件 & 连接信号
-    - 不包含任何业务逻辑
-    """
+
+class PlotOverLineMixin(_Base):
+    """Handles the line-widget probe and 2D matplotlib chart."""
 
     def toggle_plot_over_line(self, state):
         checked = state == Qt.CheckState.Checked.value
@@ -73,13 +82,15 @@ class PlotOverLineMixin:
         self.line_widget.SetPoint2(p2)
         self.line_widget.SetResolution(100)
         self.line_end_observer_tag = self.line_widget.AddObserver(
-            "EndInteractionEvent", self.on_line_changed
+            vtkCommand.EndInteractionEvent, self.on_line_changed
         )
         self.line_widget.On()
         self._update_line_input_fields(p1, p2)
 
     def end_plot_over_line(self):
-        if hasattr(self, "line_end_observer_tag"):
+        if hasattr(self, "line_end_observer_tag") and isinstance(
+            self.line_widget, vtkLineWidget
+        ):
             self.line_widget.Off()
             self.line_widget.RemoveObserver(self.line_end_observer_tag)
             self.line_widget = None
@@ -141,7 +152,7 @@ class PlotOverLineMixin:
             a = np.array(poly.GetPoint(i - 1))
             b = np.array(poly.GetPoint(i))
             total += np.linalg.norm(b - a)
-            arc_len.append(total)
+            arc_len.append(float(total))
 
         data_dict = {"arc_length": arc_len}
         for i in range(point_data.GetNumberOfArrays()):
@@ -356,10 +367,10 @@ class PlotOverLineMixin:
         self._line_styles[field]["linestyle"] = style
         self.update_plot_and_table()
 
-    def _pick_field_color(self, field):
+    def _pick_field_color(self, field: str) -> None:
         current = self._line_styles[field]["color"]
         qcolor = QColor.fromRgbF(*current)
-        new_color = QColorDialog.getColor(qcolor, self, f"Color for {field}")
+        new_color = QColorDialog.getColor(qcolor, cast(QWidget, self), f"Color for {field}")
         if new_color.isValid():
             rgb = (new_color.redF(), new_color.greenF(), new_color.blueF())
             self._line_styles[field]["color"] = rgb
@@ -369,12 +380,12 @@ class PlotOverLineMixin:
         self._line_styles[field]["visible"] = state == Qt.CheckState.Checked.value
         self.update_plot_and_table()
 
-    def export_line_data(self):
+    def export_line_data(self) -> None:
         if self.active_line_data is None:
             return
 
         path, selected_filter = QFileDialog.getSaveFileName(
-            self,
+            cast(QWidget, self),
             "Save Line Data",
             "",
             "CSV Files (*.csv);;Excel Files (*.xlsx);;All Files (*)",

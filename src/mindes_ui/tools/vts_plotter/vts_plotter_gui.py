@@ -93,7 +93,7 @@ class VTSPlotterDialog(QDialog):
     def _load_state(self) -> VtsPlotterState:
         # Load datasets from state key
         try:
-            raw_state = json.loads(self.settings.value(STATE_KEY, "{}", type=str))
+            raw_state = json.loads(str(self.settings.value(STATE_KEY, "{}", type=str)))
         except (TypeError, ValueError, json.JSONDecodeError):
             raw_state = {}
         if not isinstance(raw_state, dict):
@@ -108,7 +108,7 @@ class VTSPlotterDialog(QDialog):
 
         # Load UI state (splitter sizes)
         try:
-            raw_ui = json.loads(self.settings.value(UI_STATE_KEY, "{}", type=str))
+            raw_ui = json.loads(str(self.settings.value(UI_STATE_KEY, "{}", type=str)))
         except (TypeError, ValueError, json.JSONDecodeError):
             raw_ui = {}
         if not isinstance(raw_ui, dict):
@@ -137,7 +137,7 @@ class VTSPlotterDialog(QDialog):
 
     def _load_3d_visual_style(self):
         try:
-            raw = json.loads(self.settings.value(STYLE_3D_KEY, "{}", type=str))
+            raw = json.loads(str(self.settings.value(STYLE_3D_KEY, "{}", type=str)))
             style, templates = parse_3d_style_payload(raw)
             return apply_3d_visual_style(VtkPlotConfig(), style), templates
         except (TypeError, ValueError, json.JSONDecodeError):

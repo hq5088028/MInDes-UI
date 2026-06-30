@@ -9,7 +9,7 @@ from .models import (
 )
 
 __all__ = [
-    "CSVPlotterDialog",
+    "CSVPlotterDialog", # pyright: ignore[reportUnsupportedDunderAll]
     "CsvDatasetConfig",
     "CsvPlotterState",
     "VtkAxisConfig",

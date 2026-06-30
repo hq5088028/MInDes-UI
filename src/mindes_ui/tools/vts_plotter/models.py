@@ -144,6 +144,7 @@ class VtsDatasetConfig:
     subregion_kmax: int = -1
     with_boundary: bool = True
     volume_sample_distance: float = 1.0
+    _scalar_name: str | None = field(default=None, repr=False, init=False)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> VtsDatasetConfig:
