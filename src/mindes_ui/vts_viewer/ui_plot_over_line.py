@@ -49,7 +49,9 @@ class PlotOverLineMixin(_Base):
             self.y_axis_range_group.setVisible(True)
             for w in [self.p1x, self.p1y, self.p1z, self.p2x, self.p2y, self.p2z]:
                 w.setEnabled(True)
-            self.line_endpoint_group.findChild(QPushButton, "").setEnabled(True)  # type: ignore[union-attr]
+            btn = self.line_endpoint_group.findChild(QPushButton, "")
+            if btn is not None:
+                btn.setEnabled(True)
             self.tab_widget.setCurrentIndex(1)
             # 初始化样式
             # self.line_visible_checkbox.setChecked(True)

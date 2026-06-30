@@ -38,7 +38,6 @@ from PySide6.QtGui import (
     QFont,
     QKeySequence,
     QTextFormat,
-    QTextDocument,
 )
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject, QTimer
 
@@ -179,11 +178,8 @@ class LineNumberArea(QFrame):
 
 
 class MindesSyntaxHighlighter(QSyntaxHighlighter):
-    def __init__(self, parent: QTextDocument | QTextEdit | None = None) -> None:
-        if parent is not None:
-            super().__init__(parent)  # type: ignore[arg-type]
-        else:
-            super().__init__()  # type: ignore[arg-type]
+    def __init__(self, parent: Any = None) -> None:
+        super().__init__(parent)
 
         # ========== 深色彩虹渐变方案 (10种加深颜色) ==========
         # 从深红到深紫的渐变，确保在白色背景下有高对比度
@@ -417,11 +413,8 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
 class ReportSyntaxHighlighter(QSyntaxHighlighter):
     """专门用于 input_report.txt 文件的高亮器（简化版）"""
 
-    def __init__(self, parent: QTextDocument | QTextEdit | None = None) -> None:
-        if parent is not None:
-            super().__init__(parent)  # type: ignore[arg-type]
-        else:
-            super().__init__()  # type: ignore[arg-type]
+    def __init__(self, parent: Any = None) -> None:
+        super().__init__(parent)
 
         # ========== 颜色定义 ==========
 

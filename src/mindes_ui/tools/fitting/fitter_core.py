@@ -174,4 +174,4 @@ def coeff_table(result: FitResult) -> pd.DataFrame:
     else:
         cols = ["i (x1)", "j (x2)", "k (x3)", "coefficient"]
         rows = [(e[0], e[1], e[2], c) for e, c in zip(result.terms, result.coeffs)]
-    return pd.DataFrame(rows, columns=cols)
+    return pd.DataFrame.from_records(rows, columns=cols)
