@@ -1,8 +1,15 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QPushButton, QHeaderView, QHBoxLayout, QCheckBox, QComboBox,
-    QSizePolicy, QWidget, QColorDialog, QFileDialog
+    QPushButton,
+    QHeaderView,
+    QHBoxLayout,
+    QCheckBox,
+    QComboBox,
+    QSizePolicy,
+    QWidget,
+    QColorDialog,
+    QFileDialog,
 )
 import vtk
 import os
@@ -12,6 +19,7 @@ import numpy as np
 from .models import PandasModel
 from .utils import clean_excel_string
 
+
 class PlotOverLineMixin:
     """
     左侧控制面板 UI
@@ -20,7 +28,7 @@ class PlotOverLineMixin:
     """
 
     def toggle_plot_over_line(self, state):
-        checked = (state == Qt.CheckState.Checked.value)
+        checked = state == Qt.CheckState.Checked.value
         if not self.current_data:
             self.plot_line_checkbox.setChecked(False)
             return
@@ -42,7 +50,7 @@ class PlotOverLineMixin:
             self.line_style_group.setVisible(False)  # 🔑 隐藏
             self.y_axis_range_group.setVisible(False)
             self.tab_widget.setCurrentIndex(0)
-    
+
     def start_plot_over_line(self):
         self.end_plot_over_line()  # 清理旧的 widget，但 NOT the endpoint variables
 
@@ -64,12 +72,14 @@ class PlotOverLineMixin:
         self.line_widget.SetPoint1(p1)
         self.line_widget.SetPoint2(p2)
         self.line_widget.SetResolution(100)
-        self.line_end_observer_tag = self.line_widget.AddObserver("EndInteractionEvent", self.on_line_changed)
+        self.line_end_observer_tag = self.line_widget.AddObserver(
+            "EndInteractionEvent", self.on_line_changed
+        )
         self.line_widget.On()
         self._update_line_input_fields(p1, p2)
 
     def end_plot_over_line(self):
-        if hasattr(self, 'line_end_observer_tag'):
+        if hasattr(self, "line_end_observer_tag"):
             self.line_widget.Off()
             self.line_widget.RemoveObserver(self.line_end_observer_tag)
             self.line_widget = None
@@ -81,8 +91,16 @@ class PlotOverLineMixin:
 
     def set_line_from_inputs(self):
         try:
-            p1 = [float(self.p1x.text()), float(self.p1y.text()), float(self.p1z.text())]
-            p2 = [float(self.p2x.text()), float(self.p2y.text()), float(self.p2z.text())]
+            p1 = [
+                float(self.p1x.text()),
+                float(self.p1y.text()),
+                float(self.p1z.text()),
+            ]
+            p2 = [
+                float(self.p2x.text()),
+                float(self.p2y.text()),
+                float(self.p2z.text()),
+            ]
         except ValueError:
             return
 
@@ -120,7 +138,7 @@ class PlotOverLineMixin:
         arc_len = [0.0]
         total = 0.0
         for i in range(1, n_pts):
-            a = np.array(poly.GetPoint(i-1))
+            a = np.array(poly.GetPoint(i - 1))
             b = np.array(poly.GetPoint(i))
             total += np.linalg.norm(b - a)
             arc_len.append(total)
@@ -133,10 +151,13 @@ class PlotOverLineMixin:
             if comps == 1:
                 data_dict[name] = [arr.GetValue(j) for j in range(n_pts)]
             elif comps == 3:
-                vx = [arr.GetComponent(j,0) for j in range(n_pts)]
-                vy = [arr.GetComponent(j,1) for j in range(n_pts)]
-                vz = [arr.GetComponent(j,2) for j in range(n_pts)]
-                mag = [math.sqrt(vx[j]**2 + vy[j]**2 + vz[j]**2) for j in range(n_pts)]
+                vx = [arr.GetComponent(j, 0) for j in range(n_pts)]
+                vy = [arr.GetComponent(j, 1) for j in range(n_pts)]
+                vz = [arr.GetComponent(j, 2) for j in range(n_pts)]
+                mag = [
+                    math.sqrt(vx[j] ** 2 + vy[j] ** 2 + vz[j] ** 2)
+                    for j in range(n_pts)
+                ]
                 data_dict[f"{name}_X"] = vx
                 data_dict[f"{name}_Y"] = vy
                 data_dict[f"{name}_Z"] = vz
@@ -183,21 +204,22 @@ class PlotOverLineMixin:
         # 绘图
         self.plot_figure.clear()
         ax = self.plot_figure.add_subplot(111)
-        x = self.active_line_data['arc_length']
+        x = self.active_line_data["arc_length"]
 
         for col in self.active_line_data.columns:
-            if col == 'arc_length' or col == 'vtkValidPointMask':
+            if col == "arc_length" or col == "vtkValidPointMask":
                 continue
-            style = self._line_styles.get(col, {
-                'visible': True,
-                'color': (0, 0, 1),
-                'linestyle': '-'
-            })
-            if style['visible']:
-                ax.plot(x, self.active_line_data[col],
-                        color=style['color'],
-                        linestyle=style['linestyle'],
-                        label=col)
+            style = self._line_styles.get(
+                col, {"visible": True, "color": (0, 0, 1), "linestyle": "-"}
+            )
+            if style["visible"]:
+                ax.plot(
+                    x,
+                    self.active_line_data[col],
+                    color=style["color"],
+                    linestyle=style["linestyle"],
+                    label=col,
+                )
 
         # === X 轴刻度 ===
         x_min, x_max = x.min(), x.max()
@@ -210,10 +232,11 @@ class PlotOverLineMixin:
         # === Y 轴刻度 ===
         numeric_data = self.active_line_data.select_dtypes(include=[np.number])
         y_cols = [
-            col for col in numeric_data.columns
-            if col != 'arc_length'
-            and col != 'vtkValidPointMask'
-            and self._line_styles.get(col, {}).get('visible', True)
+            col
+            for col in numeric_data.columns
+            if col != "arc_length"
+            and col != "vtkValidPointMask"
+            and self._line_styles.get(col, {}).get("visible", True)
         ]
         if y_cols:
             y_vals = numeric_data[y_cols]
@@ -282,7 +305,11 @@ class PlotOverLineMixin:
         if self.active_line_data is None:
             return
 
-        fields = [col for col in self.active_line_data.columns if col != 'arc_length' and col != 'vtkValidPointMask']
+        fields = [
+            col
+            for col in self.active_line_data.columns
+            if col != "arc_length" and col != "vtkValidPointMask"
+        ]
         for field in list(self._line_styles.keys()):
             if field not in fields:
                 del self._line_styles[field]
@@ -290,25 +317,31 @@ class PlotOverLineMixin:
             if field not in list(self._line_styles.keys()):
                 color = self.DEFAULT_COLOR_CYCLE[i % len(self.DEFAULT_COLOR_CYCLE)]
                 self._line_styles[field] = {
-                    'visible': True,
-                    'color': color,  # default blue
-                    'linestyle': '-'
+                    "visible": True,
+                    "color": color,  # default blue
+                    "linestyle": "-",
                 }
 
             hbox = QHBoxLayout()
             visible_cb = QCheckBox(field)
-            visible_cb.setChecked(self._line_styles[field]['visible'])
-            visible_cb.stateChanged.connect(lambda state, f=field: self._on_line_visible_changed(f, state))
+            visible_cb.setChecked(self._line_styles[field]["visible"])
+            visible_cb.stateChanged.connect(
+                lambda state, f=field: self._on_line_visible_changed(f, state)
+            )
 
             color_btn = QPushButton("Color")
             color_btn.clicked.connect(lambda _, f=field: self._pick_field_color(f))
 
             linestyle_combo = QComboBox()
             linestyle_combo.addItems(["-", "--", "-.", ":"])
-            linestyle_combo.setCurrentText(self._line_styles[field]['linestyle'])
-            linestyle_combo.currentTextChanged.connect(lambda style, f=field: self._on_linestyle_changed(f, style))
+            linestyle_combo.setCurrentText(self._line_styles[field]["linestyle"])
+            linestyle_combo.currentTextChanged.connect(
+                lambda style, f=field: self._on_linestyle_changed(f, style)
+            )
 
-            visible_cb.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            visible_cb.setSizePolicy(
+                QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+            )
             hbox.addWidget(visible_cb)
             color_btn.setFixedWidth(int((self.control_panel_width - 10) / 6))
             hbox.addWidget(color_btn)
@@ -320,20 +353,20 @@ class PlotOverLineMixin:
             self.line_style_layout.addWidget(widget)
 
     def _on_linestyle_changed(self, field, style):
-        self._line_styles[field]['linestyle'] = style
+        self._line_styles[field]["linestyle"] = style
         self.update_plot_and_table()
 
     def _pick_field_color(self, field):
-        current = self._line_styles[field]['color']
+        current = self._line_styles[field]["color"]
         qcolor = QColor.fromRgbF(*current)
         new_color = QColorDialog.getColor(qcolor, self, f"Color for {field}")
         if new_color.isValid():
             rgb = (new_color.redF(), new_color.greenF(), new_color.blueF())
-            self._line_styles[field]['color'] = rgb
+            self._line_styles[field]["color"] = rgb
             self.update_plot_and_table()
 
     def _on_line_visible_changed(self, field, state):
-        self._line_styles[field]['visible'] = (state == Qt.CheckState.Checked.value)
+        self._line_styles[field]["visible"] = state == Qt.CheckState.Checked.value
         self.update_plot_and_table()
 
     def export_line_data(self):
@@ -355,13 +388,12 @@ class PlotOverLineMixin:
             path += extension
 
         df = self.active_line_data.copy()
-        for col in df.select_dtypes(include=['object']).columns:
+        for col in df.select_dtypes(include=["object"]).columns:
             df[col] = df[col].apply(clean_excel_string)
-        df = df.fillna('')
+        df = df.fillna("")
 
         if extension == ".xlsx":
             df.to_excel(path, index=False)
         else:
             df.to_csv(path, index=False, encoding="utf-8-sig")
         self.playback_status_label.setText(f"✅ Exported to {os.path.basename(path)}")
-

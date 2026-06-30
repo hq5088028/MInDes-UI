@@ -1,4 +1,5 @@
-﻿"""Versioned visual style formats for VTS Plotter."""
+"""Versioned visual style formats for VTS Plotter."""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -51,22 +52,46 @@ def sanitize_dataset_template(dataset: VtsDatasetConfig) -> VtsDatasetConfig:
     return result
 
 
-def apply_dataset_template(dataset: VtsDatasetConfig, template: VtsDatasetConfig) -> VtsDatasetConfig:
+def apply_dataset_template(
+    dataset: VtsDatasetConfig, template: VtsDatasetConfig
+) -> VtsDatasetConfig:
     result = deepcopy(template)
-    for name in ("dataset_id", "path", "label", "enabled", "field_name",
-                 "auto_color_range", "color_min", "color_max",
-                 "filter_enabled", "filter_field", "filter_min", "filter_max",
-                 "subregion_enabled"):
+    for name in (
+        "dataset_id",
+        "path",
+        "label",
+        "enabled",
+        "field_name",
+        "auto_color_range",
+        "color_min",
+        "color_max",
+        "filter_enabled",
+        "filter_field",
+        "filter_min",
+        "filter_max",
+        "subregion_enabled",
+    ):
         setattr(result, name, getattr(dataset, name))
     return result
 
 
 def _dataset_template_dict(dataset: VtsDatasetConfig) -> dict:
     raw = asdict(sanitize_dataset_template(dataset))
-    for key in ("dataset_id", "path", "label", "enabled", "field_name",
-                "auto_color_range", "color_min", "color_max",
-                "filter_enabled", "filter_field", "filter_min", "filter_max",
-                "subregion_enabled"):
+    for key in (
+        "dataset_id",
+        "path",
+        "label",
+        "enabled",
+        "field_name",
+        "auto_color_range",
+        "color_min",
+        "color_max",
+        "filter_enabled",
+        "filter_field",
+        "filter_min",
+        "filter_max",
+        "subregion_enabled",
+    ):
         raw.pop(key, None)
     return raw
 
@@ -89,8 +114,21 @@ def make_3d_style_payload(config: VtkPlotConfig, datasets=None, templates=None) 
     clean.z_max = 1.0
     source = list(datasets or []) or list(templates or [])
     vtk_raw = asdict(clean)
-    for key in ("x_title", "y_title", "z_title", "text_color", "title_font_size", "label_font_size",
-                "auto_bounds", "x_min", "x_max", "y_min", "y_max", "z_min", "z_max"):
+    for key in (
+        "x_title",
+        "y_title",
+        "z_title",
+        "text_color",
+        "title_font_size",
+        "label_font_size",
+        "auto_bounds",
+        "x_min",
+        "x_max",
+        "y_min",
+        "y_max",
+        "z_min",
+        "z_max",
+    ):
         vtk_raw.pop(key, None)
     for key in ("x_axis", "y_axis", "z_axis"):
         vtk_raw.get(key, {}).pop("title", None)
@@ -103,7 +141,11 @@ def make_3d_style_payload(config: VtkPlotConfig, datasets=None, templates=None) 
 
 
 def parse_3d_style_payload(raw: dict) -> tuple[VtkPlotConfig, list[VtsDatasetConfig]]:
-    if not isinstance(raw, dict) or raw.get("kind") != STYLE_3D_KIND or raw.get("version") != STYLE_VERSION:
+    if (
+        not isinstance(raw, dict)
+        or raw.get("kind") != STYLE_3D_KIND
+        or raw.get("version") != STYLE_VERSION
+    ):
         raise ValueError("This is not a supported MInDes VTS 3D style file.")
     vtk_raw = raw.get("vtk")
     template_raw = raw.get("dataset_templates", [])
@@ -111,7 +153,9 @@ def parse_3d_style_payload(raw: dict) -> tuple[VtkPlotConfig, list[VtsDatasetCon
         raise ValueError("The 3D style file is incomplete.")
     _validate_dataclass_payload(VtkPlotConfig(), vtk_raw, "vtk")
     for index, value in enumerate(template_raw):
-        _validate_dataclass_payload(VtsDatasetConfig(), value, f"dataset_templates[{index}]")
+        _validate_dataclass_payload(
+            VtsDatasetConfig(), value, f"dataset_templates[{index}]"
+        )
     config = VtkPlotConfig.from_dict(vtk_raw)
     config.x_title = "X"
     config.y_title = "Y"
@@ -126,12 +170,17 @@ def parse_3d_style_payload(raw: dict) -> tuple[VtkPlotConfig, list[VtsDatasetCon
     config.y_max = 1.0
     config.z_min = 0.0
     config.z_max = 1.0
-    templates = [sanitize_dataset_template(VtsDatasetConfig.from_dict(value))
-                 for value in template_raw if isinstance(value, dict)]
+    templates = [
+        sanitize_dataset_template(VtsDatasetConfig.from_dict(value))
+        for value in template_raw
+        if isinstance(value, dict)
+    ]
     return config, templates
 
 
-def apply_3d_visual_style(current: VtkPlotConfig, style: VtkPlotConfig) -> VtkPlotConfig:
+def apply_3d_visual_style(
+    current: VtkPlotConfig, style: VtkPlotConfig
+) -> VtkPlotConfig:
     result = deepcopy(style)
     result.x_title = current.x_title
     result.y_title = current.y_title

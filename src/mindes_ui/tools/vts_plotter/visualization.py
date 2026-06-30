@@ -1,4 +1,5 @@
-﻿"""VTS rendering engine for VTS Plotter."""
+"""VTS rendering engine for VTS Plotter."""
+
 from __future__ import annotations
 
 import math
@@ -43,7 +44,9 @@ def get_vts_field_names(grid: vtk.vtkDataSet) -> list[str]:
     return [display for display, _, _ in get_vts_fields(grid)]
 
 
-def _ensure_scalar_field(grid: vtk.vtkDataSet, field_name: str, is_vector: bool) -> tuple[str, bool]:
+def _ensure_scalar_field(
+    grid: vtk.vtkDataSet, field_name: str, is_vector: bool
+) -> tuple[str, bool]:
     """Ensure a scalar array is available for the given field; return (scalar_name, is_magnitude)."""
     if not is_vector:
         return field_name, False
@@ -86,7 +89,14 @@ def apply_data_pipeline(grid: vtk.vtkStructuredGrid, config) -> vtk.vtkDataSet:
             if nx >= 3 and ny >= 3 and nz >= 3:
                 extr = vtk.vtkExtractGrid()
                 extr.SetInputData(current)
-                extr.SetVOI(ext[0] + 1, ext[1] - 1, ext[2] + 1, ext[3] - 1, ext[4] + 1, ext[5] - 1)
+                extr.SetVOI(
+                    ext[0] + 1,
+                    ext[1] - 1,
+                    ext[2] + 1,
+                    ext[3] - 1,
+                    ext[4] + 1,
+                    ext[5] - 1,
+                )
                 extr.Update()
                 if extr.GetOutput().GetNumberOfPoints() > 0:
                     current = extr.GetOutput()
@@ -95,7 +105,9 @@ def apply_data_pipeline(grid: vtk.vtkStructuredGrid, config) -> vtk.vtkDataSet:
     if config.filter_enabled and config.filter_field:
         thr = vtk.vtkThresholdPoints()
         thr.SetInputData(current)
-        thr.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, config.filter_field)
+        thr.SetInputArrayToProcess(
+            0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, config.filter_field
+        )
         thr.ThresholdBetween(config.filter_min, config.filter_max)
         thr.Update()
         current = thr.GetOutput()
@@ -109,11 +121,23 @@ def apply_data_pipeline(grid: vtk.vtkStructuredGrid, config) -> vtk.vtkDataSet:
             voi.SetInputData(current)
             ext = list(current.GetExtent())
             imin = max(ext[0], config.subregion_imin)
-            imax = min(ext[1], config.subregion_imax) if config.subregion_imax >= 0 else ext[1]
+            imax = (
+                min(ext[1], config.subregion_imax)
+                if config.subregion_imax >= 0
+                else ext[1]
+            )
             jmin = max(ext[2], config.subregion_jmin)
-            jmax = min(ext[3], config.subregion_jmax) if config.subregion_jmax >= 0 else ext[3]
+            jmax = (
+                min(ext[3], config.subregion_jmax)
+                if config.subregion_jmax >= 0
+                else ext[3]
+            )
             kmin = max(ext[4], config.subregion_kmin)
-            kmax = min(ext[5], config.subregion_kmax) if config.subregion_kmax >= 0 else ext[5]
+            kmax = (
+                min(ext[5], config.subregion_kmax)
+                if config.subregion_kmax >= 0
+                else ext[5]
+            )
             if imax > imin and jmax > jmin and kmax >= kmin:
                 voi.SetVOI(imin, imax, jmin, jmax, kmin, kmax)
                 voi.Update()
@@ -126,6 +150,7 @@ def apply_data_pipeline(grid: vtk.vtkStructuredGrid, config) -> vtk.vtkDataSet:
 def _make_lut(config) -> vtk.vtkLookupTable:
     """Create a vtkLookupTable from the dataset config."""
     from .vtk_utils import make_lookup_table
+
     return make_lookup_table(config.colormap, (config.color_min, config.color_max))
 
 
@@ -274,15 +299,27 @@ def _render_slice(renderer, grid, config, lut):
 
     if axis == "x":
         normal = (1, 0, 0)
-        center_x = position if bounds[0] <= position <= bounds[1] else (bounds[0] + bounds[1]) / 2
+        center_x = (
+            position
+            if bounds[0] <= position <= bounds[1]
+            else (bounds[0] + bounds[1]) / 2
+        )
         center = [center_x, (bounds[2] + bounds[3]) / 2, (bounds[4] + bounds[5]) / 2]
     elif axis == "y":
         normal = (0, 1, 0)
-        center_y = position if bounds[2] <= position <= bounds[3] else (bounds[2] + bounds[3]) / 2
+        center_y = (
+            position
+            if bounds[2] <= position <= bounds[3]
+            else (bounds[2] + bounds[3]) / 2
+        )
         center = [(bounds[0] + bounds[1]) / 2, center_y, (bounds[4] + bounds[5]) / 2]
     else:
         normal = (0, 0, 1)
-        center_z = position if bounds[4] <= position <= bounds[5] else (bounds[4] + bounds[5]) / 2
+        center_z = (
+            position
+            if bounds[4] <= position <= bounds[5]
+            else (bounds[4] + bounds[5]) / 2
+        )
         center = [(bounds[0] + bounds[1]) / 2, (bounds[2] + bounds[3]) / 2, center_z]
 
     plane = vtk.vtkPlane()
@@ -336,7 +373,9 @@ def _render_contour(renderer, grid, config, lut):
 
     contour = vtk.vtkContourFilter()
     contour.SetInputData(grid)
-    contour.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, config._scalar_name)
+    contour.SetInputArrayToProcess(
+        0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, config._scalar_name
+    )
     contour.SetNumberOfContours(0)
     for i, level in enumerate(levels):
         contour.SetValue(i, level)
@@ -402,7 +441,9 @@ def _render_vector_arrows(renderer, grid, config, lut):
     glyph = vtk.vtkGlyph3D()
     glyph.SetInputData(grid)
     glyph.SetSourceConnection(arrow.GetOutputPort())
-    glyph.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, field_name)
+    glyph.SetInputArrayToProcess(
+        0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, field_name
+    )
     glyph.SetVectorModeToUseVector()
     if config.glyph_size_mode == "Uniform":
         glyph.SetScaleModeToDataScalingOff()
@@ -448,7 +489,9 @@ _RENDERERS = {
 }
 
 
-def render_scene(renderer, grid: vtk.vtkDataSet, config, vtk_config) -> list[vtk.vtkProp]:
+def render_scene(
+    renderer, grid: vtk.vtkDataSet, config, vtk_config
+) -> list[vtk.vtkProp]:
     """Render one dataset into the scene. Returns list of actors added."""
     from .vtk_utils import make_lookup_table
 
@@ -458,10 +501,16 @@ def render_scene(renderer, grid: vtk.vtkDataSet, config, vtk_config) -> list[vtk
         return []
 
     is_vector = field_display.startswith("[V] ")
-    field_name = field_display[4:] if (field_display.startswith("[S] ") or field_display.startswith("[V] ")) else field_display
+    field_name = (
+        field_display[4:]
+        if (field_display.startswith("[S] ") or field_display.startswith("[V] "))
+        else field_display
+    )
 
     # Ensure scalar array
-    if config._scalar_name is None or not grid.GetPointData().HasArray(config._scalar_name):
+    if config._scalar_name is None or not grid.GetPointData().HasArray(
+        config._scalar_name
+    ):
         scalar_name, _ = _ensure_scalar_field(grid, field_name, is_vector)
         config._scalar_name = scalar_name
 
@@ -485,7 +534,9 @@ def render_scene(renderer, grid: vtk.vtkDataSet, config, vtk_config) -> list[vtk
     return [result] if result else []
 
 
-def render_all_datasets(renderer, datasets: list, frames: dict, vtk_config, configs: dict):
+def render_all_datasets(
+    renderer, datasets: list, frames: dict, vtk_config, configs: dict
+):
     """Render all enabled datasets into the scene."""
     renderer.RemoveAllViewProps()
 
@@ -516,9 +567,13 @@ def render_all_datasets(renderer, datasets: list, frames: dict, vtk_config, conf
 
 
 def _background_rgb(name: str):
-    return {"White": (1, 1, 1), "Light Gray": (.85, .85, .85),
-            "Gray": (.5, .5, .5), "Dark Gray": (.2, .2, .2),
-            "Black": (0, 0, 0)}.get(name, (1, 1, 1))
+    return {
+        "White": (1, 1, 1),
+        "Light Gray": (0.85, 0.85, 0.85),
+        "Gray": (0.5, 0.5, 0.5),
+        "Dark Gray": (0.2, 0.2, 0.2),
+        "Black": (0, 0, 0),
+    }.get(name, (1, 1, 1))
 
 
 def _add_axes_if_needed(renderer, vtk_config):
@@ -537,7 +592,9 @@ def _add_axes_if_needed(renderer, vtk_config):
     display_max = (bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4])
     display_bounds = (0, display_max[0], 0, display_max[1], 0, display_max[2])
 
-    bundle = build_cube_axes_bundle(vtk_config, display_bounds, raw_min, raw_max, renderer.GetActiveCamera())
+    bundle = build_cube_axes_bundle(
+        vtk_config, display_bounds, raw_min, raw_max, renderer.GetActiveCamera()
+    )
     for actor in bundle.actors:
         renderer.AddActor(actor)
 
@@ -561,6 +618,7 @@ def _add_colorbar_if_needed(renderer, vtk_config, actors, datasets, configs):
         return
 
     from .vtk_utils import make_lookup_table
+
     lut = make_lookup_table(ds.colormap, (ds.color_min, ds.color_max))
 
     bar = vtk.vtkScalarBarActor()
@@ -568,9 +626,9 @@ def _add_colorbar_if_needed(renderer, vtk_config, actors, datasets, configs):
     bar.SetTitle(ds.field_name or ds.label)
     bar.SetNumberOfLabels(5)
     bar.SetLabelFormat("%.3g")
-    bar.SetPosition(.86, .15)
-    bar.SetWidth(.1)
-    bar.SetHeight(.7)
+    bar.SetPosition(0.86, 0.15)
+    bar.SetWidth(0.1)
+    bar.SetHeight(0.7)
 
     color = hex_to_rgb(vtk_config.x_axis.label_style.color)
     bar.GetTitleTextProperty().SetColor(*color)
@@ -589,15 +647,20 @@ def _add_legend_if_needed(renderer, vtk_config, actors, datasets):
 
     legend = vtk.vtkLegendBoxActor()
     legend.SetNumberOfEntries(len(enabled))
-    legend.SetPosition(.02, .02)
-    legend.SetWidth(.22)
-    legend.SetHeight(min(.35, .06 * len(enabled) + .05))
+    legend.SetPosition(0.02, 0.02)
+    legend.SetWidth(0.22)
+    legend.SetHeight(min(0.35, 0.06 * len(enabled) + 0.05))
 
     sphere = vtk.vtkSphereSource()
     sphere.Update()
 
     for index, ds in enumerate(enabled):
-        legend.SetEntry(index, sphere.GetOutput(), ds.label or ds.field_name or Path(ds.path).stem, hex_to_rgb(ds.color))
+        legend.SetEntry(
+            index,
+            sphere.GetOutput(),
+            ds.label or ds.field_name or Path(ds.path).stem,
+            hex_to_rgb(ds.color),
+        )
 
     legend.GetEntryTextProperty().SetColor(*hex_to_rgb("#000000"))
     renderer.AddActor2D(legend)
@@ -607,7 +670,7 @@ def hex_to_rgb(color: str):
     color = color.lstrip("#")
     if len(color) != 6:
         return 0.0, 0.0, 0.0
-    return tuple(int(color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    return tuple(int(color[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
 
 
 def reset_view(renderer, vtk_widget, axis=None):
@@ -620,7 +683,10 @@ def reset_view(renderer, vtk_widget, axis=None):
 
     bounds = renderer.ComputeVisiblePropBounds()
     center = [(bounds[i * 2] + bounds[i * 2 + 1]) / 2 for i in range(3)]
-    distance = max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4], 1) * 2.5
+    distance = (
+        max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4], 1)
+        * 2.5
+    )
     camera = renderer.GetActiveCamera()
     camera.SetFocalPoint(*center)
 

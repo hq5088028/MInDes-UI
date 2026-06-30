@@ -3,18 +3,38 @@ import os
 import sys
 import re
 import subprocess
-import threading
 from pathlib import Path
 from .log_statistics_widget import STAT_CANDIDATES, get_existing_candidates_by_mtime
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QComboBox,
-    QPlainTextEdit, QLabel, QMenu, QMessageBox, QListWidget, 
-    QListWidgetItem, QDialog, QTableWidget, QTableWidgetItem, QHeaderView, 
-    QTextEdit, QTabWidget, QDialogButtonBox, QApplication, QFrame, QProgressBar, QSizePolicy
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QPushButton,
+    QComboBox,
+    QPlainTextEdit,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QDialog,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QTextEdit,
+    QDialogButtonBox,
+    QApplication,
+    QFrame,
+    QProgressBar,
+    QSizePolicy,
 )
 from PySide6.QtGui import (
-    QAction, QTextCursor, QSyntaxHighlighter, QTextCharFormat, QPainter, 
-    QColor, QTextBlock, QFont, QKeySequence, QShortcut, QClipboard, QTextFormat
+    QSyntaxHighlighter,
+    QTextCharFormat,
+    QPainter,
+    QColor,
+    QFont,
+    QKeySequence,
+    QTextFormat,
 )
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject, QTimer
 
@@ -23,15 +43,17 @@ PROGRESS_COLUMN_CANDIDATES = ["progress"]
 SIM_STEP_COLUMN_CANDIDATES = ["sim_step", "istep"]
 PROGRESS_POLL_INTERVAL_MS = 500
 
+
 def get_solver_dir() -> Path:
-    """ 获取 solver 文件夹路径（返回 pathlib.Path 对象） """
-    if getattr(sys, 'frozen', False):
+    """获取 solver 文件夹路径（返回 pathlib.Path 对象）"""
+    if getattr(sys, "frozen", False):
         # 打包后：基于 .exe 路径
         base_dir = Path(sys.executable).parent
     else:
         # 开发时：基于 .py 文件路径
         base_dir = Path(__file__).resolve().parent.parent.parent
     return base_dir / "solver"
+
 
 class SolverRunner(QObject):
     started = Signal()
@@ -139,6 +161,7 @@ class SolverRunner(QObject):
                 except subprocess.TimeoutExpired:
                     pass
 
+
 class LineNumberArea(QFrame):
     def __init__(self, editor):
         super().__init__(editor)
@@ -149,7 +172,8 @@ class LineNumberArea(QFrame):
 
     def paintEvent(self, event):
         self.editor.line_number_area_paint_event(event)
-   
+
+
 class MindesSyntaxHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         if parent is not None:
@@ -157,7 +181,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         else:
             print("Error when initializing SyntaxHighlighter")
             print("QSyntaxHighlighter parent is None")
-        
+
         # ========== 深色彩虹渐变方案 (10种加深颜色) ==========
         # 从深红到深紫的渐变，确保在白色背景下有高对比度
         self.rainbow_colors = [
@@ -172,44 +196,44 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
             QColor("#552299"),  # 深蓝紫色（原#6633CC）
             QColor("#772299"),  # 深紫色（原#9933CC）
         ]
-        
+
         # 特殊符号格式（保持黑色，对比度最高）
         self.symbol_formats = {
-            '.': self._create_format("#666666", False),           # 深灰点号
-            '=': self._create_format("#000000", True),            # 黑色等号加粗
-            ',': self._create_format("#000000", False),           # 黑色逗号
-            '@': self._create_format("#000000", True),            # 黑色@加粗
-            '$': self._create_format("#000000", True),            # 黑色$加粗
+            ".": self._create_format("#666666", False),  # 深灰点号
+            "=": self._create_format("#000000", True),  # 黑色等号加粗
+            ",": self._create_format("#000000", False),  # 黑色逗号
+            "@": self._create_format("#000000", True),  # 黑色@加粗
+            "$": self._create_format("#000000", True),  # 黑色$加粗
         }
-        
+
         # 括号格式（加深处理）
         self.brace_formats = {
-            '(': self._create_format("#993300", False),           # 深棕色（原#D35400）
-            ')': self._create_format("#993300", False),
-            '[': self._create_format("#006633", False),           # 深绿色（原#27AE60）
-            ']': self._create_format("#006633", False),
-            '{': self._create_format("#003366", False),           # 深蓝色（原#2980B9）
-            '}': self._create_format("#003366", False),
+            "(": self._create_format("#993300", False),  # 深棕色（原#D35400）
+            ")": self._create_format("#993300", False),
+            "[": self._create_format("#006633", False),  # 深绿色（原#27AE60）
+            "]": self._create_format("#006633", False),
+            "{": self._create_format("#003366", False),  # 深蓝色（原#2980B9）
+            "}": self._create_format("#003366", False),
         }
-        
+
         # 注释格式（加深为深灰色）
         self.comment_format = self._create_format("#3E8E00", True)  # 深绿色斜体
         self.comment_format.setFontItalic(True)
-        
+
         # 右侧值类型格式（全部加深）
         self.value_formats = {
-            'macro': self._create_format("#990000", True),        # 深红加粗，宏变量
-            'number': self._create_format("#004488", False),      # 深蓝色，数值
-            'boolean': self._create_format("#660066", True),      # 深紫色加粗，布尔值
-            'at_content': self._create_format("#006666", True),   # 深青色加粗，@...@内容
+            "macro": self._create_format("#990000", True),  # 深红加粗，宏变量
+            "number": self._create_format("#004488", False),  # 深蓝色，数值
+            "boolean": self._create_format("#660066", True),  # 深紫色加粗，布尔值
+            "at_content": self._create_format("#006666", True),  # 深青色加粗，@...@内容
         }
-        
+
         # 预编译正则表达式（提高性能）
-        self.number_pattern = re.compile(r'\b\d+(\.\d+)?\b')
-        self.boolean_pattern = re.compile(r'\b(true|false)\b', re.IGNORECASE)
-        self.tuple_pattern = re.compile(r'\([^)]+\)')
-        self.macro_pattern = re.compile(r'\$[^$]+\$')
-        
+        self.number_pattern = re.compile(r"\b\d+(\.\d+)?\b")
+        self.boolean_pattern = re.compile(r"\b(true|false)\b", re.IGNORECASE)
+        self.tuple_pattern = re.compile(r"\([^)]+\)")
+        self.macro_pattern = re.compile(r"\$[^$]+\$")
+
     def _create_format(self, color, bold=False):
         """创建文本格式的辅助方法"""
         fmt = QTextCharFormat()
@@ -217,7 +241,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         if bold:
             fmt.setFontWeight(QFont.Weight.Bold)
         return fmt
-    
+
     def _get_token_color_index(self, token_index):
         """根据token索引获取彩虹色索引"""
         if token_index < len(self.rainbow_colors):
@@ -237,43 +261,43 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         # 1. 注释行处理
         
         # 2. 分割键值对
-        if '=' in line:
-            eq_pos = line.find('=')
+        if "=" in line:
+            eq_pos = line.find("=")
             left_side = line[:eq_pos].rstrip()
-            right_side = line[eq_pos + 1:].lstrip()
-            
+            right_side = line[eq_pos + 1 :].lstrip()
+
             # ========== 左侧键路径高亮 (深彩虹色渐变) ==========
             if left_side:
                 # 按点号分割并高亮
                 start = 0
-                tokens = left_side.split('.')
+                tokens = left_side.split(".")
                 for i, token in enumerate(tokens):
                     if token:
                         # 使用深彩虹色，每个层级使用不同颜色
                         color_index = self._get_token_color_index(i)
                         fmt = self._create_format(
-                            self.rainbow_colors[color_index], 
-                            i == 0  # 第一级加粗
+                            self.rainbow_colors[color_index],
+                            i == 0,  # 第一级加粗
                         )
-                        
+
                         self.setFormat(start, len(token), fmt)
                         start += len(token)
-                    
+
                     # 高亮点号（深灰色）
                     if i < len(tokens) - 1:
-                        self.setFormat(start, 1, self.symbol_formats['.'])
+                        self.setFormat(start, 1, self.symbol_formats["."])
                         start += 1
-            
+
             # 高亮等号（黑色加粗）
-            self.setFormat(eq_pos, 1, self.symbol_formats['='])
-            
+            self.setFormat(eq_pos, 1, self.symbol_formats["="])
+
             # ========== 右侧值高亮 ==========
             if right_side:
-                right_start = eq_pos + 1 + line[eq_pos + 1:].find(right_side)
-                
+                right_start = eq_pos + 1 + line[eq_pos + 1 :].find(right_side)
+
                 # 先按类型高亮内容
                 self._highlight_value_content(right_start, right_side)
-                
+
                 # 再高亮特殊符号（会覆盖内容颜色）
                 self._highlight_symbols(right_start, right_side)
 
@@ -287,65 +311,88 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
             macro_start = start_pos + match.start()
             macro_text = match.group()
             # $符号本身用黑色
-            self.setFormat(macro_start, 1, self.symbol_formats['$'])
-            self.setFormat(macro_start + len(macro_text) - 1, 1, self.symbol_formats['$'])
+            self.setFormat(macro_start, 1, self.symbol_formats["$"])
+            self.setFormat(
+                macro_start + len(macro_text) - 1, 1, self.symbol_formats["$"]
+            )
             # 宏内容用深红色
-            self.setFormat(macro_start + 1, len(macro_text) - 2, self.value_formats['macro'])
-        
+            self.setFormat(
+                macro_start + 1, len(macro_text) - 2, self.value_formats["macro"]
+            )
+
         # 2. 高亮元组 (..., ...)
         for match in self.tuple_pattern.finditer(text):
             # 避免匹配宏内的括号
             match_start = match.start()
             match_end = match.end()
-            if not any(m.start() < match_start < m.end() for m in self.macro_pattern.finditer(text)):
+            if not any(
+                m.start() < match_start < m.end()
+                for m in self.macro_pattern.finditer(text)
+            ):
                 # 使用括号的深棕色
-                self.setFormat(start_pos + match_start, match_end - match_start, self.brace_formats['('])
-        
+                self.setFormat(
+                    start_pos + match_start,
+                    match_end - match_start,
+                    self.brace_formats["("],
+                )
+
         # 3. 高亮数值
         for match in self.number_pattern.finditer(text):
             # 避免匹配元组或宏内的数字
             num_start = match.start()
-            if not self._is_inside_special(text, num_start, ['(', '$']):
-                self.setFormat(start_pos + num_start, match.end() - num_start, self.value_formats['number'])
-        
+            if not self._is_inside_special(text, num_start, ["(", "$"]):
+                self.setFormat(
+                    start_pos + num_start,
+                    match.end() - num_start,
+                    self.value_formats["number"],
+                )
+
         # 4. 高亮布尔值
         for match in self.boolean_pattern.finditer(text):
             bool_start = match.start()
-            if not self._is_inside_special(text, bool_start, ['(', '$']):
-                self.setFormat(start_pos + bool_start, match.end() - bool_start, self.value_formats['boolean'])
-        
+            if not self._is_inside_special(text, bool_start, ["(", "$"]):
+                self.setFormat(
+                    start_pos + bool_start,
+                    match.end() - bool_start,
+                    self.value_formats["boolean"],
+                )
+
         # 5. 高亮Define中的@...@内容
-        if '@' in text:
-            at_start = text.find('@')
-            at_end = text.rfind('@')
+        if "@" in text:
+            at_start = text.find("@")
+            at_end = text.rfind("@")
             if at_start != -1 and at_end != -1 and at_start < at_end:
                 # @符号本身
-                self.setFormat(start_pos + at_start, 1, self.symbol_formats['@'])
-                self.setFormat(start_pos + at_end, 1, self.symbol_formats['@'])
+                self.setFormat(start_pos + at_start, 1, self.symbol_formats["@"])
+                self.setFormat(start_pos + at_end, 1, self.symbol_formats["@"])
                 # @之间的内容
-                self.setFormat(start_pos + at_start + 1, at_end - at_start - 1, self.value_formats['at_content'])
-    
+                self.setFormat(
+                    start_pos + at_start + 1,
+                    at_end - at_start - 1,
+                    self.value_formats["at_content"],
+                )
+
     def _highlight_symbols(self, start_pos, text):
         """高亮特殊符号"""
         for i, char in enumerate(text):
             pos = start_pos + i
             if char in self.brace_formats:
                 self.setFormat(pos, 1, self.brace_formats[char])
-            elif char in [',', '@', '$']:
+            elif char in [",", "@", "$"]:
                 # 确保符号颜色覆盖其他高亮
-                if char == ',':
-                    self.setFormat(pos, 1, self.symbol_formats[','])
-                elif char == '@':
-                    self.setFormat(pos, 1, self.symbol_formats['@'])
-                elif char == '$':
-                    self.setFormat(pos, 1, self.symbol_formats['$'])
-    
+                if char == ",":
+                    self.setFormat(pos, 1, self.symbol_formats[","])
+                elif char == "@":
+                    self.setFormat(pos, 1, self.symbol_formats["@"])
+                elif char == "$":
+                    self.setFormat(pos, 1, self.symbol_formats["$"])
+
     def _is_inside_special(self, text, position, symbols):
         """检查位置是否在特殊结构内"""
         for i in range(position):
             if text[i] in symbols:
                 # 找到最近的配对符号
-                pair_map = {'(': ')', '[': ']', '{': '}', '$': '$'}
+                pair_map = {"(": ")", "[": "]", "{": "}", "$": "$"}
                 opening = text[i]
                 closing = pair_map.get(opening)
                 if closing:
@@ -362,46 +409,47 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
                                     return True
                                 break
         return False
-    
+
+
 class ReportSyntaxHighlighter(QSyntaxHighlighter):
     """专门用于 input_report.txt 文件的高亮器（简化版）"""
-    
+
     def __init__(self, parent=None):
         if parent is not None:
             super().__init__(parent)
         else:
             print("Error when initializing SyntaxHighlighter")
             print("QSyntaxHighlighter parent is None")
-        
+
         # ========== 颜色定义 ==========
-        
+
         # 标题/分隔线格式
         self.title_format = QTextCharFormat()
         self.title_format.setForeground(QColor("#4A5568"))  # 深灰色
         self.title_format.setFontWeight(QFont.Weight.Bold)
-        
+
         # 宏格式（深红色）
         self.macro_format = QTextCharFormat()
         self.macro_format.setForeground(QColor("#8B0000"))  # 深红色
-        
+
         # Define 格式（深绿色）
         self.define_format = QTextCharFormat()
         self.define_format.setForeground(QColor("#006400"))  # 深绿色
-        
+
         # 默认函数格式（灰色斜体）
         self.default_func_format = QTextCharFormat()
         self.default_func_format.setForeground(QColor("#666666"))
         self.default_func_format.setFontItalic(True)
-        
+
         # DEBUG 表格标题格式（蓝色）
         self.debug_header_format = QTextCharFormat()
         self.debug_header_format.setForeground(QColor("#000080"))  # 深蓝色
         self.debug_header_format.setFontWeight(QFont.Weight.Bold)
-        
+
         # DEBUG 表格内容格式（黑色）
         self.debug_content_format = QTextCharFormat()
         self.debug_content_format.setForeground(QColor("#000000"))
-        
+
         # 参数标记格式
         self.tag_formats = {
             "[DEFAULT]": QTextCharFormat(),  # 默认蓝色
@@ -409,20 +457,20 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
         }
         self.tag_formats["[DEFAULT]"].setForeground(QColor("#0000FF"))  # 蓝色
         self.tag_formats["[-VALID-]"].setForeground(QColor("#E74C3C"))  # 红色
-        
+
         # 参数名格式（深蓝色）
         self.param_name_format = QTextCharFormat()
         self.param_name_format.setForeground(QColor("#00008B"))
-        
+
         # 参数值格式（深紫色）
         self.param_value_format = QTextCharFormat()
         self.param_value_format.setForeground(QColor("#4B0082"))
-        
+
         # 注释格式（灰色）
         self.comment_format = QTextCharFormat()
         self.comment_format.setForeground(QColor("#007F2A"))  # 深绿色
         self.comment_format.setFontItalic(True)
-        
+
         # 分隔符格式（黑色）
         self.separator_format = QTextCharFormat()
         self.separator_format.setForeground(QColor("#000000"))
@@ -430,82 +478,89 @@ class ReportSyntaxHighlighter(QSyntaxHighlighter):
     def highlightBlock(self, text):
         """高亮处理一个文本块"""
         text_line = text.rstrip()
-        
+
         # 空行不处理
         if not text_line:
             return
-            
+
         # 1. 处理标题/分隔线（以 = 开头或包含大量 =）
-        if text_line.startswith('=') or text_line.replace('=', '') == '':
+        if text_line.startswith("=") or text_line.replace("=", "") == "":
             self.setFormat(0, len(text), self.title_format)
             return
-            
+
         # 2. 处理宏定义（包含 $...$ 的行）
-        if '$' in text_line:
+        if "$" in text_line:
             # 高亮整个宏部分
-            start_idx = text_line.find('$')
-            end_idx = text_line.rfind('$') + 1
+            start_idx = text_line.find("$")
+            end_idx = text_line.rfind("$") + 1
             if start_idx != -1 and end_idx != -1 and start_idx < end_idx:
                 self.setFormat(start_idx, end_idx - start_idx, self.macro_format)
-        
+
         # 3. 处理 Define 行
-        if text_line.startswith('Define.'):
+        if text_line.startswith("Define."):
             self.setFormat(0, len(text_line), self.define_format)
             # 高亮等号
-            if '=' in text_line:
-                eq_pos = text_line.find('=')
+            if "=" in text_line:
+                eq_pos = text_line.find("=")
                 self.setFormat(eq_pos, 1, self.separator_format)
-        
+
         # 4. 处理默认函数说明行
-        if 'default functions' in text_line.lower():
+        if "default functions" in text_line.lower():
             self.setFormat(0, len(text_line), self.default_func_format)
-            
+
         # 5. 处理 DEBUG 表格标题
-        if text_line.startswith('LINE') or text_line.startswith('NO.'):
+        if text_line.startswith("LINE") or text_line.startswith("NO."):
             self.setFormat(0, len(text_line), self.debug_header_format)
-            
+
         # 6. 处理 DEBUG 表格内容（包含 | 的行）
-        if '|' in text_line and not text_line.startswith('---'):
+        if "|" in text_line and not text_line.startswith("---"):
             # 高亮整个行
             self.setFormat(0, len(text_line), self.debug_content_format)
             # 高亮分隔符 |
             for i, char in enumerate(text_line):
-                if char == '|':
+                if char == "|":
                     self.setFormat(i, 1, self.separator_format)
-        
+
         # 7. 处理参数定义行（以 > 开头）
-        if text_line.startswith('>'):
+        if text_line.startswith(">"):
             # 高亮标记 [TAG]
-            tag_start = text_line.find('[')
-            tag_end = text_line.find(']') + 1 if ']' in text_line else -1
-            
+            tag_start = text_line.find("[")
+            tag_end = text_line.find("]") + 1 if "]" in text_line else -1
+
             if tag_start != -1 and tag_end != -1:
                 tag_content = text_line[tag_start:tag_end]
                 for tag, fmt in self.tag_formats.items():
                     if tag in tag_content:
                         self.setFormat(tag_start, tag_end - tag_start, fmt)
                         break
-                        
+
             # 高亮参数名（标记之后，等号之前）
-            eq_pos = text_line.find('=')
+            eq_pos = text_line.find("=")
             if eq_pos != -1:
                 # 参数名从标记之后到等号之前
-                name_start = tag_end if tag_end != -1 else text_line.find('>') + 1
+                name_start = tag_end if tag_end != -1 else text_line.find(">") + 1
                 name_end = eq_pos
                 if name_start < name_end:
-                    self.setFormat(name_start, name_end - name_start, self.param_name_format)
-                    
+                    self.setFormat(
+                        name_start, name_end - name_start, self.param_name_format
+                    )
+
                 # 高亮等号
                 self.setFormat(eq_pos, 1, self.separator_format)
-                
+
                 # 高亮参数值（等号之后）
                 value_start = eq_pos + 1
                 if value_start < len(text_line):
-                    self.setFormat(value_start, len(text_line) - value_start, self.param_value_format)
-        
+                    self.setFormat(
+                        value_start,
+                        len(text_line) - value_start,
+                        self.param_value_format,
+                    )
+
         # 8. 处理注释行（以 # 开头）
-        if text_line.startswith('#'):
+        if text_line.startswith("#"):
             self.setFormat(0, len(text_line), self.comment_format)
+
 
 class ProgressOverlayWidget(QWidget):
     def __init__(self, parent=None):
@@ -520,7 +575,9 @@ class ProgressOverlayWidget(QWidget):
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setMinimumHeight(24)
-        self.progress_bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.progress_bar.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.progress_bar.setStyleSheet("""
             QProgressBar {
                 border: 1px solid #c8d2dc;
@@ -543,10 +600,16 @@ class ProgressOverlayWidget(QWidget):
         self.overlay_label = QLabel("")
         self.overlay_label.setMinimumHeight(24)
         self.overlay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.overlay_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.overlay_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         self.overlay_label.setCursor(Qt.CursorShape.IBeamCursor)
-        self.overlay_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self.overlay_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.overlay_label.setAttribute(
+            Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+        )
+        self.overlay_label.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.overlay_label.setStyleSheet("""
             QLabel {
                 background: transparent;
@@ -570,10 +633,12 @@ class ProgressOverlayWidget(QWidget):
             value = max(0.0, min(1.0, float(value)))
             self.progress_bar.setValue(int(round(value * 1000)))
 
+
 class BuildSimulationWidget(QWidget):
     # 信号：当构建/运行完成时，通知主窗口结果目录路径
     simulationFinished = Signal(str)  # 发送 .mindes 同名结果文件夹路径
-    requestCancelSolver = Signal()    # 请求在线程中取消 solver
+    requestCancelSolver = Signal()  # 请求在线程中取消 solver
+
     class CodeEditor(QPlainTextEdit):
         def __init__(self, parent=None):
             super().__init__(parent)
@@ -590,7 +655,7 @@ class BuildSimulationWidget(QWidget):
             while max_num >= 10:
                 max_num //= 10
                 digits += 1
-            space = 8 + self.fontMetrics().horizontalAdvance('9') * digits
+            space = 8 + self.fontMetrics().horizontalAdvance("9") * digits
             return space
 
         def update_line_number_area_width(self):
@@ -600,7 +665,9 @@ class BuildSimulationWidget(QWidget):
             if dy:
                 self.line_number_area.scroll(0, dy)
             else:
-                self.line_number_area.update(0, rect.y(), self.line_number_area.width(), rect.height())
+                self.line_number_area.update(
+                    0, rect.y(), self.line_number_area.width(), rect.height()
+                )
             if rect.contains(self.viewport().rect()):
                 self.update_line_number_area_width()
 
@@ -618,7 +685,9 @@ class BuildSimulationWidget(QWidget):
 
             block = self.firstVisibleBlock()
             block_number = block.blockNumber()
-            top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+            top = (
+                self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+            )
             bottom = top + self.blockBoundingRect(block).height()
 
             height = self.fontMetrics().height()
@@ -632,7 +701,7 @@ class BuildSimulationWidget(QWidget):
                         self.line_number_area.width() - 4,
                         height,
                         Qt.AlignmentFlag.AlignRight,
-                        number
+                        number,
                     )
                 block = block.next()
                 top = bottom
@@ -647,13 +716,13 @@ class BuildSimulationWidget(QWidget):
                 fmt = QTextCharFormat()
                 fmt.setBackground(line_color)
                 fmt.setProperty(QTextFormat.Property.FullWidthSelection, True)
-                setattr(selection, 'format', fmt)
+                setattr(selection, "format", fmt)
                 cursor = self.textCursor()
                 cursor.clearSelection()
-                setattr(selection, 'cursor', cursor)
+                setattr(selection, "cursor", cursor)
                 extra_selections.append(selection)
             self.setExtraSelections(extra_selections)
-    
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_mindes_file = None  # 当前加载的 .mindes 文件绝对路径
@@ -849,10 +918,16 @@ class BuildSimulationWidget(QWidget):
         )
         # 并设置：
         self.text_edit.setCenterOnScroll(False)
-         # 设置等宽字体以确保字符对齐
+        # 设置等宽字体以确保字符对齐
         font = QFont()
         # 尝试使用常见的等宽字体，按优先级排序
-        font_families = ["Consolas", "Courier New", "Monaco", "DejaVu Sans Mono", "monospace"]
+        font_families = [
+            "Consolas",
+            "Courier New",
+            "Monaco",
+            "DejaVu Sans Mono",
+            "monospace",
+        ]
         for family in font_families:
             font.setFamily(family)
             if font.family() == family:  # 检查字体是否可用
@@ -861,7 +936,8 @@ class BuildSimulationWidget(QWidget):
         self.text_edit.setFont(font)
         self._editor_base_font = QFont(font)
         # 强制白色背景，不随系统主题变化
-        self.text_edit.setStyleSheet("""
+        self.text_edit.setStyleSheet(
+            """
             QPlainTextEdit {{
                 background-color: {bg};  /* 淡灰色 */
                 color: black;
@@ -871,11 +947,12 @@ class BuildSimulationWidget(QWidget):
                 border: 1px solid #ccc;
                 border-radius: 4px;
             }}
-        """.format(bg=EDITOR_BACKGROUND))
+        """.format(bg=EDITOR_BACKGROUND)
+        )
         # 创建高亮器实例
         self.mindes_highlighter = MindesSyntaxHighlighter(self.text_edit.document())
         self.report_highlighter = ReportSyntaxHighlighter(self.text_edit.document())
-        
+
         # 默认使用 .mindes 高亮器
         self.current_highlighter = self.mindes_highlighter
         self.mindes_highlighter.setDocument(self.text_edit.document())
@@ -903,16 +980,20 @@ class BuildSimulationWidget(QWidget):
             """)
         self.status_line = QLabel("Ready.")
         self.update_status("Ready.")  # 初始状态设置
-        self.status_line.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.status_line.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         self.status_line.setCursor(Qt.CursorShape.IBeamCursor)
 
         # 右侧进度区域（上：文字，下：进度条）
         self.progress_overlay = ProgressOverlayWidget()
-        self.progress_overlay.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.progress_overlay.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
         status_layout.addWidget(self.note_label)
-        status_layout.addWidget(self.status_line, 1)      # note 文本控件
-        status_layout.addWidget(self.progress_overlay, 1)   # 进度条控件（含上方文字）
+        status_layout.addWidget(self.status_line, 1)  # note 文本控件
+        status_layout.addWidget(self.progress_overlay, 1)  # 进度条控件（含上方文字）
         # status_layout.addStretch()
         layout.addLayout(status_layout)
         self._update_progress_overlay()
@@ -921,10 +1002,18 @@ class BuildSimulationWidget(QWidget):
         self.is_showing_report = False  # 是否正在显示 input_report.txt
 
     def _get_solver_display_name(self) -> str:
-        return self.solver_combo.currentText().strip() if self.solver_combo.count() > 0 else ""
+        return (
+            self.solver_combo.currentText().strip()
+            if self.solver_combo.count() > 0
+            else ""
+        )
 
     def _get_mindes_display_name(self) -> str:
-        return os.path.basename(self.current_mindes_file) if self.current_mindes_file else ""
+        return (
+            os.path.basename(self.current_mindes_file)
+            if self.current_mindes_file
+            else ""
+        )
 
     def _update_progress_overlay(
         self,
@@ -959,7 +1048,9 @@ class BuildSimulationWidget(QWidget):
         self.progress_overlay.set_progress_value(None)
         self.progress_overlay.set_overlay_text(f"<{solver_name}> [{mindes_name}]")
 
-    def _find_first_matching_column_index(self, header: list[str], candidates: list[str]):
+    def _find_first_matching_column_index(
+        self, header: list[str], candidates: list[str]
+    ):
         header_map = {name.strip().lower(): idx for idx, name in enumerate(header)}
         for candidate in candidates:
             idx = header_map.get(candidate.strip().lower())
@@ -971,7 +1062,7 @@ class BuildSimulationWidget(QWidget):
         self._update_progress_overlay()
 
     def _switch_to_input_report_if_needed(self):
-        """ .mindes 文件 和 report 文件互相切换"""
+        """.mindes 文件 和 report 文件互相切换"""
         if self.current_mindes_file:
             if self.is_showing_report:
                 self.show_mindes_file()
@@ -1092,7 +1183,9 @@ class BuildSimulationWidget(QWidget):
         self.switch_highlighter(False)
         self.text_edit.setPlainText(content)
         self._apply_editor_mode()
-        self._set_running_state(self.is_running, f"Loaded: {os.path.basename(file_path)}")
+        self._set_running_state(
+            self.is_running, f"Loaded: {os.path.basename(file_path)}"
+        )
         self._update_progress_overlay()
         # TODO: 可在此处添加语法高亮/着色逻辑（预留）
         # self.highlight_text()
@@ -1100,7 +1193,9 @@ class BuildSimulationWidget(QWidget):
     def _find_progress_stat_file(self):
         if not self._project_path or not self._project_path.exists():
             return None
-        stat_candidates = get_existing_candidates_by_mtime(self._project_path, STAT_CANDIDATES)
+        stat_candidates = get_existing_candidates_by_mtime(
+            self._project_path, STAT_CANDIDATES
+        )
         return stat_candidates[0] if stat_candidates else None
 
     def _read_latest_progress_info(self, stat_path: Path):
@@ -1128,7 +1223,11 @@ class BuildSimulationWidget(QWidget):
         for line in reversed(lines[1:]):
             parts = re.split(r"\s+", line.strip())
 
-            if progress_value is None and progress_idx is not None and progress_idx < len(parts):
+            if (
+                progress_value is None
+                and progress_idx is not None
+                and progress_idx < len(parts)
+            ):
                 try:
                     value = float(parts[progress_idx])
                     if 0.0 <= value <= 1.0:
@@ -1136,7 +1235,11 @@ class BuildSimulationWidget(QWidget):
                 except ValueError:
                     pass
 
-            if sim_step_value is None and sim_step_idx is not None and sim_step_idx < len(parts):
+            if (
+                sim_step_value is None
+                and sim_step_idx is not None
+                and sim_step_idx < len(parts)
+            ):
                 value = parts[sim_step_idx].strip()
                 if value:
                     sim_step_value = value
@@ -1154,7 +1257,9 @@ class BuildSimulationWidget(QWidget):
         if self._progress_stat_path is None:
             self._update_progress_overlay(stat_file_found=False)
             return
-        progress_value, sim_step_value = self._read_latest_progress_info(self._progress_stat_path)
+        progress_value, sim_step_value = self._read_latest_progress_info(
+            self._progress_stat_path
+        )
         self._update_progress_overlay(
             progress_value=progress_value,
             sim_step_value=sim_step_value,
@@ -1180,7 +1285,11 @@ class BuildSimulationWidget(QWidget):
             self._reset_inline_progress()
 
     def on_solver_finished(self):
-        result_dir = os.path.splitext(self.current_mindes_file)[0] if self.current_mindes_file else ""
+        result_dir = (
+            os.path.splitext(self.current_mindes_file)[0]
+            if self.current_mindes_file
+            else ""
+        )
         self._close_progress_dialog()
         self._set_running_state(False, "Solver finished.", success=True)
         if result_dir:
@@ -1213,13 +1322,15 @@ class BuildSimulationWidget(QWidget):
             QMessageBox.information(self, "Busy", "A solver is already running.")
             return  # 防止重复点击
         if self.solver_worker or self.solver_thread:
-            QMessageBox.information(self, "Busy", "Previous solver resources are still being cleaned up.")
+            QMessageBox.information(
+                self, "Busy", "Previous solver resources are still being cleaned up."
+            )
             return
-        
+
         # 保存 .mindes 文件
         if not self.save_current_content():
             return
-        
+
         mindes_abs = os.path.abspath(self.current_mindes_file)
         solver_dir = os.path.dirname(self.selected_solver_path)
         omp_threads = max(1, (os.cpu_count() or 2) - 1)
@@ -1232,12 +1343,12 @@ class BuildSimulationWidget(QWidget):
         if mode == "build":
             # 生成 start.in（CRLF）
             start_in = os.path.join(solver_dir, "start.in")
-            with open(start_in, 'w', newline='\r\n', encoding='utf-8') as f:
-                f.write(mindes_abs + '\n')
+            with open(start_in, "w", newline="\r\n", encoding="utf-8") as f:
+                f.write(mindes_abs + "\n")
             # 生成 path.in（CRLF）
             path_in = os.path.join(solver_dir, "path.in")
-            with open(path_in, 'w', newline='\r\n', encoding='utf-8') as f:
-                f.write(mindes_abs + '\n')
+            with open(path_in, "w", newline="\r\n", encoding="utf-8") as f:
+                f.write(mindes_abs + "\n")
                 f.write("-B\n")
             cleanup_files = [start_in, path_in]
             input_base_for_worker = None
@@ -1254,7 +1365,7 @@ class BuildSimulationWidget(QWidget):
         else:
             self._set_running_state(False, f"Unknown mode: {mode}", error=True)
             return
-        
+
         # === 启动后台线程 ===
         self.solver_thread = QThread(self)
         self.solver_worker = SolverRunner(
@@ -1262,10 +1373,10 @@ class BuildSimulationWidget(QWidget):
             input_base=input_base_for_worker,
             cwd=solver_dir,
             cleanup_files=cleanup_files if should_cleanup else [],
-            omp_threads=omp_threads
+            omp_threads=omp_threads,
         )
         self.solver_worker.moveToThread(self.solver_thread)
-        
+
         # 连接信号
         self.solver_thread.started.connect(self.solver_worker.run)
         self.solver_worker.started.connect(self.on_solver_started)
@@ -1317,7 +1428,7 @@ class BuildSimulationWidget(QWidget):
         menu = QMenu(self)
         cursor = self.text_edit.textCursor()
         has_selection = not cursor.selectedText().strip() == ""
-        
+
         if not self.is_showing_report:
             # 显示 .mindes 文件时的菜单
             save_action = menu.addAction("Save (Ctrl+S)")
@@ -1413,7 +1524,7 @@ class BuildSimulationWidget(QWidget):
         report_path = os.path.join(mindes_base, "input_report.txt")
         if os.path.exists(report_path):
             try:
-                with open(report_path, 'r', encoding='utf-8') as f:
+                with open(report_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 self.is_showing_report = True
                 # 切换高亮器
@@ -1422,7 +1533,9 @@ class BuildSimulationWidget(QWidget):
                 self._apply_editor_mode()
                 self.update_status("Showing input_report.txt (read-only)")
             except Exception as e:
-                self.update_status(f"Failed to read input_report.txt: {str(e)}", error=True)
+                self.update_status(
+                    f"Failed to read input_report.txt: {str(e)}", error=True
+                )
         else:
             self.update_status("input_report.txt not found", warning=True)
 
@@ -1437,7 +1550,7 @@ class BuildSimulationWidget(QWidget):
         if not self.current_mindes_file:
             return
         try:
-            with open(self.current_mindes_file, 'r', encoding='utf-8') as f:
+            with open(self.current_mindes_file, "r", encoding="utf-8") as f:
                 content = f.read()
             self.is_showing_report = False
             # 切换高亮器
@@ -1448,7 +1561,14 @@ class BuildSimulationWidget(QWidget):
         except Exception as e:
             self.update_status(f"Failed to reload .mindes file: {str(e)}", error=True)
 
-    def update_status(self, message: str, error: bool = False, warning: bool = False, success: bool = False, info: bool = False):
+    def update_status(
+        self,
+        message: str,
+        error: bool = False,
+        warning: bool = False,
+        success: bool = False,
+        info: bool = False,
+    ):
         """更新状态栏消息和颜色"""
         self.status_line.setText(message)
 
@@ -1517,7 +1637,9 @@ class BuildSimulationWidget(QWidget):
         if self.current_mindes_file and not self.is_showing_report:
             try:
                 content = self.get_current_content()
-                with open(self.current_mindes_file, 'w', newline='\n', encoding='utf-8') as f:
+                with open(
+                    self.current_mindes_file, "w", newline="\n", encoding="utf-8"
+                ) as f:
                     f.write(content)
                 self.update_status("File saved successfully.", success=True)
                 return True
@@ -1528,8 +1650,8 @@ class BuildSimulationWidget(QWidget):
 
     def parse_input_report(self, report_path: str):
         """增强版解析：通过定位权威区块位置，避免用户输入干扰"""
-        with open(report_path, 'r', encoding='utf-8') as f:
-            lines = [line.rstrip('\n') for line in f.readlines()]
+        with open(report_path, "r", encoding="utf-8") as f:
+            lines = [line.rstrip("\n") for line in f.readlines()]
 
         # === 第一阶段：扫描所有关键标题的行号 ===
         macro_first_line = None
@@ -1552,7 +1674,9 @@ class BuildSimulationWidget(QWidget):
 
         # === 提取内置函数（从第一个 default functions 行）===
         builtin_funcs = self._extract_builtin_functions_from_line(
-            lines[default_func_first_line] if default_func_first_line is not None else ""
+            lines[default_func_first_line]
+            if default_func_first_line is not None
+            else ""
         )
 
         # === 初始化结果容器 ===
@@ -1573,7 +1697,9 @@ class BuildSimulationWidget(QWidget):
 
         # ---- 2. Variables (从最后一个 "VARIABLE" 表头后开始，到分隔线结束) ----
         if var_last_line is not None:
-            i = var_last_line + 2  # 跳过表头和分隔线（如 "-0| VarName|0.1" 前有一行 "----"）
+            i = (
+                var_last_line + 2
+            )  # 跳过表头和分隔线（如 "-0| VarName|0.1" 前有一行 "----"）
             while i < len(lines) and not self._is_section_separator(lines[i]):
                 self._parse_variable_line(lines[i], variables, func_names)
                 i += 1
@@ -1582,7 +1708,9 @@ class BuildSimulationWidget(QWidget):
         if func_last_line is not None:
             i = func_last_line + 2
             while i < len(lines) and not self._is_section_separator(lines[i]):
-                self._parse_function_line(lines[i], functions, func_names, builtin_funcs)
+                self._parse_function_line(
+                    lines[i], functions, func_names, builtin_funcs
+                )
                 i += 1
 
         # ---- 4. Parameters (从最后一个 "Parameters Definition" 后的第一个 "> ..." 行开始) ----
@@ -1591,13 +1719,13 @@ class BuildSimulationWidget(QWidget):
             # 跳过空行和注释，直到遇到以 "> " 开头的行
             while i < len(lines):
                 stripped = lines[i].strip()
-                if stripped.startswith('>'):
+                if stripped.startswith(">"):
                     break
                 i += 1
             # 从该行开始，一直解析到文件结束（参数区无显式结束标记）
             while i < len(lines):
                 stripped = lines[i].strip()
-                if stripped.startswith('>'):
+                if stripped.startswith(">"):
                     self._parse_parameter_line(stripped, parameters)
                 i += 1
 
@@ -1605,23 +1733,34 @@ class BuildSimulationWidget(QWidget):
             "variables": variables,
             "functions": functions,
             "parameters": parameters,
-            "macros": macros
+            "macros": macros,
         }
 
     def _extract_builtin_functions_from_line(self, line: str) -> set:
         """从单行 'default functions : "..."' 中提取函数名"""
         default_hardcoded = {
-            "pow", "sin", "cos", "exp", "log", "sqrt", 
-            "ln", "abs", "tan", "asin", "acos", "atan"
+            "pow",
+            "sin",
+            "cos",
+            "exp",
+            "log",
+            "sqrt",
+            "ln",
+            "abs",
+            "tan",
+            "asin",
+            "acos",
+            "atan",
         }
-        if not line or 'default functions' not in line:
+        if not line or "default functions" not in line:
             return default_hardcoded
-        
+
         import re
+
         matches = re.findall(r'"([^"]+)"', line)
         builtin_set = set()
         for match in matches:
-            func_name = match.split('(', 1)[0].strip()
+            func_name = match.split("(", 1)[0].strip()
             if func_name:
                 builtin_set.add(func_name)
         return builtin_set if builtin_set else default_hardcoded
@@ -1632,15 +1771,17 @@ class BuildSimulationWidget(QWidget):
         if not s:
             return False
         # 全是 = 或 -（允许中间有空格？但通常没有）
-        if all(c == '=' for c in s) or all(c == '-' for c in s):
+        if all(c == "=" for c in s) or all(c == "-" for c in s):
             return True
         # 或以多个 = / - 开头（如 debug 分隔线）
-        if s.startswith('===') or s.startswith('---'):
+        if s.startswith("===") or s.startswith("---"):
             return True
         return False
 
-    def _parse_function_line(self, line: str, functions: list, func_names: set, builtin_funcs: set):
-        parts = [p.strip().replace('\t', ' ') for p in line.split('|')]
+    def _parse_function_line(
+        self, line: str, functions: list, func_names: set, builtin_funcs: set
+    ):
+        parts = [p.strip().replace("\t", " ") for p in line.split("|")]
         parts = [p for p in parts if p]
         if len(parts) >= 3:
             no_str, name, expr = parts[0], parts[1], parts[2]
@@ -1652,7 +1793,7 @@ class BuildSimulationWidget(QWidget):
                     func_names.add(name)
 
     def _parse_variable_line(self, line: str, variables: list, func_names: set):
-        parts = [p.strip().replace('\t', ' ') for p in line.split('|')]
+        parts = [p.strip().replace("\t", " ") for p in line.split("|")]
         parts = [p for p in parts if p]
         if len(parts) >= 3:
             no_str, name, value = parts[0], parts[1], parts[2]
@@ -1664,13 +1805,16 @@ class BuildSimulationWidget(QWidget):
 
     def _parse_parameter_line(self, line: str, parameters: list):
         import re
-        match = re.match(r'>\s*\[([^\]]+)\]\s*([^=]+?)\s*=\s*(.+)', line)
+
+        match = re.match(r">\s*\[([^\]]+)\]\s*([^=]+?)\s*=\s*(.+)", line)
         if match:
             tag, name, value = match.groups()
             name = name.strip()
             value = value.strip()
             # 跳过带索引的参数名，如 a(1), b[2], c{3}
-            if re.search(r'[\(\[\{]\d+[\)\]\}]$', name) or re.search(r'\w+\(\d+\)$', name):
+            if re.search(r"[\(\[\{]\d+[\)\]\}]$", name) or re.search(
+                r"\w+\(\d+\)$", name
+            ):
                 return
             parameters.append({"tag": tag, "name": name, "value": value})
 
@@ -1684,14 +1828,14 @@ class BuildSimulationWidget(QWidget):
         import re
 
         # 移除行首编号（如 "1.", "2."）
-        line = re.sub(r'^\d+\.\w*\s*,?\s*', '', line)
+        line = re.sub(r"^\d+\.\w*\s*,?\s*", "", line)
 
         # 分割逗号，但注意值中可能含逗号（如 "1,3,5"），所以不能简单 split(',')
         # 改为：用正则匹配所有 $NAME[...]$ = value 模式
         # 注意：value 可能包含空格、连字符、数字、小数等
 
         # 先找出所有 $...$ 部分
-        macro_pattern = r'\$([A-Za-z_]\w*)$$([^$$]*)\$\s*=\s*(.*?)(?=\s*,\s*\$|$)'
+        macro_pattern = r"\$([A-Za-z_]\w*)$$([^$$]*)\$\s*=\s*(.*?)(?=\s*,\s*\$|$)"
         # 解释：
         # - \$([A-Za-z_]\w*)$$([^$$]*)\$  → 捕获 NAME 和 [...]（不含 $）
         # - \s*=\s*                        → 等号
@@ -1700,15 +1844,17 @@ class BuildSimulationWidget(QWidget):
 
         matches = re.findall(macro_pattern, line)
         for name, signature, value in matches:
-            macros.append({
-                "name": name,
-                "signature": signature,      # 如 "[1,10,2]"
-                "value": value.strip()
-            })
+            macros.append(
+                {
+                    "name": name,
+                    "signature": signature,  # 如 "[1,10,2]"
+                    "value": value.strip(),
+                }
+            )
 
     def switch_highlighter(self, is_report_file: bool):
         """切换语法高亮器
-        
+
         Args:
             is_report_file: True 表示切换到 report 高亮器，False 表示切换到 mindes 高亮器
         """
@@ -1732,7 +1878,7 @@ class BuildSimulationWidget(QWidget):
     def _build_merged_definitions_data(self, variables, functions):
         """
         将变量列表和函数列表按名称合并，生成用于表格显示的统一数据列表。
-        
+
         返回: List[Dict]，每个 dict 包含:
             - no: int
             - name: str
@@ -1752,7 +1898,7 @@ class BuildSimulationWidget(QWidget):
                 "expression": "-",
                 "value": var["value"],
                 "has_var": True,
-                "has_func": False
+                "has_func": False,
             }
 
         # 处理函数（可能与变量同名）
@@ -1770,7 +1916,7 @@ class BuildSimulationWidget(QWidget):
                     "expression": func["expr"],
                     "value": "-",
                     "has_var": False,
-                    "has_func": True
+                    "has_func": True,
                 }
 
         # 转为列表并排序
@@ -1781,7 +1927,7 @@ class BuildSimulationWidget(QWidget):
     def _populate_definition_table(self, table: QTableWidget, items: list):
         """
         将合并后的定义项列表填充到 QTableWidget 中。
-        
+
         :param table: 目标表格控件
         :param items: 来自 _build_merged_definitions_data 的列表
         """
@@ -1802,11 +1948,21 @@ class BuildSimulationWidget(QWidget):
             table.setItem(row, 2, QTableWidgetItem(item["expression"]))
 
     def show_custom_definitions_popup(self):
-        variables = self.parsed_definitions.get("variables", []) if self.parsed_definitions else []
-        functions = self.parsed_definitions.get("functions", []) if self.parsed_definitions else []
+        variables = (
+            self.parsed_definitions.get("variables", [])
+            if self.parsed_definitions
+            else []
+        )
+        functions = (
+            self.parsed_definitions.get("functions", [])
+            if self.parsed_definitions
+            else []
+        )
 
         if not variables and not functions:
-            QMessageBox.information(self, "Custom Definitions", "No custom variables or functions found.")
+            QMessageBox.information(
+                self, "Custom Definitions", "No custom variables or functions found."
+            )
             return
 
         # 创建非模态浮动窗口
@@ -1820,7 +1976,9 @@ class BuildSimulationWidget(QWidget):
         table.setColumnCount(3)
         table.setHorizontalHeaderLabels(["Name", "Value", "Expression"])
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectItems)  # 允许选中单个单元格
+        table.setSelectionBehavior(
+            QTableWidget.SelectionBehavior.SelectItems
+        )  # 允许选中单个单元格
         table.setSortingEnabled(True)
 
         all_items = self._build_merged_definitions_data(variables, functions)
@@ -1830,13 +1988,19 @@ class BuildSimulationWidget(QWidget):
 
         # === 列宽调整策略 ===
         header = table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)   # Name
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)        # Expression (可拖)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)           # Value (填充剩余)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)  # Name
+        header.setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Interactive
+        )  # Expression (可拖)
+        header.setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Stretch
+        )  # Value (填充剩余)
 
         # 存储引用，用于刷新（使用 setattr 以避免类型检查错误）
-        setattr(popup, 'table', table)
-        setattr(popup, 'all_items', all_items)  # 初始数据（仅用于类型判断，实际刷新会重载）
+        setattr(popup, "table", table)
+        setattr(
+            popup, "all_items", all_items
+        )  # 初始数据（仅用于类型判断，实际刷新会重载）
 
         # === 右键菜单 ===
         def show_context_menu(pos):
@@ -1867,14 +2031,16 @@ class BuildSimulationWidget(QWidget):
 
     def _refresh_custom_definitions_table(self, popup_widget):
         """刷新弹窗中的表格内容，并保持与主弹窗一致的合并逻辑"""
-        if self.current_mindes_file is not None:
-            mindes_base = os.path.splitext(self.current_mindes_file)[0]
-        else:
+        if self.current_mindes_file is None:
             print("current_mindes_file lost")
+            return
+        mindes_base = os.path.splitext(self.current_mindes_file)[0]
         report_path = os.path.join(mindes_base, "input_report.txt")
 
         if not os.path.exists(report_path):
-            QMessageBox.warning(popup_widget, "Refresh Failed", "input_report.txt not found.")
+            QMessageBox.warning(
+                popup_widget, "Refresh Failed", "input_report.txt not found."
+            )
             return
 
         try:
@@ -1886,12 +2052,12 @@ class BuildSimulationWidget(QWidget):
             all_items.sort(key=lambda x: x["no"])
 
             # 清空并重填表格
-            if hasattr(popup_widget,"table"):
+            if hasattr(popup_widget, "table"):
                 table = popup_widget.table
             else:
                 print("popup widget doesn't has attribute 'table'")
-                return 
-            
+                return
+
             self._populate_definition_table(table, all_items)
 
             # 关键：同步主状态，确保下次打开弹窗也是最新合并数据
@@ -1899,7 +2065,9 @@ class BuildSimulationWidget(QWidget):
             self.update_status("Custom Definitions refreshed.", success=True)
 
         except Exception as e:
-            QMessageBox.critical(popup_widget, "Refresh Error", f"Failed to refresh: {str(e)}")
+            QMessageBox.critical(
+                popup_widget, "Refresh Error", f"Failed to refresh: {str(e)}"
+            )
             self.update_status(f"Refresh failed: {e}", error=True)
 
     def clean_function_expression(self, expr: str) -> str:
@@ -1914,35 +2082,38 @@ class BuildSimulationWidget(QWidget):
             return expr
 
         # 移除最外层的 { } 或 [ ]（递归移除）
-        while (s.startswith('{') and s.endswith('}')) or (s.startswith('[') and s.endswith(']')):
+        while (s.startswith("{") and s.endswith("}")) or (
+            s.startswith("[") and s.endswith("]")
+        ):
             s = s[1:-1].strip()
 
         # 移除所有前导 '+'（包括 "+(" 和 "+Var"）
         import re
+
         # 处理 "+(...)" → "(...)"
-        s = re.sub(r'\+\s*\(', '(', s)
+        s = re.sub(r"\+\s*\(", "(", s)
         # 处理 "+变量" → "变量"
-        s = re.sub(r'\+\s*([a-zA-Z_]\w*)', r'\1', s)
+        s = re.sub(r"\+\s*([a-zA-Z_]\w*)", r"\1", s)
         # 处理 "+数字" → "数字"
-        s = re.sub(r'\+\s*(\d+(?:\.\d+)?)', r'\1', s)
+        s = re.sub(r"\+\s*(\d+(?:\.\d+)?)", r"\1", s)
         # 移除孤立的 '+'（如结尾）
-        s = re.sub(r'\+\s*', ' ', s)
+        s = re.sub(r"\+\s*", " ", s)
 
         # 可选：美化运算符（增加空格）
-        s = re.sub(r'(\w)\*', r'\1 * ', s)
-        s = re.sub(r'\*(\w)', r' * \1', s)
+        s = re.sub(r"(\w)\*", r"\1 * ", s)
+        s = re.sub(r"\*(\w)", r" * \1", s)
 
         # 合并多余空格
-        s = re.sub(r'\s+', ' ', s).strip()
+        s = re.sub(r"\s+", " ", s).strip()
 
         return s if s else expr
-###################################################################################
-# INPUT HELPER MANAGER
+
+    ###################################################################################
+    # INPUT HELPER MANAGER
     def _is_valid_for_input_helper(self, text: str) -> bool:
         """判断选中文本是否符合任一 Input Helper 的触发条件"""
-        return (
-            self._is_tuple_pattern(text)
-        )
+        return self._is_tuple_pattern(text)
+
     def _launch_input_helper(self, selected_text: str):
         """根据选中文本类型，启动对应的 Input Helper 弹窗"""
         text = selected_text.strip()
@@ -1950,36 +2121,44 @@ class BuildSimulationWidget(QWidget):
         if self._is_tuple_pattern(text):
             self._show_tuple_helper(text)
         else:
-            QMessageBox.information(self, "Input Helper", "No helper available for this selection.")
-#----------------------------------------------------------------------------------
+            QMessageBox.information(
+                self, "Input Helper", "No helper available for this selection."
+            )
+
+    # ----------------------------------------------------------------------------------
     def _is_tuple_pattern(self, text: str) -> bool:
         # 匹配 (a, b, c) 形式的元组
-        return re.fullmatch(r'\([^)]+\)', text.strip()) is not None
+        return re.fullmatch(r"\([^)]+\)", text.strip()) is not None
+
     def _show_tuple_helper(self, current_text: str):
         """辅助生成元组 (a, b, c)"""
         dialog = QDialog(self)
         dialog.setWindowTitle("Tuple Helper")
         layout = QVBoxLayout(dialog)
 
-        label = QLabel(f"Edit tuple elements:")
+        label = QLabel("Edit tuple elements:")
         layout.addWidget(label)
 
         text_edit = QTextEdit()
         # 解析当前值（如 "(1, 2, 3)" → ["1", "2", "3"]）
         inner = current_text.strip()[1:-1] if len(current_text) > 2 else ""
-        items = [x.strip() for x in inner.split(',')] if inner else []
-        text_edit.setPlainText('\n'.join(items))
+        items = [x.strip() for x in inner.split(",")] if inner else []
+        text_edit.setPlainText("\n".join(items))
         layout.addWidget(text_edit)
 
-        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        btn_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
         layout.addWidget(btn_box)
 
         if dialog.exec() == QDialog.DialogCode.Accepted:
             lines = text_edit.toPlainText().splitlines()
-            new_tuple = "(" + ", ".join(line.strip() for line in lines if line.strip()) + ")"
+            new_tuple = (
+                "(" + ", ".join(line.strip() for line in lines if line.strip()) + ")"
+            )
             self._replace_selected_text(new_tuple)
 
-###################################################################################
 
+###################################################################################

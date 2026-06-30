@@ -7,11 +7,17 @@ import queue
 import threading
 
 from PySide6.QtWidgets import (
-    QFileDialog, QMessageBox, QDialog,
-    QVBoxLayout, QHBoxLayout, QLabel,
-    QComboBox, QPushButton
+    QFileDialog,
+    QMessageBox,
+    QDialog,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QComboBox,
+    QPushButton,
 )
 from PySide6.QtCore import Qt, QTimer
+
 
 class VTSDataLoaderMixin:
     """
@@ -25,25 +31,22 @@ class VTSDataLoaderMixin:
     # =====================================================
     # Public entry
     # =====================================================
-    def load_vts(self, folder_path: str = None):
-        if folder_path:
+    def load_vts(self, folder_path: str = ""):
+        if folder_path == "":
             if not os.path.isdir(folder_path):
                 QMessageBox.critical(
-                    self, "Invalid Path",
-                    f"Not a valid directory:\n{folder_path}"
+                    self, "Invalid Path", f"Not a valid directory:\n{folder_path}"
                 )
                 return
-            self._load_vts_from_folder_or_series(folder_path)
-        else:
             self._load_vts_interactive()
+        else:
+            self._load_vts_from_folder_or_series(folder_path)
 
     # =====================================================
     # Interactive load
     # =====================================================
     def _load_vts_interactive(self):
-        folder = QFileDialog.getExistingDirectory(
-            self, "Select VTS Output Folder"
-        )
+        folder = QFileDialog.getExistingDirectory(self, "Select VTS Output Folder")
         if folder:
             self._load_vts_from_folder_or_series(folder)
 
@@ -54,8 +57,7 @@ class VTSDataLoaderMixin:
         vts_files = glob.glob(os.path.join(folder, "*.vts"))
         if not vts_files:
             QMessageBox.warning(
-                self, "No Files",
-                "No .vts files found in the selected folder."
+                self, "No Files", "No .vts files found in the selected folder."
             )
             return
 
@@ -66,10 +68,7 @@ class VTSDataLoaderMixin:
                 prefixes.add(prefix)
 
         if not prefixes:
-            QMessageBox.warning(
-                self, "No Valid Series",
-                "No valid VTS series found."
-            )
+            QMessageBox.warning(self, "No Valid Series", "No valid VTS series found.")
             return
 
         prefixes = sorted(prefixes)
@@ -107,17 +106,14 @@ class VTSDataLoaderMixin:
 
         def extract_index(path):
             name = os.path.basename(path)
-            suffix = name[len(prefix):].replace(".vts", "")
+            suffix = name[len(prefix) :].replace(".vts", "")
             digits = "".join(c for c in suffix if c.isdigit())
             return int(digits) if digits else float("inf")
 
         files.sort(key=extract_index)
 
         if not files:
-            QMessageBox.warning(
-                self, "No Files",
-                "No matching .vts files found."
-            )
+            QMessageBox.warning(self, "No Files", "No matching .vts files found.")
             return
 
         self.vts_folder = folder
@@ -127,9 +123,9 @@ class VTSDataLoaderMixin:
 
         if not self.load_single_vts_file(files[0]):
             return
-        
+
         self._reset_series_state()
-        
+
         self.playback_group.setVisible(True)
         self.plot_line_checkbox.setVisible(True)
         self.display_group.setVisible(True)
@@ -141,7 +137,6 @@ class VTSDataLoaderMixin:
     # =====================================================
     def load_single_vts_file(self, file_path: str):
         try:
-
             reader = vtk.vtkXMLStructuredGridReader()
             reader.SetFileName(file_path)
             reader.Update()
@@ -186,7 +181,9 @@ class VTSDataLoaderMixin:
     def refresh_file_list(self):
         if not self.vts_folder or not self.vts_prefix:
             return
-        import glob, os
+        import glob
+        import os
+
         pattern = os.path.join(self.vts_folder, f"{self.vts_prefix}*.vts")
         current_files = glob.glob(pattern)
         if not current_files:
@@ -195,17 +192,21 @@ class VTSDataLoaderMixin:
             self._update_file_combo()
             self.playback_status_label.setText("⚠️ No .vts files found.")
             return
+
         # 提取数字并排序（与 auto-update 逻辑一致）
         def extract_number(f):
             base = os.path.basename(f)
-            num_str = base[len(self.vts_prefix):].split('.')[0]
-            digits = ''.join(filter(str.isdigit, num_str))
+            num_str = base[len(self.vts_prefix) :].split(".")[0]
+            digits = "".join(filter(str.isdigit, num_str))
             return int(digits) if digits else -1
+
         current_files.sort(key=extract_number)
         # 记住当前选中的文件名（如果有效）
         current_selected_name = None
-        if (0 <= self.current_file_index < len(self.vts_file_list)):
-            current_selected_name = os.path.basename(self.vts_file_list[self.current_file_index])
+        if 0 <= self.current_file_index < len(self.vts_file_list):
+            current_selected_name = os.path.basename(
+                self.vts_file_list[self.current_file_index]
+            )
         # 更新内部文件列表
         self.vts_file_list = current_files
         # 更新下拉框内容（但不触发 on_file_combo_changed）
@@ -216,7 +217,9 @@ class VTSDataLoaderMixin:
         new_index = -1
         if current_selected_name:
             try:
-                new_index = [os.path.basename(f) for f in self.vts_file_list].index(current_selected_name)
+                new_index = [os.path.basename(f) for f in self.vts_file_list].index(
+                    current_selected_name
+                )
             except ValueError:
                 new_index = -1  # 未找到
         if new_index >= 0:
@@ -236,9 +239,7 @@ class VTSDataLoaderMixin:
     def _update_file_combo(self):
         self.file_combo.blockSignals(True)
         self.file_combo.clear()
-        self.file_combo.addItems(
-            [os.path.basename(f) for f in self.vts_file_list]
-        )
+        self.file_combo.addItems([os.path.basename(f) for f in self.vts_file_list])
         if 0 <= self.current_file_index < len(self.vts_file_list):
             self.file_combo.setCurrentIndex(self.current_file_index)
         self.file_combo.blockSignals(False)
@@ -273,7 +274,7 @@ class VTSDataLoaderMixin:
         self.playback_worker = threading.Thread(
             target=self._preload_frames_worker,
             args=(self.current_file_index,),
-            daemon=True
+            daemon=True,
         )
         self.playback_worker.start()
         # 开始播放循环
@@ -303,7 +304,9 @@ class VTSDataLoaderMixin:
             self.file_combo.blockSignals(True)
             self.file_combo.setCurrentIndex(index)
             self.file_combo.blockSignals(False)
-            self.playback_status_label.setText(f"✅ Playing: {os.path.basename(self.vts_file_list[index])}")
+            self.playback_status_label.setText(
+                f"✅ Playing: {os.path.basename(self.vts_file_list[index])}"
+            )
             # 3. 触发渲染（在 GUI 线程）
             self.update_visualization()
             self.refresh_plot_over_line_for_current_data()
@@ -327,7 +330,9 @@ class VTSDataLoaderMixin:
             # self.update_visualization()
             pass
         # 4. 安排下一帧（无论是否从缓冲区获取）
-        if self.is_sequential_playing and self.current_file_index < len(self.vts_file_list):
+        if self.is_sequential_playing and self.current_file_index < len(
+            self.vts_file_list
+        ):
             QTimer.singleShot(self._get_frame_delay_ms(), self._play_next_frame)
         else:
             self.stop_sequential_playback()
@@ -335,7 +340,9 @@ class VTSDataLoaderMixin:
     def _preload_frames_worker(self, start_index: int):
         """后台线程：从 start_index 开始预加载 VTS 文件"""
         current_index = start_index
-        while not self.stop_playback_event.is_set() and current_index < len(self.vts_file_list):
+        while not self.stop_playback_event.is_set() and current_index < len(
+            self.vts_file_list
+        ):
             # === 关键：检查是否已加载或已入队 ===
             with self._loaded_indices_lock:
                 if current_index in self._loaded_or_queued_indices:
@@ -367,7 +374,7 @@ class VTSDataLoaderMixin:
     # Auto update
     # =====================================================
     def toggle_auto_update(self, state):
-        enabled = (state == Qt.CheckState.Checked.value)
+        enabled = state == Qt.CheckState.Checked.value
         self.auto_update_interval_combo.setEnabled(enabled)
         if enabled:
             self.start_auto_update()
@@ -386,9 +393,7 @@ class VTSDataLoaderMixin:
 
         if not self.auto_update_timer:
             self.auto_update_timer = QTimer(self)
-            self.auto_update_timer.timeout.connect(
-                self.draw_new_vts_files
-            )
+            self.auto_update_timer.timeout.connect(self.draw_new_vts_files)
         self.auto_update_timer.stop()
         self.auto_update_timer.start(interval_ms)
 
@@ -414,9 +419,12 @@ class VTSDataLoaderMixin:
 
         # 获取当前正在显示的文件名（如果有效）
         current_displayed_basename = None
-        if (self.current_data is not None 
-            and 0 <= self.current_file_index < len(old_file_list)):
-            current_displayed_basename = os.path.basename(old_file_list[self.current_file_index])
+        if self.current_data is not None and 0 <= self.current_file_index < len(
+            old_file_list
+        ):
+            current_displayed_basename = os.path.basename(
+                old_file_list[self.current_file_index]
+            )
 
         # 如果最新文件不是当前显示的，则加载它
         if current_displayed_basename != latest_basename:
@@ -442,7 +450,9 @@ class VTSDataLoaderMixin:
     # Helpers
     # =====================================================
     def update_playback_status(self):
-        if self.vts_file_list and 0 <= self.current_file_index < len(self.vts_file_list):
+        if self.vts_file_list and 0 <= self.current_file_index < len(
+            self.vts_file_list
+        ):
             fname = os.path.basename(self.vts_file_list[self.current_file_index])
             self.playback_status_label.setText("✅ Loaded")
         else:
@@ -493,8 +503,6 @@ class VTSDataLoaderMixin:
         self.glyph_filter.SetInputData(self.current_data)
         self.renderer.AddActor(self.glyph_actor)
 
-
-
     def _extract_series_prefix(self, filename):
         """
         从文件名（不含路径）中提取系列前缀。
@@ -505,14 +513,14 @@ class VTSDataLoaderMixin:
             "data123.vts"                    → "data"
             "test.vts"                       → "test" （无数字则保留原名）
         """
-        if not filename.endswith('.vts'):
+        if not filename.endswith(".vts"):
             return None
         base = filename[:-4]  # 移除 .vts
         # 从末尾移除连续数字
         i = len(base) - 1
         while i >= 0 and base[i].isdigit():
             i -= 1
-        prefix = base[:i+1]
+        prefix = base[: i + 1]
         # 如果全是数字（如 "123.vts"），返回空字符串，但我们保留至少一个字符
         if not prefix:
             prefix = base  # 或者返回 "file"，但这里保留原逻辑
@@ -546,12 +554,12 @@ class VTSDataLoaderMixin:
                 continue
             comps = arr.GetNumberOfComponents()
             if comps == 1:
-                fields.append((f"[S] {name}", name, 'scalar'))
+                fields.append((f"[S] {name}", name, "scalar"))
             elif comps == 3:
-                fields.append((f"[V] {name}", name, 'vector'))
+                fields.append((f"[V] {name}", name, "vector"))
 
         # 排序：标量在前，向量在后；同类型按名称排序
-        fields.sort(key=lambda x: (x[2] != 'scalar', x[1]))
+        fields.sort(key=lambda x: (x[2] != "scalar", x[1]))
 
         # 3. 添加到 combo
         name_to_index = {}
@@ -616,7 +624,7 @@ class VTSDataLoaderMixin:
 
     def _save_scroll_position(self):
         """保存当前滚动位置"""
-        if hasattr(self, 'control_scroll_area'):
+        if hasattr(self, "control_scroll_area"):
             vbar = self.control_scroll_area.verticalScrollBar()
             self._saved_scroll_pos = vbar.value() if vbar else 0
         else:
@@ -624,7 +632,7 @@ class VTSDataLoaderMixin:
 
     def _restore_scroll_position(self):
         """恢复滚动位置"""
-        if hasattr(self, 'control_scroll_area'):
+        if hasattr(self, "control_scroll_area"):
             vbar = self.control_scroll_area.verticalScrollBar()
             if vbar:
                 vbar.setValue(self._saved_scroll_pos)

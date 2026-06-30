@@ -14,6 +14,7 @@ Features 完全保留:
 
 依赖: PySide6, numpy, pandas, matplotlib (均已在 MInDes-UI 中).
 """
+
 from __future__ import annotations
 
 import os
@@ -24,15 +25,30 @@ import numpy as np
 import pandas as pd
 
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QSpinBox, QComboBox, QSplitter,
-    QFileDialog, QMessageBox, QTabWidget, QTableWidget,
-    QTableWidgetItem, QGroupBox, QHeaderView, QAbstractItemView,
+    QApplication,
+    QDialog,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QComboBox,
+    QSplitter,
+    QFileDialog,
+    QMessageBox,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QGroupBox,
+    QHeaderView,
+    QAbstractItemView,
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 
 import matplotlib
+
 matplotlib.use("QtAgg")  # 显式指定, 避免误拉 TkAgg
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -133,8 +149,14 @@ class FitterDialog(QDialog):
         self.spn_d3 = QSpinBox()
         self.spn_d3.setRange(0, 12)
         self.spn_d3.setValue(4)
-        for w in (self.lbl_d1, self.spn_d1, self.lbl_d2, self.spn_d2,
-                  self.lbl_d3, self.spn_d3):
+        for w in (
+            self.lbl_d1,
+            self.spn_d1,
+            self.lbl_d2,
+            self.spn_d2,
+            self.lbl_d3,
+            self.spn_d3,
+        ):
             top.addWidget(w)
 
         self.btn_fit = QPushButton("Fit")
@@ -164,10 +186,12 @@ class FitterDialog(QDialog):
         stats_lay = QVBoxLayout(gb_stats)
         self.lbl_summary = QLabel("(no fit yet)")
         self.lbl_summary.setAlignment(
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
+        )
         self.lbl_summary.setWordWrap(True)
         self.lbl_summary.setStyleSheet(
-            "font-family: Consolas, monospace; font-size: 11px;")
+            "font-family: Consolas, monospace; font-size: 11px;"
+        )
         stats_lay.addWidget(self.lbl_summary)
         left_lay.addWidget(gb_stats)
 
@@ -175,11 +199,12 @@ class FitterDialog(QDialog):
         coef_lay = QVBoxLayout(gb_coef)
         self.tbl_coef = QTableWidget(0, 4)
         self.tbl_coef.setHorizontalHeaderLabels(
-            ["i (x1)", "j (x2)", "k (x3)", "coefficient"])
-        self.tbl_coef.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers)
+            ["i (x1)", "j (x2)", "k (x3)", "coefficient"]
+        )
+        self.tbl_coef.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl_coef.setSelectionBehavior(
-            QAbstractItemView.SelectionBehavior.SelectRows)
+            QAbstractItemView.SelectionBehavior.SelectRows
+        )
         self.tbl_coef.verticalHeader().setVisible(False)
         hh = self.tbl_coef.horizontalHeader()
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -202,7 +227,8 @@ class FitterDialog(QDialog):
         # --- 状态栏 ---
         self.lbl_status = QLabel("Load a CSV to begin.")
         self.lbl_status.setStyleSheet(
-            "background:#f0f0f0; padding:3px; border-top:1px solid #aaa;")
+            "background:#f0f0f0; padding:3px; border-top:1px solid #aaa;"
+        )
         root.addWidget(self.lbl_status)
 
     def _make_plot_tab(self):
@@ -216,15 +242,15 @@ class FitterDialog(QDialog):
         return {"widget": w, "fig": fig, "canvas": canvas}
 
     def _update_degree_widgets(self):
-        is_ternary = (self.cbo_mode.currentText() == "ternary")
+        is_ternary = self.cbo_mode.currentText() == "ternary"
         self.lbl_d3.setVisible(is_ternary)
         self.spn_d3.setVisible(is_ternary)
 
     # -- actions ------------------------------------------------------------
     def on_load_csv(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select CSV file", "",
-            "CSV files (*.csv);;All files (*.*)")
+            self, "Select CSV file", "", "CSV files (*.csv);;All files (*.*)"
+        )
         if not path:
             return
         try:
@@ -253,13 +279,14 @@ class FitterDialog(QDialog):
             if mode == "bivariate":
                 degrees = (self.spn_d1.value(), self.spn_d2.value())
             else:
-                degrees = (self.spn_d1.value(),
-                           self.spn_d2.value(),
-                           self.spn_d3.value())
+                degrees = (
+                    self.spn_d1.value(),
+                    self.spn_d2.value(),
+                    self.spn_d3.value(),
+                )
             result = fc.fit(self.df, mode, degrees)
         except Exception as e:
-            QMessageBox.critical(
-                self, "Fit failed", f"{e}\n\n{traceback.format_exc()}")
+            QMessageBox.critical(self, "Fit failed", f"{e}\n\n{traceback.format_exc()}")
             return
         self.result = result
         self._refresh_summary()
@@ -276,8 +303,8 @@ class FitterDialog(QDialog):
             QMessageBox.information(self, "No fit", "Run a fit first.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save coefficient table", "coefficients.csv",
-            "CSV (*.csv)")
+            self, "Save coefficient table", "coefficients.csv", "CSV (*.csv)"
+        )
         if not path:
             return
         try:
@@ -300,7 +327,8 @@ class FitterDialog(QDialog):
             QMessageBox.information(self, "No fit", "Run a fit first.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save data + fit", "data_vs_fit.csv", "CSV (*.csv)")
+            self, "Save data + fit", "data_vs_fit.csv", "CSV (*.csv)"
+        )
         if not path:
             return
         try:
@@ -308,11 +336,16 @@ class FitterDialog(QDialog):
             x2 = self.df["x2"].to_numpy()
             G_true = self.df["G"].to_numpy()
             G_fit = fc.predict(self.result, x1, x2)
-            out = pd.DataFrame({
-                "x1": x1, "x2": x2, "x3": 1 - x1 - x2,
-                "G_data": G_true, "G_fit": G_fit,
-                "residual": G_true - G_fit,
-            })
+            out = pd.DataFrame(
+                {
+                    "x1": x1,
+                    "x2": x2,
+                    "x3": 1 - x1 - x2,
+                    "G_data": G_true,
+                    "G_fit": G_fit,
+                    "residual": G_true - G_fit,
+                }
+            )
             out.to_csv(path, index=False)
             QMessageBox.information(self, "Saved", f"Wrote {path}")
         except Exception as e:
@@ -339,7 +372,7 @@ class FitterDialog(QDialog):
         self.tbl_coef.setRowCount(0)
         if self.result is None:
             return
-        is_bivar = (self.result.mode == "bivariate")
+        is_bivar = self.result.mode == "bivariate"
         # 第 3 列的显示/隐藏由 setColumnHidden 控制, 比改 header 稳
         self.tbl_coef.setColumnHidden(2, is_bivar)
 
@@ -354,7 +387,8 @@ class FitterDialog(QDialog):
                 self.tbl_coef.setItem(row, 2, QTableWidgetItem(str(exps[2])))
             item = QTableWidgetItem(f"{c:+.6e}")
             item.setTextAlignment(
-                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
             self.tbl_coef.setItem(row, 3, item)
 
     def _render_raw_only(self):
@@ -363,8 +397,14 @@ class FitterDialog(QDialog):
         fig.clf()
         ax = fig.add_subplot(111, projection="3d")
         if self.df is not None:
-            ax.scatter(self.df["x1"], self.df["x2"], self.df["G"],
-                       s=4, c=self.df["G"], cmap="viridis")
+            ax.scatter(
+                self.df["x1"],
+                self.df["x2"],
+                self.df["G"],
+                s=4,
+                c=self.df["G"],
+                cmap="viridis",
+            )
             ax.set_xlabel("x1")
             ax.set_ylabel("x2")
             ax.set_zlabel("G")
@@ -394,13 +434,13 @@ class FitterDialog(QDialog):
         fig.clf()
         ax = fig.add_subplot(111, projection="3d")
         df = self.df
-        ax.scatter(df["x1"], df["x2"], df["G"],
-                   s=5, c="k", alpha=0.25, label="data")
+        ax.scatter(df["x1"], df["x2"], df["G"], s=5, c="k", alpha=0.25, label="data")
         X1, X2, mask = self._grid_over_simplex()
         Z = fc.predict(self.result, X1, X2)
         Zm = np.where(mask, Z, np.nan)
-        ax.plot_surface(X1, X2, Zm, cmap="viridis", alpha=0.75,
-                        linewidth=0, antialiased=True)
+        ax.plot_surface(
+            X1, X2, Zm, cmap="viridis", alpha=0.75, linewidth=0, antialiased=True
+        )
         ax.set_xlabel("x1")
         ax.set_ylabel("x2")
         ax.set_zlabel("G")
@@ -416,6 +456,7 @@ class FitterDialog(QDialog):
         df = self.df
 
         from matplotlib.tri import Triangulation
+
         tri = Triangulation(df["x1"].values, df["x2"].values)
 
         ax1 = fig.add_subplot(1, 2, 1)
@@ -452,8 +493,9 @@ class FitterDialog(QDialog):
 
         ax1 = fig.add_subplot(1, 2, 1)
         vmax = float(np.max(np.abs(resid))) if len(resid) else 1.0
-        sc = ax1.scatter(df["x1"], df["x2"], c=resid, cmap="RdBu_r",
-                         s=10, vmin=-vmax, vmax=vmax)
+        sc = ax1.scatter(
+            df["x1"], df["x2"], c=resid, cmap="RdBu_r", s=10, vmin=-vmax, vmax=vmax
+        )
         ax1.plot([0, 1, 0, 0], [0, 0, 1, 0], "k-", lw=1)
         ax1.set_aspect("equal")
         ax1.set_xlabel("x1")

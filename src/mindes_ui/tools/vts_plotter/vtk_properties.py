@@ -1,17 +1,30 @@
-﻿"""Property dialog for VTS Plotter's 3D view."""
+"""Property dialog for VTS Plotter's 3D view."""
+
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QGroupBox,
-    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
-    QSpinBox, QTabWidget, QVBoxLayout, QWidget,
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 from ...plot_property_dialog import ColorButton
 
-from .models import VtsDatasetConfig, VtkPlotConfig, dataset_display_name
+from .models import dataset_display_name
 
 
 class VtkFontStyleEditor(QGroupBox):
@@ -51,9 +64,20 @@ class VtkFontStyleEditor(QGroupBox):
 
 
 class VtsPropertyDialog(QDialog):
-    def __init__(self, vtk_config, datasets, render_order, active_id, apply_callback, parent=None,
-                 *, save_format_callback=None, load_format_callback=None, style_templates=None,
-                 field_options=None):
+    def __init__(
+        self,
+        vtk_config,
+        datasets,
+        render_order,
+        active_id,
+        apply_callback,
+        parent=None,
+        *,
+        save_format_callback=None,
+        load_format_callback=None,
+        style_templates=None,
+        field_options=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle("3D Properties")
         self.resize(820, 800)
@@ -61,8 +85,14 @@ class VtsPropertyDialog(QDialog):
         self.config.migrate_legacy_axes()
         self.datasets = {item.dataset_id: deepcopy(item) for item in datasets}
         self.render_order = [value for value in render_order if value in self.datasets]
-        self.render_order += [value for value in self.datasets if value not in self.render_order]
-        self.active_id = active_id if active_id in self.datasets else (self.render_order[0] if self.render_order else "")
+        self.render_order += [
+            value for value in self.datasets if value not in self.render_order
+        ]
+        self.active_id = (
+            active_id
+            if active_id in self.datasets
+            else (self.render_order[0] if self.render_order else "")
+        )
         self.apply_callback = apply_callback
         self._loading = False
         self._axis_index = 0
@@ -146,7 +176,17 @@ class VtsPropertyDialog(QDialog):
         layout.addLayout(form)
 
         self.mode = QComboBox()
-        self.mode.addItems(["Surface", "Surface with Grid", "Volume", "Clip", "Slice", "Contour", "Vector Arrows"])
+        self.mode.addItems(
+            [
+                "Surface",
+                "Surface with Grid",
+                "Volume",
+                "Clip",
+                "Slice",
+                "Contour",
+                "Vector Arrows",
+            ]
+        )
         self.color_mode = QComboBox()
         self.color_mode.addItems(["Colormap", "Fixed Color"])
         self.color = ColorButton("#1f77b4")
@@ -160,12 +200,19 @@ class VtsPropertyDialog(QDialog):
         self.mesh_color = ColorButton("#202020")
         self.mesh_width = self._double(0.1, 10, 2)
 
-        for label, widget in [("Mode:", self.mode), ("Color mode:", self.color_mode),
-                              ("Fixed color:", self.color), ("Colormap:", self.cmap),
-                              ("Auto color range:", self.auto_range), ("Range min:", self.range_min),
-                              ("Range max:", self.range_max), ("Opacity:", self.opacity),
-                              ("Point size:", self.point_size), ("Mesh color:", self.mesh_color),
-                              ("Mesh width:", self.mesh_width)]:
+        for label, widget in [
+            ("Mode:", self.mode),
+            ("Color mode:", self.color_mode),
+            ("Fixed color:", self.color),
+            ("Colormap:", self.cmap),
+            ("Auto color range:", self.auto_range),
+            ("Range min:", self.range_min),
+            ("Range max:", self.range_max),
+            ("Opacity:", self.opacity),
+            ("Point size:", self.point_size),
+            ("Mesh color:", self.mesh_color),
+            ("Mesh width:", self.mesh_width),
+        ]:
             form.addRow(label, widget)
 
         # Mode-specific groups
@@ -190,7 +237,9 @@ class VtsPropertyDialog(QDialog):
         filter_form.addRow("Field:", self.filter_field)
         filter_form.addRow("Min:", self.filter_min)
         filter_form.addRow("Max:", self.filter_max)
-        filter_form.addRow(QLabel("Only cells with field value in [min, max] are shown."))
+        filter_form.addRow(
+            QLabel("Only cells with field value in [min, max] are shown.")
+        )
         layout.addWidget(filter_group)
 
         # Subregion group
@@ -207,7 +256,9 @@ class VtsPropertyDialog(QDialog):
         sub_form.addRow("I min/max:", self._hbox(self.sub_imin, self.sub_imax))
         sub_form.addRow("J min/max:", self._hbox(self.sub_jmin, self.sub_jmax))
         sub_form.addRow("K min/max:", self._hbox(self.sub_kmin, self.sub_kmax))
-        sub_form.addRow(QLabel("Extract a sub-grid by index range. Set max = -1 for full extent."))
+        sub_form.addRow(
+            QLabel("Extract a sub-grid by index range. Set max = -1 for full extent.")
+        )
         layout.addWidget(sub_group)
 
         # With boundary
@@ -215,9 +266,19 @@ class VtsPropertyDialog(QDialog):
         self.with_boundary.setChecked(True)
         layout.addWidget(self.with_boundary)
 
-        self.dataset_controls = [self.mode, self.color_mode, self.color, self.cmap, self.auto_range,
-                                 self.range_min, self.range_max, self.opacity, self.point_size,
-                                 self.mesh_color, self.mesh_width]
+        self.dataset_controls = [
+            self.mode,
+            self.color_mode,
+            self.color,
+            self.cmap,
+            self.auto_range,
+            self.range_min,
+            self.range_max,
+            self.opacity,
+            self.point_size,
+            self.mesh_color,
+            self.mesh_width,
+        ]
         self.dataset_combo.currentIndexChanged.connect(self._switch_dataset)
         self.up_btn.clicked.connect(lambda: self._move_dataset(-1))
         self.down_btn.clicked.connect(lambda: self._move_dataset(1))
@@ -295,10 +356,16 @@ class VtsPropertyDialog(QDialog):
         self.z_scale = self._double(0.001, 1000, 3)
         self.screenshot_scale = QSpinBox()
         self.screenshot_scale.setRange(1, 8)
-        for label, widget in [("Background:", self.background), ("Color bar:", self.show_colorbar),
-                              ("Legend:", self.show_legend), ("Auto normalization:", self.auto_normalize),
-                              ("X visual factor:", self.x_scale), ("Y visual factor:", self.y_scale),
-                              ("Z visual factor:", self.z_scale), ("Screenshot scale:", self.screenshot_scale)]:
+        for label, widget in [
+            ("Background:", self.background),
+            ("Color bar:", self.show_colorbar),
+            ("Legend:", self.show_legend),
+            ("Auto normalization:", self.auto_normalize),
+            ("X visual factor:", self.x_scale),
+            ("Y visual factor:", self.y_scale),
+            ("Z visual factor:", self.z_scale),
+            ("Screenshot scale:", self.screenshot_scale),
+        ]:
             form.addRow(label, widget)
         return page
 
@@ -386,17 +453,30 @@ class VtsPropertyDialog(QDialog):
         self.tick_location = QComboBox()
         self.tick_location.addItems(["Inside", "Outside", "Both"])
         self.fly_mode = QComboBox()
-        self.fly_mode.addItems(["Closest Triad", "Furthest Triad", "Outer Edges", "Static Triad", "Static Edges"])
+        self.fly_mode.addItems(
+            [
+                "Closest Triad",
+                "Furthest Triad",
+                "Outer Edges",
+                "Static Triad",
+                "Static Edges",
+            ]
+        )
         self.grid_location = QComboBox()
         self.grid_location.addItems(["All", "Closest", "Furthest"])
         self.title_offset_x = self._double(-500, 500, 1)
         self.title_offset_y = self._double(-500, 500, 1)
         self.label_offset = self._double(-500, 500, 1)
         self.corner_offset = self._double(0, 1, 3)
-        for label, widget in [("Tick location:", self.tick_location), ("Fly mode:", self.fly_mode),
-                              ("Grid location:", self.grid_location), ("Title offset X:", self.title_offset_x),
-                              ("Title offset Y:", self.title_offset_y), ("Label offset:", self.label_offset),
-                              ("Corner offset:", self.corner_offset)]:
+        for label, widget in [
+            ("Tick location:", self.tick_location),
+            ("Fly mode:", self.fly_mode),
+            ("Grid location:", self.grid_location),
+            ("Title offset X:", self.title_offset_x),
+            ("Title offset Y:", self.title_offset_y),
+            ("Label offset:", self.label_offset),
+            ("Corner offset:", self.corner_offset),
+        ]:
             f.addRow(label, widget)
         layout.addWidget(shared)
         layout.addStretch()
@@ -428,13 +508,17 @@ class VtsPropertyDialog(QDialog):
         self._load_axis()
 
     def _axis_config(self, index=None):
-        return (self.config.x_axis, self.config.y_axis, self.config.z_axis)[self._axis_index if index is None else index]
+        return (self.config.x_axis, self.config.y_axis, self.config.z_axis)[
+            self._axis_index if index is None else index
+        ]
 
     def _axis_bounds(self, index=None):
         idx = self._axis_index if index is None else index
-        return ((self.config.x_min, self.config.x_max),
-                (self.config.y_min, self.config.y_max),
-                (self.config.z_min, self.config.z_max))[idx]
+        return (
+            (self.config.x_min, self.config.x_max),
+            (self.config.y_min, self.config.y_max),
+            (self.config.z_min, self.config.z_max),
+        )[idx]
 
     def _load_axis(self):
         self._loading = True
@@ -479,11 +563,20 @@ class VtsPropertyDialog(QDialog):
         self.title_font.save(axis.title_style)
         self.label_font.save(axis.label_style)
         if self._axis_index == 0:
-            self.config.x_min, self.config.x_max = self.axis_min.value(), self.axis_max.value()
+            self.config.x_min, self.config.x_max = (
+                self.axis_min.value(),
+                self.axis_max.value(),
+            )
         elif self._axis_index == 1:
-            self.config.y_min, self.config.y_max = self.axis_min.value(), self.axis_max.value()
+            self.config.y_min, self.config.y_max = (
+                self.axis_min.value(),
+                self.axis_max.value(),
+            )
         else:
-            self.config.z_min, self.config.z_max = self.axis_min.value(), self.axis_max.value()
+            self.config.z_min, self.config.z_max = (
+                self.axis_min.value(),
+                self.axis_max.value(),
+            )
 
     def _switch_axis(self, index):
         if self._loading:
@@ -496,8 +589,12 @@ class VtsPropertyDialog(QDialog):
         self._loading = True
         self.dataset_combo.clear()
         for dataset_id in self.render_order:
-            self.dataset_combo.addItem(dataset_display_name(self.datasets[dataset_id]), dataset_id)
-        idx = self.render_order.index(active_id) if active_id in self.render_order else 0
+            self.dataset_combo.addItem(
+                dataset_display_name(self.datasets[dataset_id]), dataset_id
+            )
+        idx = (
+            self.render_order.index(active_id) if active_id in self.render_order else 0
+        )
         self.dataset_combo.setCurrentIndex(idx if self.render_order else -1)
         self._loading = False
         self.active_id = self.dataset_combo.currentData() or ""
@@ -505,8 +602,17 @@ class VtsPropertyDialog(QDialog):
         enabled = bool(self.active_id)
         for w in self.dataset_controls:
             w.setEnabled(enabled)
-        self.up_btn.setEnabled(enabled and self.render_order.index(self.active_id) > 0 if enabled else False)
-        self.down_btn.setEnabled(enabled and self.render_order.index(self.active_id) + 1 < len(self.render_order) if enabled else False)
+        self.up_btn.setEnabled(
+            enabled and self.render_order.index(self.active_id) > 0
+            if enabled
+            else False
+        )
+        self.down_btn.setEnabled(
+            enabled
+            and self.render_order.index(self.active_id) + 1 < len(self.render_order)
+            if enabled
+            else False
+        )
         if not enabled:
             self.position_label.setText("No On dataset")
 
@@ -603,7 +709,10 @@ class VtsPropertyDialog(QDialog):
         target = idx + delta
         if target < 0 or target >= len(self.render_order):
             return
-        self.render_order[idx], self.render_order[target] = self.render_order[target], self.render_order[idx]
+        self.render_order[idx], self.render_order[target] = (
+            self.render_order[target],
+            self.render_order[idx],
+        )
         self._rebuild_selector(self.active_id)
 
     def _save_common(self):
@@ -637,36 +746,62 @@ class VtsPropertyDialog(QDialog):
         self._save_dataset()
         self._save_common()
         c = self.config
-        if not c.auto_bounds and not (c.x_min < c.x_max and c.y_min < c.y_max and c.z_min < c.z_max):
-            QMessageBox.warning(self, "Invalid Bounds", "Each minimum must be smaller than its maximum.")
+        if not c.auto_bounds and not (
+            c.x_min < c.x_max and c.y_min < c.y_max and c.z_min < c.z_max
+        ):
+            QMessageBox.warning(
+                self, "Invalid Bounds", "Each minimum must be smaller than its maximum."
+            )
             return False
         for dataset in self.datasets.values():
             if not dataset.auto_color_range and dataset.color_min >= dataset.color_max:
-                QMessageBox.warning(self, "Invalid Range", f"{dataset_display_name(dataset)}: min must be < max.")
+                QMessageBox.warning(
+                    self,
+                    "Invalid Range",
+                    f"{dataset_display_name(dataset)}: min must be < max.",
+                )
                 return False
         return True
 
     def _apply(self):
         if self._valid():
-            self.apply_callback(deepcopy(self.config), deepcopy(list(self.datasets.values())),
-                                list(self.render_order), self.active_id, deepcopy(self.style_templates))
+            self.apply_callback(
+                deepcopy(self.config),
+                deepcopy(list(self.datasets.values())),
+                list(self.render_order),
+                self.active_id,
+                deepcopy(self.style_templates),
+            )
 
     def _accept(self):
         if self._valid():
-            self.apply_callback(deepcopy(self.config), deepcopy(list(self.datasets.values())),
-                                list(self.render_order), self.active_id, deepcopy(self.style_templates))
+            self.apply_callback(
+                deepcopy(self.config),
+                deepcopy(list(self.datasets.values())),
+                list(self.render_order),
+                self.active_id,
+                deepcopy(self.style_templates),
+            )
             self.accept()
 
     def _save_format(self):
         if self.save_format_callback is not None and self._valid():
-            self.save_format_callback(deepcopy(self.config), deepcopy(list(self.datasets.values())),
-                                      list(self.render_order), deepcopy(self.style_templates))
+            self.save_format_callback(
+                deepcopy(self.config),
+                deepcopy(list(self.datasets.values())),
+                list(self.render_order),
+                deepcopy(self.style_templates),
+            )
 
     def _load_format(self):
         if self.load_format_callback is None or not self._valid():
             return
-        loaded = self.load_format_callback(deepcopy(self.config), deepcopy(list(self.datasets.values())),
-                                           list(self.render_order), deepcopy(self.style_templates))
+        loaded = self.load_format_callback(
+            deepcopy(self.config),
+            deepcopy(list(self.datasets.values())),
+            list(self.render_order),
+            deepcopy(self.style_templates),
+        )
         if loaded is None:
             return
         self.config, datasets, self.style_templates = loaded

@@ -9,9 +9,8 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QMessageBox,
     QMenu,
-    QInputDialog,
 )
-from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher, QSettings
+from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher
 import os
 import shutil
 import subprocess  # 👈 用于跨平台兼容（可选）

@@ -1,14 +1,28 @@
 # ui_control_panel.py
 from PySide6.QtWidgets import (
-    QGroupBox, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QPushButton, QColorDialog, QComboBox, QFileDialog,
-    QLabel, QCheckBox, QDoubleSpinBox, QLineEdit,
-    QSlider, QSizePolicy, QScrollArea, QWidget, QFrame
+    QGroupBox,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QPushButton,
+    QColorDialog,
+    QComboBox,
+    QFileDialog,
+    QLabel,
+    QCheckBox,
+    QDoubleSpinBox,
+    QLineEdit,
+    QSlider,
+    QSizePolicy,
+    QScrollArea,
+    QWidget,
+    QFrame,
 )
 from PySide6.QtGui import QDoubleValidator, QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
 import vtk
 import os
+
 
 class ControlPanelMixin:
     """
@@ -38,9 +52,7 @@ class ControlPanelMixin:
             ["White", "Light Gray", "Gray", "Dark Gray", "Black"]
         )
         self.bg_color_combo.setCurrentText("Light Gray")
-        self.bg_color_combo.currentTextChanged.connect(
-            self.update_background_color
-        )
+        self.bg_color_combo.currentTextChanged.connect(self.update_background_color)
         bg_layout.addWidget(self.bg_color_combo)
         layout.addLayout(bg_layout)
 
@@ -68,9 +80,7 @@ class ControlPanelMixin:
 
         auto_layout = QHBoxLayout()
         self.auto_update_checkbox = QCheckBox("Auto Update")
-        self.auto_update_checkbox.stateChanged.connect(
-            self.toggle_auto_update
-        )
+        self.auto_update_checkbox.stateChanged.connect(self.toggle_auto_update)
         auto_layout.addWidget(self.auto_update_checkbox)
 
         auto_layout.addWidget(QLabel("Interval:"))
@@ -86,8 +96,8 @@ class ControlPanelMixin:
 
         # === 添加分隔线 ===
         separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)        # 水平线
-        separator.setFrameShadow(QFrame.Sunken)      # 凹陷样式（更美观）
+        separator.setFrameShape(QFrame.HLine)  # 水平线
+        separator.setFrameShadow(QFrame.Sunken)  # 凹陷样式（更美观）
         playback_layout.addWidget(separator)
         # =====================================================
         # Field & Colormap
@@ -98,22 +108,14 @@ class ControlPanelMixin:
         file_layout = QHBoxLayout()
         file_layout.addWidget(QLabel("VTS Files:"))
         self.file_combo = QComboBox()
-        self.file_combo.currentIndexChanged.connect(
-            self.on_file_combo_changed
-        )
-        self.file_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToContents
-        )
-        self.file_combo.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Preferred
-        )
+        self.file_combo.currentIndexChanged.connect(self.on_file_combo_changed)
+        self.file_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.file_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         file_layout.addWidget(self.file_combo)
 
         self.refresh_btn = QPushButton("🔄")
         self.refresh_btn.setMaximumWidth(30)
-        self.refresh_btn.setSizePolicy(
-            QSizePolicy.Fixed, QSizePolicy.Preferred
-        )
+        self.refresh_btn.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         self.refresh_btn.clicked.connect(self.refresh_file_list)
         self.refresh_btn.setToolTip("Reload vts files")
         file_layout.addWidget(self.refresh_btn)
@@ -122,19 +124,15 @@ class ControlPanelMixin:
         field_layout = QHBoxLayout()
         field_layout.addWidget(QLabel("Data Fields:"))
         self.field_combo = QComboBox()
-        self.field_combo.currentTextChanged.connect(
-            self.on_field_selection_changed
-        )
-        self.field_combo.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Preferred
-        )
+        self.field_combo.currentTextChanged.connect(self.on_field_selection_changed)
+        self.field_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         field_layout.addWidget(self.field_combo)
         playback_layout.addLayout(field_layout)
 
         # === 添加分隔线 ===
         separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)        # 水平线
-        separator.setFrameShadow(QFrame.Sunken)      # 凹陷样式（更美观）
+        separator.setFrameShape(QFrame.HLine)  # 水平线
+        separator.setFrameShadow(QFrame.Sunken)  # 凹陷样式（更美观）
         playback_layout.addWidget(separator)
         # =================
 
@@ -144,12 +142,8 @@ class ControlPanelMixin:
         self.colormap_combo.addItems(
             ["Cool-Warm", "Rainbow", "Grayscale", "Viridis", "Plasma"]
         )
-        self.colormap_combo.currentIndexChanged.connect(
-            self.update_colormap_preview
-        )
-        self.colormap_combo.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Preferred
-        )
+        self.colormap_combo.currentIndexChanged.connect(self.update_colormap_preview)
+        self.colormap_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         map_layout.addWidget(self.colormap_combo)
         playback_layout.addLayout(map_layout)
 
@@ -182,8 +176,8 @@ class ControlPanelMixin:
 
         # === 添加分隔线 ===
         separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)        # 水平线
-        separator.setFrameShadow(QFrame.Sunken)      # 凹陷样式（更美观）
+        separator.setFrameShape(QFrame.HLine)  # 水平线
+        separator.setFrameShadow(QFrame.Sunken)  # 凹陷样式（更美观）
         playback_layout.addWidget(separator)
         # =================
 
@@ -196,15 +190,11 @@ class ControlPanelMixin:
         self.vis_mode_combo.addItems(
             ["Surface", "Surface with Grid", "Clip", "Contour", "Vector Arrows"]
         )
-        self.vis_mode_combo.currentTextChanged.connect(
-            self.on_vis_mode_changed
-        )
-        self.vis_mode_combo.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Preferred
-        )
+        self.vis_mode_combo.currentTextChanged.connect(self.on_vis_mode_changed)
+        self.vis_mode_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         map_layout.addWidget(self.vis_mode_combo)
         playback_layout.addLayout(map_layout)
-        
+
         # =====================================================
         # model controls
         # =====================================================
@@ -238,7 +228,7 @@ class ControlPanelMixin:
         self.contour_group.setLayout(contour_layout)
         self.contour_group.setVisible(False)
         playback_layout.addWidget(self.contour_group)
-        
+
         # =====================================================
         # Vector Arrows Controls (Glyph)
         # =====================================================
@@ -250,7 +240,9 @@ class ControlPanelMixin:
         color_mode_layout.addWidget(QLabel("Color Mode:"))
         self.glyph_color_mode_combo = QComboBox()
         self.glyph_color_mode_combo.addItems(["Single Color", "Colormap"])
-        self.glyph_color_mode_combo.currentTextChanged.connect(self.on_glyph_color_mode_changed)
+        self.glyph_color_mode_combo.currentTextChanged.connect(
+            self.on_glyph_color_mode_changed
+        )
         color_mode_layout.addWidget(self.glyph_color_mode_combo)
         glyph_layout.addLayout(color_mode_layout)
 
@@ -288,8 +280,8 @@ class ControlPanelMixin:
 
         # === 添加分隔线 ===
         separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)        # 水平线
-        separator.setFrameShadow(QFrame.Sunken)      # 凹陷样式（更美观）
+        separator.setFrameShape(QFrame.HLine)  # 水平线
+        separator.setFrameShadow(QFrame.Sunken)  # 凹陷样式（更美观）
         playback_layout.addWidget(separator)
         # =================
 
@@ -303,9 +295,7 @@ class ControlPanelMixin:
         self.opacity_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.opacity_slider.setTickInterval(10)
         self.opacity_slider.setMinimumWidth(100)
-        self.opacity_slider.valueChanged.connect(
-            self.on_opacity_slider_changed
-        )
+        self.opacity_slider.valueChanged.connect(self.on_opacity_slider_changed)
         self.opacity_value_label = QLabel("1.00")
         self.opacity_value_label.setMinimumWidth(40)
         op_layout.addWidget(QLabel("Opacity:"))
@@ -335,8 +325,12 @@ class ControlPanelMixin:
         line_grid.setContentsMargins(10, 10, 10, 10)  # 可选：内边距更美观
 
         # 创建 QLineEdit 并设置验证器
-        self.p1x = QLineEdit(); self.p1y = QLineEdit(); self.p1z = QLineEdit()
-        self.p2x = QLineEdit(); self.p2y = QLineEdit(); self.p2z = QLineEdit()
+        self.p1x = QLineEdit()
+        self.p1y = QLineEdit()
+        self.p1z = QLineEdit()
+        self.p2x = QLineEdit()
+        self.p2y = QLineEdit()
+        self.p2z = QLineEdit()
         coords = [self.p1x, self.p1y, self.p1z, self.p2x, self.p2y, self.p2z]
         for w in coords:
             w.setValidator(QDoubleValidator())
@@ -347,7 +341,9 @@ class ControlPanelMixin:
         # 辅助：右对齐标签（需 from PyQt5.QtCore import Qt）
         def right_label(text):
             label = QLabel(text)
-            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            label.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
             return label
 
         # P1 列
@@ -442,7 +438,9 @@ class ControlPanelMixin:
 
         self.show_colorbar_checkbox = QCheckBox("Show Color Bar")
         self.show_colorbar_checkbox.setChecked(False)
-        self.show_colorbar_checkbox.stateChanged.connect(self.update_colorbar_visibility)
+        self.show_colorbar_checkbox.stateChanged.connect(
+            self.update_colorbar_visibility
+        )
         display_layout.addWidget(self.show_colorbar_checkbox)
 
         # View reset buttons
@@ -465,12 +463,14 @@ class ControlPanelMixin:
         # =====================================================
         panel.setLayout(layout)
         # 限制 panel 的最大宽度，防止内部控件撑宽
-        panel.setMaximumWidth(self.control_panel_width - 10)  # 略小于 scroll_area 的固定宽度 control_panel_width
+        panel.setMaximumWidth(
+            self.control_panel_width - 10
+        )  # 略小于 scroll_area 的固定宽度 control_panel_width
         panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         # === 包装进 QScrollArea ===
         self.scroll = QScrollArea()
         self.scroll.setWidget(panel)
-        self.scroll.setWidgetResizable(True) # 让内部 widget 自适应大小
+        self.scroll.setWidgetResizable(True)  # 让内部 widget 自适应大小
         self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)  # 可选：去掉边框更美观
         # 禁用水平滚动条（只保留垂直）
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -491,9 +491,9 @@ class ControlPanelMixin:
             self.on_vis_mode_changed("Surface")
         self.vis_mode_combo.blockSignals(False)
         self.update_range_inputs()
-    
+
     def on_glyph_color_mode_changed(self, mode):
-        single_color = (mode == "Single Color")
+        single_color = mode == "Single Color"
         self.arrow_color_btn.setEnabled(single_color)
 
     def toggle_range_edit(self, checked):
@@ -504,9 +504,7 @@ class ControlPanelMixin:
 
     def pick_arrow_color(self):
         color = QColorDialog.getColor(
-            QColor.fromRgbF(*self.arrow_color),
-            self,
-            "Select Arrow Color"
+            QColor.fromRgbF(*self.arrow_color), self, "Select Arrow Color"
         )
         if color.isValid():
             self.arrow_color = (color.redF(), color.greenF(), color.blueF())
@@ -530,7 +528,7 @@ class ControlPanelMixin:
             rmin, rmax = bounds[0], bounds[1]
         elif axis == "Y":
             rmin, rmax = bounds[2], bounds[3]
-        else:  # Z 
+        else:  # Z
             rmin, rmax = bounds[4], bounds[5]
         self.clip_slider.setRange(rmin, rmax)
         self.clip_slider.setValue((rmin + rmax) / 2.0)
@@ -552,9 +550,14 @@ class ControlPanelMixin:
 
         # 自动补全扩展名（如果缺失）
         lower_path = file_path.lower()
-        if not (lower_path.endswith('.png') or lower_path.endswith('.jpg') or
-                lower_path.endswith('.jpeg') or lower_path.endswith('.tiff') or
-                lower_path.endswith('.tif') or lower_path.endswith('.bmp')):
+        if not (
+            lower_path.endswith(".png")
+            or lower_path.endswith(".jpg")
+            or lower_path.endswith(".jpeg")
+            or lower_path.endswith(".tiff")
+            or lower_path.endswith(".tif")
+            or lower_path.endswith(".bmp")
+        ):
             # 根据选中的 filter 添加默认扩展名
             if "PNG" in selected_filter:
                 file_path += ".png"
@@ -577,14 +580,14 @@ class ControlPanelMixin:
         # 根据扩展名选择写入器
         ext = file_path.lower()
         writer = None
-        if ext.endswith('.png'):
+        if ext.endswith(".png"):
             writer = vtk.vtkPNGWriter()
-        elif ext.endswith('.jpg') or ext.endswith('.jpeg'):
+        elif ext.endswith(".jpg") or ext.endswith(".jpeg"):
             writer = vtk.vtkJPEGWriter()
             writer.SetQuality(95)  # 可选：设置 JPEG 质量 (1-100)
-        elif ext.endswith('.tiff') or ext.endswith('.tif'):
+        elif ext.endswith(".tiff") or ext.endswith(".tif"):
             writer = vtk.vtkTIFFWriter()
-        elif ext.endswith('.bmp'):
+        elif ext.endswith(".bmp"):
             writer = vtk.vtkBMPWriter()
         else:
             self.playback_status_label.setText("❌ Unsupported image format.")
@@ -594,7 +597,9 @@ class ControlPanelMixin:
         writer.SetInputConnection(w2if.GetOutputPort())
         writer.Write()
 
-        self.playback_status_label.setText(f"✅ Screenshot saved: {os.path.basename(file_path)}")
+        self.playback_status_label.setText(
+            f"✅ Screenshot saved: {os.path.basename(file_path)}"
+        )
 
     def _update_arrow_controls_visibility(self):
         is_vector = self.field_combo.currentText().startswith("[V]")
@@ -658,20 +663,24 @@ class ControlPanelMixin:
             self.show_with_boundary_checkbox,
             self.draw_btns,
             self.play_button,
-            self.stop_button,                   
+            self.stop_button,
             self.auto_update_checkbox,
             self.auto_update_interval_combo,
-            self.save_btn,                      
-            self.set_line_btn,                 
+            self.save_btn,
+            self.set_line_btn,
             self.export_excel_btn,
             self.auto_y_range_checkbox,
             self.y_min_spin,
             self.y_max_spin,
             self.bg_color_combo,
-            self.refresh_btn,             
+            self.refresh_btn,
             # 坐标输入框（虽被 group 覆盖，但显式更安全）
-            self.p1x, self.p1y, self.p1z,
-            self.p2x, self.p2y, self.p2z,
+            self.p1x,
+            self.p1y,
+            self.p1z,
+            self.p2x,
+            self.p2y,
+            self.p2z,
         ]
         for w in widgets:
             if w is not None:
@@ -694,7 +703,7 @@ class ControlPanelMixin:
     # =====================================================
 
     def update_colormap_preview(self):
-        pixmap = QPixmap(self.control_panel_width-60, 20)
+        pixmap = QPixmap(self.control_panel_width - 60, 20)
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         lut = vtk.vtkLookupTable()

@@ -1,15 +1,13 @@
 import queue
 import threading
-from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout
-)
+from PySide6.QtWidgets import QWidget, QHBoxLayout
 import vtk
-from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 from .vts_viewer.ui_vtk_view import VTKViewMixin
 from .vts_viewer.ui_control_panel import ControlPanelMixin
 from .vts_viewer.data_loader import VTSDataLoaderMixin
 from .vts_viewer.visualization import VisualizationMixin
 from .vts_viewer.ui_plot_over_line import PlotOverLineMixin
+
 
 class VTSViewerWidget(
     QWidget,
@@ -17,10 +15,10 @@ class VTSViewerWidget(
     ControlPanelMixin,
     VTSDataLoaderMixin,
     VisualizationMixin,
-    PlotOverLineMixin
-    ):
+    PlotOverLineMixin,
+):
     def __init__(self, parent=None, progress_callback=None):
-        vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow()) # 禁用vts的自动弹窗
+        vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow())  # 禁用vts的自动弹窗
         super().__init__(parent)
         self.progress_callback = progress_callback
         # ✅ 只在这里设置主布局
@@ -81,11 +79,11 @@ class VTSViewerWidget(
         # vts files
         self.vts_folder = None
         self.vts_prefix = None
-        self.vts_file_list = []          # 排序后的完整路径列表
-        self.current_file_index = -1     # 当前播放索引
-        self.auto_update_timer = None    # QTimer 用于自动刷新
+        self.vts_file_list = []  # 排序后的完整路径列表
+        self.current_file_index = -1  # 当前播放索引
+        self.auto_update_timer = None  # QTimer 用于自动刷新
         self.auto_update_enabled = False
-        self.sequential_timer = None      # 用于顺序播放的 QTimer
+        self.sequential_timer = None  # 用于顺序播放的 QTimer
         self.is_sequential_playing = False
 
         # 构造后台加载，双缓冲式播放
@@ -93,7 +91,7 @@ class VTSViewerWidget(
         self.frame_buffer = queue.Queue(maxsize=2)  # 双缓冲
         self.playback_worker = None
         self.stop_playback_event = threading.Event()
-        self._loaded_or_queued_indices = set()      # 已加载或已入队的帧索引
+        self._loaded_or_queued_indices = set()  # 已加载或已入队的帧索引
         self._loaded_indices_lock = threading.Lock()  # 保护集合的锁
         # 构造渲染管线：
         # lut 颜色控制
@@ -114,11 +112,13 @@ class VTSViewerWidget(
         prop = self.wire_actor.GetProperty()
         prop.SetRepresentationToWireframe()
         prop.SetColor(0.0, 0.0, 0.0)  # 黑色
-        prop.SetLineWidth(1.0)         # 线宽
-        prop.SetOpacity(1.0)          # 完全不透明
+        prop.SetLineWidth(1.0)  # 线宽
+        prop.SetOpacity(1.0)  # 完全不透明
         self.wire_mapper.ScalarVisibilityOff()  # 关键：关闭标量着色，使用固定颜色
-        self.wire_mapper.SetResolveCoincidentTopologyToPolygonOffset()# 解决 Z-fighting
-        self.wire_mapper.SetRelativeCoincidentTopologyPolygonOffsetParameters(-1, -1)#使浮于表面
+        self.wire_mapper.SetResolveCoincidentTopologyToPolygonOffset()  # 解决 Z-fighting
+        self.wire_mapper.SetRelativeCoincidentTopologyPolygonOffsetParameters(
+            -1, -1
+        )  # 使浮于表面
         self._is_surface_wire_render_new = True
         # self.renderer.AddActor(self.wire_actor)
         self.wire_actor.GetProperty().SetRenderLinesAsTubes(False)  # 设置线的状态

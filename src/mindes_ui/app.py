@@ -1,5 +1,8 @@
 # MInDes-UI.py
-import sys, os, subprocess
+import sys
+import os
+import subprocess
+
 os.environ["QT_API"] = "pyside6"
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -27,10 +30,12 @@ def resource_path(relative_path):
     """获取应用图标，兼容开发和 PyInstaller 打包"""
     try:
         # PyInstaller 运行时
-        base_path = sys._MEIPASS # type:ignore
+        base_path = sys._MEIPASS  # type: ignore
     except AttributeError:
         # 正常 Python 运行
-        base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        base_path = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
     return os.path.join(base_path, relative_path)
 
 
@@ -93,7 +98,10 @@ class AboutDialog(QDialog):
         logo_label = QLabel()
         logo_path = resource_path(os.path.join("icon", "logo.png"))
         pixmap = QPixmap(logo_path).scaled(
-            256, 173, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            256,
+            173,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
         )
         logo_label.setPixmap(pixmap)
         logo_label.setFixedSize(300, 200)
@@ -237,7 +245,9 @@ class MainWindow(QMainWindow):
 
     def on_load_vts_folder_requested(self, folder_path: str):
         """切换到 VTS 页面并加载指定文件夹"""
+        # 切换到 VTS 页面
         self.tab_widget.setCurrentIndex(self.vts_tab_index)
+        # 加载文件夹
         if self.vts_viewer is not None:
             self.vts_viewer.load_vts(folder_path)
         else:
@@ -358,7 +368,6 @@ class MainWindow(QMainWindow):
         vts_plotter_action.triggered.connect(self.open_vts_plotter)
         tools_menu.addAction(vts_plotter_action)
 
-
         thermo_calc_menu = tools_menu.addMenu("Thermo-Calc")
 
         common_tangent_menu = thermo_calc_menu.addMenu("CommonTangent")
@@ -421,6 +430,7 @@ class MainWindow(QMainWindow):
         """Open the standalone multi-file CSV plotting tool."""
         try:
             from .tools.csv_plotter.csv_plotter_gui import CSVPlotterDialog
+
             dialog = CSVPlotterDialog(parent=self)
             dialog.setWindowIcon(get_app_icon())
             dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -429,16 +439,22 @@ class MainWindow(QMainWindow):
                 self._tool_windows = []
             self._tool_windows.append(dialog)
             dialog.destroyed.connect(
-                lambda _=None, value=dialog: self._tool_windows.remove(value)
-                if value in self._tool_windows else None
+                lambda _=None, value=dialog: (
+                    self._tool_windows.remove(value)
+                    if value in self._tool_windows
+                    else None
+                )
             )
         except Exception as exc:
-            QMessageBox.critical(self, "Launch Error", f"Failed to open CSV Plotter:\n{exc}")
+            QMessageBox.critical(
+                self, "Launch Error", f"Failed to open CSV Plotter:\n{exc}"
+            )
 
     def open_vts_plotter(self):
         """Open the standalone multi-file VTS plotting tool."""
         try:
             from .tools.vts_plotter.vts_plotter_gui import VTSPlotterDialog
+
             dialog = VTSPlotterDialog(parent=self)
             dialog.setWindowIcon(get_app_icon())
             dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -447,40 +463,49 @@ class MainWindow(QMainWindow):
                 self._tool_windows = []
             self._tool_windows.append(dialog)
             dialog.destroyed.connect(
-                lambda _=None, value=dialog: self._tool_windows.remove(value)
-                if value in self._tool_windows else None
+                lambda _=None, value=dialog: (
+                    self._tool_windows.remove(value)
+                    if value in self._tool_windows
+                    else None
+                )
             )
         except Exception as exc:
-            QMessageBox.critical(self, "Launch Error", f"Failed to open VTS Plotter:\n{exc}")
+            QMessageBox.critical(
+                self, "Launch Error", f"Failed to open VTS Plotter:\n{exc}"
+            )
 
     def open_common_tangent_phase2_comp3(self):
         """打开 CommonTangent Phase2Comp3 子对话框 (非模态, 不阻塞主界面)."""
         try:
             from .tools.common_tangent.common_tangent_o3_gui import (
-                CommonTangentDialog, Ga_default, Gb_default,
+                CommonTangentDialog,
+                Ga_default,
+                Gb_default,
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Import Error",
+                self,
+                "Import Error",
                 f"Failed to import CommonTangent tool:\n{e}",
             )
             return
         try:
-            dlg = CommonTangentDialog(
-                Ga_default, Gb_default, parent=self, n_init=60)
+            dlg = CommonTangentDialog(Ga_default, Gb_default, parent=self, n_init=60)
             dlg.setWindowIcon(get_app_icon())
             dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
-            dlg.show()                  # 非模态
+            dlg.show()  # 非模态
             if not hasattr(self, "_tool_windows"):
                 self._tool_windows = []
             self._tool_windows.append(dlg)
             dlg.destroyed.connect(
-                lambda _=None, v=dlg: self._tool_windows.remove(v)
-                if v in self._tool_windows else None
+                lambda _=None, v=dlg: (
+                    self._tool_windows.remove(v) if v in self._tool_windows else None
+                )
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Launch Error",
+                self,
+                "Launch Error",
                 f"Failed to open CommonTangent Phase2Comp3:\n{e}",
             )
 
@@ -490,7 +515,8 @@ class MainWindow(QMainWindow):
             from .tools.fitting.gibbs_fitter_gui import FitterDialog
         except Exception as e:
             QMessageBox.critical(
-                self, "Import Error",
+                self,
+                "Import Error",
                 f"Failed to import Fitting tool:\n{e}",
             )
             return
@@ -503,12 +529,14 @@ class MainWindow(QMainWindow):
                 self._tool_windows = []
             self._tool_windows.append(dlg)
             dlg.destroyed.connect(
-                lambda _=None, v=dlg: self._tool_windows.remove(v)
-                if v in self._tool_windows else None
+                lambda _=None, v=dlg: (
+                    self._tool_windows.remove(v) if v in self._tool_windows else None
+                )
             )
         except Exception as e:
             QMessageBox.critical(
-                self, "Launch Error",
+                self,
+                "Launch Error",
                 f"Failed to open Fitting Comp3:\n{e}",
             )
 
@@ -537,8 +565,8 @@ class MainWindow(QMainWindow):
 
             action = QAction(solver_name, self)
             action.triggered.connect(
-                lambda checked=False, path=solver_path, name=solver_name: self.launch_solver_console(
-                    path, name
+                lambda checked=False, path=solver_path, name=solver_name: (
+                    self.launch_solver_console(path, name)
                 )
             )
             self.license_menu.addAction(action)
@@ -631,7 +659,7 @@ class MainWindow(QMainWindow):
             self.build_widget.update_status(message, **kwargs)
         else:
             print("self.build_widget is None!")
-            return 
+            return
 
     def show_custom_solver_help(self):
         """显示自定义求解器帮助信息"""

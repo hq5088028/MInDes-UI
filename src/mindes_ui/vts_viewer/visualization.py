@@ -3,6 +3,7 @@ import vtk
 import math
 from PySide6.QtCore import Qt
 
+
 class VisualizationMixin:
     """
     VTK 可视化核心：
@@ -13,7 +14,7 @@ class VisualizationMixin:
     # =====================================================
     # Public entry
     # =====================================================
-    
+
     def update_visualization(self):
         # self.renderer.RemoveAllViewProps()
         if not self.current_data:
@@ -51,7 +52,7 @@ class VisualizationMixin:
         if grid_to_render.GetNumberOfPoints() == 0:
             self.playback_status_label.setText("⚠️ No valid data points")
             return
-        
+
         # === 后续使用 grid_to_render 进行可视化 ===
         display_text = self.field_combo.currentText()
         if "(No fields)" in display_text:
@@ -119,7 +120,7 @@ class VisualizationMixin:
                 field_name,
                 color_mode=self.glyph_color_mode_combo.currentText(),
                 size_mode=self.glyph_size_mode_combo.currentText(),
-                scale_factor=float(self.glyph_scale_edit.text())
+                scale_factor=float(self.glyph_scale_edit.text()),
             )
         else:
             return
@@ -139,7 +140,7 @@ class VisualizationMixin:
                 widget.SetViewport(0.0, 0.0, 0.2, 0.2)
                 widget.EnabledOn()
                 widget.InteractiveOff()
-                self.orientation_marker = widget                
+                self.orientation_marker = widget
                 # 设置初始文本颜色
                 brightness = self.renderer.GetBackground()[0]  # 获取背景亮度
                 text_color = [0, 0, 0] if brightness > 0.5 else [1, 1, 1]
@@ -227,7 +228,7 @@ class VisualizationMixin:
     # =====================================================
     # Surface
     # =====================================================
-    
+
     def _render_surface_actor(self, grid, scalar_name, with_grid=False):
         # --- 主 Surface (填充) ---
         current_opacity = self.opacity_slider.value() / 100.0
@@ -239,32 +240,34 @@ class VisualizationMixin:
         self.surface_actor.GetProperty().SetOpacity(current_opacity)  # 修正透明度
         self.surface_actor.GetProperty().SetRepresentationToSurface()
         self.surface_actor.VisibilityOn()
-        
+
         # --- Wireframe (网格线) ---
         if with_grid:
             # 设置输入数据
             self.wire_mapper.SetInputData(grid)
-            wire_opacity = min(1.0, max(0.02, current_opacity * 1.2))  # 网格线稍微更明显一些
+            wire_opacity = min(
+                1.0, max(0.02, current_opacity * 1.2)
+            )  # 网格线稍微更明显一些
             self.wire_actor.GetProperty().SetOpacity(wire_opacity)
             self.wire_actor.VisibilityOn()
 
     # =====================================================
     # Clip
     # =====================================================
-    
+
     def _render_clip_actor(self, grid, scalar_name):
         bounds = grid.GetBounds()
         pos = self.clip_slider.value()
         axis = self.clip_axis_combo.currentText()
 
         if axis == "X":
-            center = [pos, (bounds[2]+bounds[3])/2, (bounds[4]+bounds[5])/2]
+            center = [pos, (bounds[2] + bounds[3]) / 2, (bounds[4] + bounds[5]) / 2]
             normal = (1, 0, 0)
         elif axis == "Y":
-            center = [(bounds[0]+bounds[1])/2, pos, (bounds[4]+bounds[5])/2]
+            center = [(bounds[0] + bounds[1]) / 2, pos, (bounds[4] + bounds[5]) / 2]
             normal = (0, 1, 0)
         else:  # Z
-            center = [(bounds[0]+bounds[1])/2, (bounds[2]+bounds[3])/2, pos]
+            center = [(bounds[0] + bounds[1]) / 2, (bounds[2] + bounds[3]) / 2, pos]
             normal = (0, 0, 1)
 
         self.plane.SetOrigin(*center)
@@ -281,7 +284,7 @@ class VisualizationMixin:
     # =====================================================
     # Contour
     # =====================================================
-    
+
     def _render_contour_actor(self, grid, scalar_name):
         text = self.contour_levels_edit.text().strip()
         if not text:
@@ -319,8 +322,10 @@ class VisualizationMixin:
     # =====================================================
     # Glyph
     # =====================================================
-    
-    def _render_glyph_actor(self, grid, vector_field_name, color_mode, size_mode, scale_factor):
+
+    def _render_glyph_actor(
+        self, grid, vector_field_name, color_mode, size_mode, scale_factor
+    ):
         """
         渲染向量箭头 (Glyph)。
         """
@@ -333,16 +338,13 @@ class VisualizationMixin:
         # =============================
         # 1. 处理 Scale Mode
         # =============================
-    
 
         # =============================
         # 2. 配置 Glyph Filter
         # =============================
         self.glyph_filter.SetInputData(grid)
         self.glyph_filter.SetInputArrayToProcess(
-            0, 0, 0,
-            vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS,
-            vector_field_name
+            0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_POINTS, vector_field_name
         )
         self.glyph_filter.SetVectorModeToUseVector()
         if size_mode == "Uniform":
@@ -352,7 +354,7 @@ class VisualizationMixin:
         self.glyph_filter.OrientOn()
         self.glyph_filter.SetScaleFactor(scale_factor)
         self.glyph_filter.Update()
-        
+
         # =============================
         # 3. 配置颜色（Display）
         # =============================
@@ -379,7 +381,7 @@ class VisualizationMixin:
     # =====================================================
     # Color bar
     # =====================================================
-    
+
     def update_colorbar_visibility(self, state):
         if self._scalar_bar_actor:
             if state == Qt.CheckState.Checked.value:
@@ -392,7 +394,7 @@ class VisualizationMixin:
     # =====================================================
     # Axes
     # =====================================================
-    
+
     def update_axes_visibility(self, state):
         if self.orientation_marker:
             if state == Qt.CheckState.Checked.value:
@@ -405,7 +407,7 @@ class VisualizationMixin:
     # =====================================================
     # Bounds
     # =====================================================
-    
+
     def update_bounds_visibility(self, state):
         if self._cube_axes_actor:
             if state == Qt.CheckState.Checked.value:
@@ -418,7 +420,7 @@ class VisualizationMixin:
     # =====================================================
     # Background
     # =====================================================
-   
+
     def update_background_color(self):
         """根据下拉栏选择更新背景颜色"""
         # 从下拉栏获取颜色
@@ -428,10 +430,10 @@ class VisualizationMixin:
             "Light Gray": (0.9, 0.9, 0.9),
             "Gray": (0.5, 0.5, 0.5),
             "Dark Gray": (0.2, 0.2, 0.2),
-            "Black": (0.0, 0.0, 0.0)
+            "Black": (0.0, 0.0, 0.0),
         }
         r, g, b = color_map.get(color_name, (0.9, 0.9, 0.9))  # 默认淡灰色
-        if not hasattr(self, 'renderer') or not self.renderer:
+        if not hasattr(self, "renderer") or not self.renderer:
             print("Warning: Renderer not ready yet")
             return
         self.renderer.SetBackground(r, g, b)
@@ -441,9 +443,9 @@ class VisualizationMixin:
         text_color = [0, 0, 0] if brightness > 0.5 else [1, 1, 1]
         # 更新 color bar、cube axes 和 orientation marker 的文本颜色
         self._update_text_colors(text_color)
-        if hasattr(self, 'vtk_widget') and self.vtk_widget:
+        if hasattr(self, "vtk_widget") and self.vtk_widget:
             self.vtk_widget.GetRenderWindow().Render()
-        
+
     def _update_text_colors(self, text_color):
         # 更新 color bar 文本颜色
         if self._scalar_bar_actor:
@@ -477,17 +479,29 @@ class VisualizationMixin:
         if self.orientation_marker:
             axes = self.orientation_marker.GetOrientationMarker()
             if isinstance(axes, vtk.vtkAxesActor):
-                axes.GetXAxisCaptionActor2D().GetCaptionTextProperty().SetColor(*text_color)
-                axes.GetYAxisCaptionActor2D().GetCaptionTextProperty().SetColor(*text_color)
-                axes.GetZAxisCaptionActor2D().GetCaptionTextProperty().SetColor(*text_color)
+                axes.GetXAxisCaptionActor2D().GetCaptionTextProperty().SetColor(
+                    *text_color
+                )
+                axes.GetYAxisCaptionActor2D().GetCaptionTextProperty().SetColor(
+                    *text_color
+                )
+                axes.GetZAxisCaptionActor2D().GetCaptionTextProperty().SetColor(
+                    *text_color
+                )
 
     def reset_view(self, axis):
         if not self.current_data:
             return
         camera = self.renderer.GetActiveCamera()
         bounds = self.current_data.GetBounds()
-        center = [(bounds[0]+bounds[1])/2, (bounds[2]+bounds[3])/2, (bounds[4]+bounds[5])/2]
-        dist = max(bounds[1]-bounds[0], bounds[3]-bounds[2], bounds[5]-bounds[4]) * 3
+        center = [
+            (bounds[0] + bounds[1]) / 2,
+            (bounds[2] + bounds[3]) / 2,
+            (bounds[4] + bounds[5]) / 2,
+        ]
+        dist = (
+            max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4]) * 3
+        )
 
         if axis == "X":
             camera.SetPosition(center[0] + dist, center[1], center[2])
@@ -512,11 +526,11 @@ class VisualizationMixin:
     def _hide_all_actors_except(self, keep_actor_name=None):
         """隐藏所有可视化 actor，除了指定的一个"""
         actors_to_hide = [
-            'surface_actor',
-            'wire_actor',
-            'clip_actor',
-            'contour_actor',
-            'glyph_actor',
+            "surface_actor",
+            "wire_actor",
+            "clip_actor",
+            "contour_actor",
+            "glyph_actor",
         ]
         for attr_name in actors_to_hide:
             if attr_name == keep_actor_name:
@@ -539,17 +553,19 @@ class VisualizationMixin:
         magnitude.SetNumberOfValues(n_points)
         for i in range(n_points):
             vx, vy, vz = vectors.GetTuple3(i)
-            mag = math.sqrt(vx*vx + vy*vy + vz*vz)
+            mag = math.sqrt(vx * vx + vy * vy + vz * vz)
             magnitude.SetValue(i, mag)
         return magnitude
-    
+
     def array_magnitude_name(self, vector_array_name):
         return f"{vector_array_name}_magnitude"
 
     def _create_lookup_table(self, colormap_name, table_range):
         # 如果 colormap 或 range 没变，不修改现有 LUT
-        if (self._current_colormap == colormap_name and
-            self._current_lut_range == table_range):
+        if (
+            self._current_colormap == colormap_name
+            and self._current_lut_range == table_range
+        ):
             return
         self.lut = vtk.vtkLookupTable()
         if colormap_name == "Cool-Warm":
@@ -573,9 +589,21 @@ class VisualizationMixin:
     def _setup_coolwarm_lut(self, lut):
         """经典 Cool-Warm: 深蓝 -> 白 -> 深红"""
         # 将提供的颜色值转换为RGB浮点数
-        deep_blue_rgb = [int('3b', 16) / 255.0, int('4c', 16) / 255.0, int('c0', 16) / 255.0]  # 深蓝
-        white_rgb = [int('dd', 16) / 255.0, int('dd', 16) / 255.0, int('dd', 16) / 255.0]      # 白色
-        deep_red_rgb = [int('b4', 16) / 255.0, int('04', 16) / 255.0, int('26', 16) / 255.0]   # 深红
+        deep_blue_rgb = [
+            int("3b", 16) / 255.0,
+            int("4c", 16) / 255.0,
+            int("c0", 16) / 255.0,
+        ]  # 深蓝
+        white_rgb = [
+            int("dd", 16) / 255.0,
+            int("dd", 16) / 255.0,
+            int("dd", 16) / 255.0,
+        ]  # 白色
+        deep_red_rgb = [
+            int("b4", 16) / 255.0,
+            int("04", 16) / 255.0,
+            int("26", 16) / 255.0,
+        ]  # 深红
         lut.SetNumberOfColors(256)
         lut.Build()
         for i in range(256):
@@ -597,10 +625,16 @@ class VisualizationMixin:
         lut.SetNumberOfColors(256)
         lut.Build()
         viridis_colors = [
-            (0.267, 0.005, 0.329), (0.282, 0.140, 0.450), (0.251, 0.280, 0.528),
-            (0.200, 0.410, 0.538), (0.151, 0.520, 0.520), (0.122, 0.610, 0.470),
-            (0.208, 0.690, 0.388), (0.380, 0.750, 0.280), (0.600, 0.800, 0.150),
-            (0.993, 0.906, 0.145)
+            (0.267, 0.005, 0.329),
+            (0.282, 0.140, 0.450),
+            (0.251, 0.280, 0.528),
+            (0.200, 0.410, 0.538),
+            (0.151, 0.520, 0.520),
+            (0.122, 0.610, 0.470),
+            (0.208, 0.690, 0.388),
+            (0.380, 0.750, 0.280),
+            (0.600, 0.800, 0.150),
+            (0.993, 0.906, 0.145),
         ]
         for i in range(256):
             t = i / 255.0
@@ -617,9 +651,14 @@ class VisualizationMixin:
         lut.SetNumberOfColors(256)
         lut.Build()
         plasma_colors = [
-            (0.050, 0.030, 0.500), (0.150, 0.080, 0.600), (0.300, 0.120, 0.650),
-            (0.500, 0.200, 0.600), (0.700, 0.300, 0.500), (0.850, 0.450, 0.350),
-            (0.950, 0.700, 0.200), (0.990, 0.900, 0.150)
+            (0.050, 0.030, 0.500),
+            (0.150, 0.080, 0.600),
+            (0.300, 0.120, 0.650),
+            (0.500, 0.200, 0.600),
+            (0.700, 0.300, 0.500),
+            (0.850, 0.450, 0.350),
+            (0.950, 0.700, 0.200),
+            (0.990, 0.900, 0.150),
         ]
         for i in range(256):
             t = i / 255.0

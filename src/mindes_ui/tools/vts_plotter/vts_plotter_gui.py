@@ -1,4 +1,5 @@
-﻿"""Multi-file VTS 3D plotting dialog."""
+"""Multi-file VTS 3D plotting dialog."""
+
 from __future__ import annotations
 
 import json
@@ -10,22 +11,43 @@ import vtk
 from PySide6.QtCore import Qt, QSettings, QSignalBlocker
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
-    QApplication, QCheckBox, QDialog, QFileDialog, QGridLayout, QHBoxLayout,
-    QLabel, QMessageBox, QPushButton, QScrollArea, QSplitter, QVBoxLayout,
-    QWidget, QSizePolicy,
+    QApplication,
+    QCheckBox,
+    QDialog,
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+    QSizePolicy,
 )
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
-from .models import VtsDatasetConfig, VtsPlotterState, VtkPlotConfig, dataset_display_name
+from .models import (
+    VtsDatasetConfig,
+    VtsPlotterState,
+    VtkPlotConfig,
+    dataset_display_name,
+)
 from .dataset_card import VtsDatasetCard
 from .visualization import (
-    get_vts_fields, get_vts_field_names, load_vts_file,
-    render_scene, _background_rgb, hex_to_rgb,
+    get_vts_field_names,
+    load_vts_file,
+    _background_rgb,
+    hex_to_rgb,
 )
 from .vtk_properties import VtsPropertyDialog
 from .style_formats import (
-    make_3d_style_payload, parse_3d_style_payload, apply_3d_visual_style,
-    sanitize_dataset_template, apply_dataset_template,
+    make_3d_style_payload,
+    parse_3d_style_payload,
+    apply_3d_visual_style,
+    sanitize_dataset_template,
+    apply_dataset_template,
 )
 from .vtk_utils import build_cube_axes_bundle
 
@@ -55,14 +77,18 @@ class VTSPlotterDialog(QDialog):
         screen = QGuiApplication.primaryScreen().availableGeometry()
         if parent is not None:
             geo = parent.geometry()
-            w = max(1100, min(int(geo.width() * .95), screen.width() - 30))
-            h = max(760, min(int(geo.height() * .95), screen.height() - 50))
+            w = max(1100, min(int(geo.width() * 0.95), screen.width() - 30))
+            h = max(760, min(int(geo.height() * 0.95), screen.height() - 50))
             self.resize(w, h)
-            self.move(max(screen.x(), geo.x() + (geo.width() - w) // 2),
-                      max(screen.y(), geo.y() + (geo.height() - h) // 2))
+            self.move(
+                max(screen.x(), geo.x() + (geo.width() - w) // 2),
+                max(screen.y(), geo.y() + (geo.height() - h) // 2),
+            )
         else:
-            self.resize(max(1100, int(screen.width() * .8)),
-                        max(760, int(screen.height() * .8)))
+            self.resize(
+                max(1100, int(screen.width() * 0.8)),
+                max(760, int(screen.height() * 0.8)),
+            )
 
     def _load_state(self) -> VtsPlotterState:
         # Load datasets from state key
@@ -87,16 +113,24 @@ class VTSPlotterDialog(QDialog):
             raw_ui = {}
         if not isinstance(raw_ui, dict):
             raw_ui = {}
-        sizes = [int(v) for v in raw_ui.get("splitter_sizes", []) if isinstance(v, (int, float))]
+        sizes = [
+            int(v)
+            for v in raw_ui.get("splitter_sizes", [])
+            if isinstance(v, (int, float))
+        ]
 
         # Validate render_order
         dataset_ids = {d.dataset_id for d in datasets}
-        render_order = [v for v in render_order if v in dataset_ids] + [d.dataset_id for d in datasets if d.dataset_id not in render_order]
+        render_order = [v for v in render_order if v in dataset_ids] + [
+            d.dataset_id for d in datasets if d.dataset_id not in render_order
+        ]
 
         return VtsPlotterState(
             datasets=datasets,
             vtk=VtkPlotConfig(),
-            active_dataset_id=active_id if active_id in dataset_ids else (datasets[0].dataset_id if datasets else ""),
+            active_dataset_id=active_id
+            if active_id in dataset_ids
+            else (datasets[0].dataset_id if datasets else ""),
             render_order=render_order,
             splitter_sizes=sizes,
         )
@@ -110,9 +144,15 @@ class VTSPlotterDialog(QDialog):
             return VtkPlotConfig(), []
 
     def _persist_3d_visual_style(self, templates=None):
-        templates = list(templates if templates is not None else self._dataset_style_templates)
-        self._dataset_style_templates = [sanitize_dataset_template(v) for v in templates]
-        payload = make_3d_style_payload(self.vtk_config, templates=self._dataset_style_templates)
+        templates = list(
+            templates if templates is not None else self._dataset_style_templates
+        )
+        self._dataset_style_templates = [
+            sanitize_dataset_template(v) for v in templates
+        ]
+        payload = make_3d_style_payload(
+            self.vtk_config, templates=self._dataset_style_templates
+        )
         self.settings.setValue(STYLE_3D_KEY, json.dumps(payload, ensure_ascii=False))
 
     def _build_ui(self):
@@ -147,8 +187,11 @@ class VTSPlotterDialog(QDialog):
         data_buttons.setContentsMargins(0, 0, 0, 0)
         left_layout.addLayout(data_buttons)
         self.data_action_buttons = []
-        for text, slot in [("Add", self.add_vts), ("Remove", self.remove_selected),
-                           ("Reload", self.reload_selected)]:
+        for text, slot in [
+            ("Add", self.add_vts),
+            ("Remove", self.remove_selected),
+            ("Reload", self.reload_selected),
+        ]:
             btn = QPushButton(text)
             btn.clicked.connect(slot)
             btn.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
@@ -181,7 +224,9 @@ class VTSPlotterDialog(QDialog):
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
 
         self.status = QLabel("Add one or more .vts files to begin.")
-        self.status.setStyleSheet("background:#f0f0f0;padding:4px;border-top:1px solid #bbb;")
+        self.status.setStyleSheet(
+            "background:#f0f0f0;padding:4px;border-top:1px solid #bbb;"
+        )
         root.addWidget(self.status)
 
     def _build_3d_action_buttons(self, layout):
@@ -226,22 +271,31 @@ class VTSPlotterDialog(QDialog):
         self._refresh_cards()
 
     def add_vts(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, "Add VTS files", "", "VTS files (*.vts);;All files (*)")
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Add VTS files", "", "VTS files (*.vts);;All files (*)"
+        )
         for path in paths:
             try:
                 grid = load_vts_file(path)
             except Exception as exc:
-                QMessageBox.warning(self, "VTS Error", f"Failed to read {path}:\\n{exc}")
+                QMessageBox.warning(
+                    self, "VTS Error", f"Failed to read {path}:\\n{exc}"
+                )
                 continue
             if grid is None:
-                QMessageBox.warning(self, "VTS Error", f"{path} contains no valid data.")
+                QMessageBox.warning(
+                    self, "VTS Error", f"{path} contains no valid data."
+                )
                 continue
             absolute_path = os.path.abspath(path)
             dataset = VtsDatasetConfig(
                 path=absolute_path,
-                label=self._unique_dataset_label(Path(path).stem, absolute_path))
+                label=self._unique_dataset_label(Path(path).stem, absolute_path),
+            )
             if len(self.state.datasets) < len(self._dataset_style_templates):
-                dataset = apply_dataset_template(dataset, self._dataset_style_templates[len(self.state.datasets)])
+                dataset = apply_dataset_template(
+                    dataset, self._dataset_style_templates[len(self.state.datasets)]
+                )
             self.state.datasets.append(dataset)
             self.frames[dataset.dataset_id] = grid
             self.state.render_order.append(dataset.dataset_id)
@@ -258,8 +312,11 @@ class VTSPlotterDialog(QDialog):
         prefix, sep, suffix = base.rpartition("-")
         if sep and suffix.isdigit() and int(suffix) >= 2 and source_path:
             normalized = os.path.normcase(os.path.abspath(source_path))
-            same = {item.label for item in self.state.datasets
-                    if os.path.normcase(os.path.abspath(item.path)) == normalized}
+            same = {
+                item.label
+                for item in self.state.datasets
+                if os.path.normcase(os.path.abspath(item.path)) == normalized
+            }
             if prefix in same:
                 base = prefix
         if base not in labels:
@@ -286,7 +343,10 @@ class VTSPlotterDialog(QDialog):
         self.cards_layout.insertWidget(index, card)
 
     def _dataset_by_id(self, dataset_id):
-        return next((item for item in self.state.datasets if item.dataset_id == dataset_id), None)
+        return next(
+            (item for item in self.state.datasets if item.dataset_id == dataset_id),
+            None,
+        )
 
     def _selected_dataset(self):
         return self._dataset_by_id(self.state.active_dataset_id)
@@ -329,11 +389,17 @@ class VTSPlotterDialog(QDialog):
         self._save_state()
 
     def _move_card(self, dataset_id, action):
-        idx = next((i for i, c in enumerate(self.cards) if c.dataset_id == dataset_id), -1)
+        idx = next(
+            (i for i, c in enumerate(self.cards) if c.dataset_id == dataset_id), -1
+        )
         if idx < 0:
             return
-        targets = {"up": max(0, idx - 1), "down": min(len(self.cards) - 1, idx + 1),
-                   "top": 0, "bottom": len(self.cards) - 1}
+        targets = {
+            "up": max(0, idx - 1),
+            "down": min(len(self.cards) - 1, idx + 1),
+            "top": 0,
+            "bottom": len(self.cards) - 1,
+        }
         target = targets.get(action, idx)
         if target == idx:
             return
@@ -347,12 +413,18 @@ class VTSPlotterDialog(QDialog):
         self._save_state()
 
     def remove_selected(self):
-        selected = [d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames]
+        selected = [
+            d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
+        ]
         if not selected:
             self.status.setText("No On dataset is selected for removal.")
             return
-        reply = QMessageBox.question(self, "Remove Datasets", f"Remove {len(selected)} On dataset(s)?",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        reply = QMessageBox.question(
+            self,
+            "Remove Datasets",
+            f"Remove {len(selected)} On dataset(s)?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
         if reply != QMessageBox.StandardButton.Yes:
             return
         for dataset in list(selected):
@@ -363,11 +435,22 @@ class VTSPlotterDialog(QDialog):
 
     def remove_dataset(self, dataset_id, confirm):
         if confirm:
-            reply = QMessageBox.question(self, "Remove Dataset", "Remove this dataset?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            reply = QMessageBox.question(
+                self,
+                "Remove Dataset",
+                "Remove this dataset?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
             if reply != QMessageBox.StandardButton.Yes:
                 return
-        idx = next((i for i, d in enumerate(self.state.datasets) if d.dataset_id == dataset_id), -1)
+        idx = next(
+            (
+                i
+                for i, d in enumerate(self.state.datasets)
+                if d.dataset_id == dataset_id
+            ),
+            -1,
+        )
         if idx < 0:
             return
         self.state.datasets.pop(idx)
@@ -377,17 +460,23 @@ class VTSPlotterDialog(QDialog):
             self.cards.remove(card)
             self.cards_layout.removeWidget(card)
             card.deleteLater()
-        self.state.render_order = [v for v in self.state.render_order if v != dataset_id]
+        self.state.render_order = [
+            v for v in self.state.render_order if v != dataset_id
+        ]
         if self.state.active_dataset_id == dataset_id:
             if self.state.datasets:
-                self.state.active_dataset_id = self.state.datasets[min(idx, len(self.state.datasets) - 1)].dataset_id
+                self.state.active_dataset_id = self.state.datasets[
+                    min(idx, len(self.state.datasets) - 1)
+                ].dataset_id
             else:
                 self.state.active_dataset_id = ""
         self._refresh_cards()
         self._save_state()
 
     def reload_selected(self):
-        selected = [d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames]
+        selected = [
+            d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
+        ]
         for dataset in selected:
             self.reload_dataset(dataset.dataset_id)
 
@@ -420,12 +509,16 @@ class VTSPlotterDialog(QDialog):
         self.state.datasets.insert(src_idx + 1, duplicate)
         if dataset_id in self.frames:
             self.frames[duplicate.dataset_id] = self.frames[dataset_id]
-        self.state.render_order = self._insert_above(self.state.render_order, dataset_id, duplicate.dataset_id)
+        self.state.render_order = self._insert_above(
+            self.state.render_order, dataset_id, duplicate.dataset_id
+        )
         self._append_card(duplicate, src_idx + 1)
         self.state.active_dataset_id = duplicate.dataset_id
         self._refresh_cards()
         self._save_state()
-        self.status.setText(f"Duplicated {dataset_display_name(source)} as {dataset_display_name(duplicate)}.")
+        self.status.setText(
+            f"Duplicated {dataset_display_name(source)} as {dataset_display_name(duplicate)}."
+        )
 
     @staticmethod
     def _insert_above(order, source_id, new_id):
@@ -453,10 +546,15 @@ class VTSPlotterDialog(QDialog):
                 continue
 
             is_vec = raw_field.startswith("[V] ")
-            clean_name = raw_field[4:] if (raw_field.startswith("[S] ") or raw_field.startswith("[V] ")) else raw_field
+            clean_name = (
+                raw_field[4:]
+                if (raw_field.startswith("[S] ") or raw_field.startswith("[V] "))
+                else raw_field
+            )
 
             # Ensure scalar array exists
             from .visualization import _ensure_scalar_field
+
             scalar_name, _ = _ensure_scalar_field(grid, clean_name, is_vec)
             cfg._scalar_name = scalar_name
 
@@ -470,14 +568,17 @@ class VTSPlotterDialog(QDialog):
 
             try:
                 from .visualization import apply_data_pipeline
+
                 processed = apply_data_pipeline(grid, cfg)
                 if processed.GetNumberOfPoints() == 0:
                     continue
 
                 from .vtk_utils import make_lookup_table
+
                 lut = make_lookup_table(cfg.colormap, (cfg.color_min, cfg.color_max))
 
                 from .visualization import _RENDERERS
+
                 render_fn = _RENDERERS.get(cfg.mode3d)
                 if render_fn:
                     render_fn(self.renderer, processed, cfg, lut)
@@ -496,7 +597,9 @@ class VTSPlotterDialog(QDialog):
         self.renderer.ResetCamera()
         self.renderer.ResetCameraClippingRange()
         self.vtk_widget.GetRenderWindow().Render()
-        enabled = sum(1 for d in self.state.datasets if d.enabled and d.dataset_id in self.frames)
+        enabled = sum(
+            1 for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
+        )
         self.status.setText(f"3D: rendered {enabled} dataset(s).")
 
     def _add_axes(self):
@@ -505,19 +608,37 @@ class VTSPlotterDialog(QDialog):
             return
         raw_min = (bounds[0], bounds[2], bounds[4])
         raw_max = (bounds[1], bounds[3], bounds[5])
-        span = (raw_max[0] - raw_min[0], raw_max[1] - raw_min[1], raw_max[2] - raw_min[2])
+        span = (
+            raw_max[0] - raw_min[0],
+            raw_max[1] - raw_min[1],
+            raw_max[2] - raw_min[2],
+        )
         display_bounds = (0, span[0], 0, span[1], 0, span[2])
-        bundle = build_cube_axes_bundle(self.vtk_config, display_bounds, raw_min, raw_max, self.renderer.GetActiveCamera())
+        bundle = build_cube_axes_bundle(
+            self.vtk_config,
+            display_bounds,
+            raw_min,
+            raw_max,
+            self.renderer.GetActiveCamera(),
+        )
         for actor in bundle.actors:
             self.renderer.AddActor(actor)
 
     def _add_colorbar(self):
         active = self._selected_dataset()
         if active is None:
-            active = next((d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames), None)
+            active = next(
+                (
+                    d
+                    for d in self.state.datasets
+                    if d.enabled and d.dataset_id in self.frames
+                ),
+                None,
+            )
         if active is None:
             return
         from .vtk_utils import make_lookup_table
+
         lut = make_lookup_table(active.colormap, (active.color_min, active.color_max))
         bar = vtk.vtkScalarBarActor()
         bar.SetLookupTable(lut)
@@ -525,37 +646,46 @@ class VTSPlotterDialog(QDialog):
         bar.SetTitle(title)
         bar.SetNumberOfLabels(5)
         bar.SetLabelFormat("%.3g")
-        bar.SetPosition(.86, .15)
-        bar.SetWidth(.1)
-        bar.SetHeight(.7)
+        bar.SetPosition(0.86, 0.15)
+        bar.SetWidth(0.1)
+        bar.SetHeight(0.7)
         color = hex_to_rgb(self.vtk_config.x_axis.label_style.color)
         bar.GetTitleTextProperty().SetColor(*color)
         bar.GetLabelTextProperty().SetColor(*color)
         self.renderer.AddActor2D(bar)
 
     def _add_legend(self):
-        enabled = [d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames]
+        enabled = [
+            d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
+        ]
         if not enabled:
             return
         legend = vtk.vtkLegendBoxActor()
         legend.SetNumberOfEntries(len(enabled))
-        legend.SetPosition(.02, .02)
-        legend.SetWidth(.22)
-        legend.SetHeight(min(.35, .06 * len(enabled) + .05))
+        legend.SetPosition(0.02, 0.02)
+        legend.SetWidth(0.22)
+        legend.SetHeight(min(0.35, 0.06 * len(enabled) + 0.05))
         sphere = vtk.vtkSphereSource()
         sphere.Update()
         for idx, ds in enumerate(enabled):
-            legend.SetEntry(idx, sphere.GetOutput(), dataset_display_name(ds), hex_to_rgb(ds.color))
+            legend.SetEntry(
+                idx, sphere.GetOutput(), dataset_display_name(ds), hex_to_rgb(ds.color)
+            )
         legend.GetEntryTextProperty().SetColor(*hex_to_rgb("#000000"))
         self.renderer.AddActor2D(legend)
 
     # ── Property dialog ────────────────────────────────────
 
     def open_3d_property(self):
-        available = [d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames]
+        available = [
+            d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
+        ]
         ids = {d.dataset_id for d in available}
-        active_id = self.state.active_dataset_id if self.state.active_dataset_id in ids else \
-            next((v for v in self.state.render_order if v in ids), "")
+        active_id = (
+            self.state.active_dataset_id
+            if self.state.active_dataset_id in ids
+            else next((v for v in self.state.render_order if v in ids), "")
+        )
 
         # Build field options from active dataset
         field_options = []
@@ -566,8 +696,12 @@ class VTSPlotterDialog(QDialog):
                 field_options = get_vts_field_names(grid)
 
         dialog = VtsPropertyDialog(
-            self.vtk_config, available, self.state.render_order, active_id,
-            self._apply_3d_config, self,
+            self.vtk_config,
+            available,
+            self.state.render_order,
+            active_id,
+            self._apply_3d_config,
+            self,
             save_format_callback=self._save_3d_format_file,
             load_format_callback=self._load_3d_format_file,
             style_templates=self._dataset_style_templates,
@@ -575,7 +709,9 @@ class VTSPlotterDialog(QDialog):
         )
         dialog.exec()
 
-    def _apply_3d_config(self, config, datasets, edited_order, active_id, format_templates=None):
+    def _apply_3d_config(
+        self, config, datasets, edited_order, active_id, format_templates=None
+    ):
         self.vtk_config = config
         edited = {d.dataset_id: d for d in datasets}
         edited_ids = set(edited)
@@ -587,16 +723,22 @@ class VTSPlotterDialog(QDialog):
             if replacement is not None:
                 card.dataset = replacement
         it = iter(edited_order)
-        self.state.render_order = [next(it) if v in edited_ids else v for v in self.state.render_order]
+        self.state.render_order = [
+            next(it) if v in edited_ids else v for v in self.state.render_order
+        ]
         self.state.active_dataset_id = active_id
         self._refresh_cards()
-        template_source = [edited[v] for v in edited_order if v in edited] or list(format_templates or self._dataset_style_templates)
+        template_source = [edited[v] for v in edited_order if v in edited] or list(
+            format_templates or self._dataset_style_templates
+        )
         self._persist_3d_visual_style(template_source)
         self.draw_3d()
         self._save_state()
 
     def _save_3d_format_file(self, config, datasets, order, format_templates):
-        path, _ = QFileDialog.getSaveFileName(self, "Save 3D Plot Format", "", "MInDes 3D style (*.mindes3dstyle.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save 3D Plot Format", "", "MInDes 3D style (*.mindes3dstyle.json)"
+        )
         if not path:
             return
         if not path.lower().endswith(".mindes3dstyle.json"):
@@ -604,27 +746,44 @@ class VTSPlotterDialog(QDialog):
         by_id = {d.dataset_id: d for d in datasets}
         ordered = [by_id[v] for v in order if v in by_id]
         try:
-            payload = make_3d_style_payload(config, ordered, format_templates or self._dataset_style_templates)
-            Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            payload = make_3d_style_payload(
+                config, ordered, format_templates or self._dataset_style_templates
+            )
+            Path(path).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
         except OSError as exc:
             QMessageBox.warning(self, "Save Format", str(exc))
             return
         self.status.setText(f"Saved 3D plot format: {Path(path).name}")
 
     def _load_3d_format_file(self, current, datasets, order, _format_templates):
-        path, _ = QFileDialog.getOpenFileName(self, "Load 3D Plot Format", "", "MInDes 3D style (*.mindes3dstyle.json);;JSON files (*.json)")
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load 3D Plot Format",
+            "",
+            "MInDes 3D style (*.mindes3dstyle.json);;JSON files (*.json)",
+        )
         if not path:
             return None
         try:
-            style, templates = parse_3d_style_payload(json.loads(Path(path).read_text(encoding="utf-8")))
+            style, templates = parse_3d_style_payload(
+                json.loads(Path(path).read_text(encoding="utf-8"))
+            )
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             QMessageBox.warning(self, "Load Format", str(exc))
             return None
         by_id = {d.dataset_id: d for d in datasets}
         for idx, dataset_id in enumerate(v for v in order if v in by_id):
             if idx < len(templates):
-                by_id[dataset_id] = apply_dataset_template(by_id[dataset_id], templates[idx])
-        return apply_3d_visual_style(current, style), [by_id.get(d.dataset_id, d) for d in datasets], templates
+                by_id[dataset_id] = apply_dataset_template(
+                    by_id[dataset_id], templates[idx]
+                )
+        return (
+            apply_3d_visual_style(current, style),
+            [by_id.get(d.dataset_id, d) for d in datasets],
+            templates,
+        )
 
     # ── View helpers ───────────────────────────────────────
 
@@ -636,7 +795,10 @@ class VTSPlotterDialog(QDialog):
     def _view_axis(self, axis):
         bounds = self.renderer.ComputeVisiblePropBounds()
         center = [(bounds[i * 2] + bounds[i * 2 + 1]) / 2 for i in range(3)]
-        dist = max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4], 1) * 2.5
+        dist = (
+            max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4], 1)
+            * 2.5
+        )
         camera = self.renderer.GetActiveCamera()
         camera.SetFocalPoint(*center)
         axis = axis.upper()
@@ -653,10 +815,19 @@ class VTSPlotterDialog(QDialog):
         self.vtk_widget.GetRenderWindow().Render()
 
     def save_screenshot(self):
-        path, selected = QFileDialog.getSaveFileName(self, "Save 3D Screenshot", "", "PNG (*.png);;JPEG (*.jpg);;TIFF (*.tif *.tiff)")
+        path, selected = QFileDialog.getSaveFileName(
+            self,
+            "Save 3D Screenshot",
+            "",
+            "PNG (*.png);;JPEG (*.jpg);;TIFF (*.tif *.tiff)",
+        )
         if not path:
             return
-        ext_map = {"PNG (*.png)": ".png", "JPEG (*.jpg)": ".jpg", "TIFF (*.tif *.tiff)": ".tif"}
+        ext_map = {
+            "PNG (*.png)": ".png",
+            "JPEG (*.jpg)": ".jpg",
+            "TIFF (*.tif *.tiff)": ".tif",
+        }
         ext = ext_map.get(selected, ".png")
         if not Path(path).suffix:
             path += ext
@@ -684,13 +855,21 @@ class VTSPlotterDialog(QDialog):
             self.state.splitter_sizes = self.splitter.sizes()
         # Save datasets + order
         state_payload = {
-            "datasets": [json.loads(json.dumps(d.__dict__, default=str)) for d in self.state.datasets],
+            "datasets": [
+                json.loads(json.dumps(d.__dict__, default=str))
+                for d in self.state.datasets
+            ],
             "render_order": list(self.state.render_order),
             "active_dataset_id": self.state.active_dataset_id,
         }
         self.settings.setValue(STATE_KEY, json.dumps(state_payload, ensure_ascii=False))
         # Save UI state
-        self.settings.setValue(UI_STATE_KEY, json.dumps({"splitter_sizes": self.state.splitter_sizes}, ensure_ascii=False))
+        self.settings.setValue(
+            UI_STATE_KEY,
+            json.dumps(
+                {"splitter_sizes": self.state.splitter_sizes}, ensure_ascii=False
+            ),
+        )
 
     def closeEvent(self, event):
         self._closing = True

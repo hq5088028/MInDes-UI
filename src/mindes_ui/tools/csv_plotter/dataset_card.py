@@ -1,4 +1,5 @@
 """Responsive dataset editor card used by CSV Plotter."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,8 +7,18 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-    QListView, QMenu, QSizePolicy, QVBoxLayout, QWidget,
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QMenu,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -16,7 +27,8 @@ class OpaqueColumnComboBox(QComboBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        view = QListView(self); self.setView(view)
+        view = QListView(self)
+        self.setView(view)
         view.setStyleSheet(
             "QListView{background:#ffffff;color:#000000;border:1px solid #9a9a9a;outline:0;}"
             "QListView::item{background:#ffffff;color:#000000;min-height:24px;padding:2px 8px;}"
@@ -26,22 +38,26 @@ class OpaqueColumnComboBox(QComboBox):
         self._make_popup_opaque()
 
     def _make_popup_opaque(self):
-        view = self.view(); viewport = view.viewport()
+        view = self.view()
+        viewport = view.viewport()
         palette = view.palette()
         palette.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
         palette.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
         palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
         palette.setColor(QPalette.ColorRole.Highlight, QColor("#1976d2"))
         palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
-        view.setPalette(palette); viewport.setPalette(palette)
-        view.setAutoFillBackground(True); viewport.setAutoFillBackground(True)
+        view.setPalette(palette)
+        viewport.setPalette(palette)
+        view.setAutoFillBackground(True)
+        viewport.setAutoFillBackground(True)
         view.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         viewport.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         view.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         viewport.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         popup = view.window()
         popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-        popup.setAutoFillBackground(True); popup.setPalette(palette)
+        popup.setAutoFillBackground(True)
+        popup.setPalette(palette)
         popup.setStyleSheet("background:#ffffff;border:1px solid #9a9a9a;")
 
     def showPopup(self):
@@ -70,36 +86,71 @@ class DatasetControlCard(QFrame):
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_menu)
 
-        root = QVBoxLayout(self); root.setContentsMargins(8, 6, 8, 7); root.setSpacing(6)
-        header = QHBoxLayout(); root.addLayout(header)
-        self.on_checkbox = QCheckBox("On"); self.on_checkbox.setChecked(dataset.enabled and available)
-        header.addWidget(self.on_checkbox); header.addStretch()
-        self.position_label = QLabel(""); self.position_label.setStyleSheet("color:#777;"); header.addWidget(self.position_label)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8, 6, 8, 7)
+        root.setSpacing(6)
+        header = QHBoxLayout()
+        root.addLayout(header)
+        self.on_checkbox = QCheckBox("On")
+        self.on_checkbox.setChecked(dataset.enabled and available)
+        header.addWidget(self.on_checkbox)
+        header.addStretch()
+        self.position_label = QLabel("")
+        self.position_label.setStyleSheet("color:#777;")
+        header.addWidget(self.position_label)
 
-        self.fields_widget = QWidget(); self.fields_layout = QGridLayout(self.fields_widget)
-        self.fields_layout.setContentsMargins(0, 0, 0, 0); self.fields_layout.setHorizontalSpacing(8); self.fields_layout.setVerticalSpacing(5)
+        self.fields_widget = QWidget()
+        self.fields_layout = QGridLayout(self.fields_widget)
+        self.fields_layout.setContentsMargins(0, 0, 0, 0)
+        self.fields_layout.setHorizontalSpacing(8)
+        self.fields_layout.setVerticalSpacing(5)
         root.addWidget(self.fields_widget)
 
         self.label_edit = QLineEdit(dataset.label)
-        self.file_label = QLabel(Path(dataset.path).name); self.file_label.setToolTip(dataset.path)
-        self.file_label.setWordWrap(True); self.file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.file_label = QLabel(Path(dataset.path).name)
+        self.file_label.setToolTip(dataset.path)
+        self.file_label.setWordWrap(True)
+        self.file_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
         self.x2d_combo = self._column_combo(columns, dataset.x2d)
         self.y2d_combo = self._column_combo(columns, dataset.y2d)
         self.x3d_combo = self._column_combo(columns, dataset.x3d)
         self.y3d_combo = self._column_combo(columns, dataset.y3d)
         self.z3d_combo = self._column_combo(columns, dataset.z3d)
         self._field_specs = [
-            ("Label", self.label_edit), ("File", self.file_label),
-            ("2D X", self.x2d_combo), ("2D Y", self.y2d_combo),
-            ("3D X", self.x3d_combo), ("3D Y", self.y3d_combo), ("3D Z", self.z3d_combo),
+            ("Label", self.label_edit),
+            ("File", self.file_label),
+            ("2D X", self.x2d_combo),
+            ("2D Y", self.y2d_combo),
+            ("3D X", self.x3d_combo),
+            ("3D Y", self.y3d_combo),
+            ("3D Z", self.z3d_combo),
         ]
-        self._field_boxes = [self._make_field(label, widget) for label, widget in self._field_specs]
-        for widget in (self, self.fields_widget, self.label_edit, self.file_label, self.x2d_combo,
-                       self.y2d_combo, self.x3d_combo, self.y3d_combo, self.z3d_combo):
+        self._field_boxes = [
+            self._make_field(label, widget) for label, widget in self._field_specs
+        ]
+        for widget in (
+            self,
+            self.fields_widget,
+            self.label_edit,
+            self.file_label,
+            self.x2d_combo,
+            self.y2d_combo,
+            self.x3d_combo,
+            self.y3d_combo,
+            self.z3d_combo,
+        ):
             widget.installEventFilter(self)
         self.on_checkbox.stateChanged.connect(self._sync)
         self.label_edit.textChanged.connect(self._sync)
-        for combo in (self.x2d_combo, self.y2d_combo, self.x3d_combo, self.y3d_combo, self.z3d_combo):
+        for combo in (
+            self.x2d_combo,
+            self.y2d_combo,
+            self.x3d_combo,
+            self.y3d_combo,
+            self.z3d_combo,
+        ):
             combo.currentTextChanged.connect(self._sync)
         self._loading = False
         self.set_available(available)
@@ -107,15 +158,24 @@ class DatasetControlCard(QFrame):
 
     @staticmethod
     def _make_field(label, widget):
-        box = QWidget(); layout = QVBoxLayout(box); layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(2)
-        title = QLabel(label); title.setStyleSheet("color:#555;font-size:11px;")
-        layout.addWidget(title); layout.addWidget(widget)
+        box = QWidget()
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(2)
+        title = QLabel(label)
+        title.setStyleSheet("color:#555;font-size:11px;")
+        layout.addWidget(title)
+        layout.addWidget(widget)
         return box
 
     @staticmethod
     def _column_combo(columns, selected):
-        combo = OpaqueColumnComboBox(); combo.addItem(""); combo.addItems([str(value) for value in (columns or [])])
-        combo.setCurrentText(selected if selected in [str(value) for value in (columns or [])] else "")
+        combo = OpaqueColumnComboBox()
+        combo.addItem("")
+        combo.addItems([str(value) for value in (columns or [])])
+        combo.setCurrentText(
+            selected if selected in [str(value) for value in (columns or [])] else ""
+        )
         return combo
 
     @property
@@ -148,12 +208,20 @@ class DatasetControlCard(QFrame):
     def update_columns(self, columns):
         columns = [str(value) for value in columns]
         self._loading = True
-        for combo, attr in ((self.x2d_combo, "x2d"), (self.y2d_combo, "y2d"),
-                            (self.x3d_combo, "x3d"), (self.y3d_combo, "y3d"), (self.z3d_combo, "z3d")):
+        for combo, attr in (
+            (self.x2d_combo, "x2d"),
+            (self.y2d_combo, "y2d"),
+            (self.x3d_combo, "x3d"),
+            (self.y3d_combo, "y3d"),
+            (self.z3d_combo, "z3d"),
+        ):
             old = getattr(self.dataset, attr)
-            combo.clear(); combo.addItem(""); combo.addItems(columns)
+            combo.clear()
+            combo.addItem("")
+            combo.addItems(columns)
             value = old if old in columns else ""
-            combo.setCurrentText(value); setattr(self.dataset, attr, value)
+            combo.setCurrentText(value)
+            setattr(self.dataset, attr, value)
         self._loading = False
         self.changed.emit(self.dataset_id)
 
@@ -161,9 +229,14 @@ class DatasetControlCard(QFrame):
         if self._loading:
             return
         self.dataset.enabled = self.is_checked()
-        self.dataset.label = self.label_edit.text().strip() or Path(self.dataset.path).stem
-        self.dataset.x2d = self.x2d_combo.currentText(); self.dataset.y2d = self.y2d_combo.currentText()
-        self.dataset.x3d = self.x3d_combo.currentText(); self.dataset.y3d = self.y3d_combo.currentText(); self.dataset.z3d = self.z3d_combo.currentText()
+        self.dataset.label = (
+            self.label_edit.text().strip() or Path(self.dataset.path).stem
+        )
+        self.dataset.x2d = self.x2d_combo.currentText()
+        self.dataset.y2d = self.y2d_combo.currentText()
+        self.dataset.x3d = self.x3d_combo.currentText()
+        self.dataset.y3d = self.y3d_combo.currentText()
+        self.dataset.z3d = self.z3d_combo.currentText()
         self.changed.emit(self.dataset_id)
 
     def eventFilter(self, watched, event):
@@ -177,7 +250,9 @@ class DatasetControlCard(QFrame):
 
     def _reflow(self, width):
         columns = 3 if width >= 760 else 2 if width >= 460 else 1
-        if columns == self.layout_columns and self.fields_layout.count() == len(self._field_boxes):
+        if columns == self.layout_columns and self.fields_layout.count() == len(
+            self._field_boxes
+        ):
             return
         self.layout_columns = columns
         for box in self._field_boxes:
@@ -202,9 +277,12 @@ class DatasetControlCard(QFrame):
 
     def _show_menu(self, pos):
         menu = QMenu(self)
-        up = menu.addAction("Move Up"); down = menu.addAction("Move Down")
-        top = menu.addAction("Move to Top"); bottom = menu.addAction("Move to Bottom")
-        menu.addSeparator(); duplicate_action = menu.addAction("Duplicate Dataset")
+        up = menu.addAction("Move Up")
+        down = menu.addAction("Move Down")
+        top = menu.addAction("Move to Top")
+        bottom = menu.addAction("Move to Bottom")
+        menu.addSeparator()
+        duplicate_action = menu.addAction("Duplicate Dataset")
         reload_action = menu.addAction("Reload This CSV")
         remove_action = menu.addAction("Remove This CSV")
         action = menu.exec(self.mapToGlobal(pos))

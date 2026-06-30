@@ -1,4 +1,5 @@
-﻿"""Responsive dataset editor card used by VTS Plotter."""
+"""Responsive dataset editor card used by VTS Plotter."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,8 +7,17 @@ from pathlib import Path
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-    QListView, QMenu, QSizePolicy, QVBoxLayout, QWidget,
+    QCheckBox,
+    QComboBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListView,
+    QMenu,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -95,7 +105,9 @@ class VtsDatasetCard(QFrame):
         self.file_label = QLabel(Path(dataset.path).name)
         self.file_label.setToolTip(dataset.path)
         self.file_label.setWordWrap(True)
-        self.file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.file_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
 
         self.field_combo = OpaqueColumnComboBox()
         if fields:
@@ -123,7 +135,13 @@ class VtsDatasetCard(QFrame):
 
         root.addWidget(fields_widget)
 
-        for widget in (self, fields_widget, self.label_edit, self.file_label, self.field_combo):
+        for widget in (
+            self,
+            fields_widget,
+            self.label_edit,
+            self.file_label,
+            self.field_combo,
+        ):
             widget.installEventFilter(self)
 
         self.on_checkbox.stateChanged.connect(self._sync)
@@ -177,7 +195,9 @@ class VtsDatasetCard(QFrame):
         if self._loading:
             return
         self.dataset.enabled = self.is_checked()
-        self.dataset.label = self.label_edit.text().strip() or Path(self.dataset.path).stem
+        self.dataset.label = (
+            self.label_edit.text().strip() or Path(self.dataset.path).stem
+        )
 
     def _on_field_changed(self, text):
         if self._loading:

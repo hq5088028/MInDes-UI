@@ -26,10 +26,10 @@ from typing import List, Tuple
 
 @dataclass
 class FitResult:
-    mode: str                       # "bivariate" or "ternary"
-    degrees: Tuple[int, ...]        # (d1, d2) or (d1, d2, d3)
-    terms: List[Tuple[int, ...]]    # list of exponent tuples, one per coeff
-    coeffs: np.ndarray              # fitted coefficients, same length as terms
+    mode: str  # "bivariate" or "ternary"
+    degrees: Tuple[int, ...]  # (d1, d2) or (d1, d2, d3)
+    terms: List[Tuple[int, ...]]  # list of exponent tuples, one per coeff
+    coeffs: np.ndarray  # fitted coefficients, same length as terms
     rmse: float
     max_abs_err: float
     r2: float
@@ -54,13 +54,12 @@ class FitResult:
 def _build_terms(degrees: Tuple[int, ...]) -> List[Tuple[int, ...]]:
     """Enumerate exponent tuples for a tensor-product polynomial basis."""
     from itertools import product
+
     ranges = [range(d + 1) for d in degrees]
     return [tuple(t) for t in product(*ranges)]
 
 
-def _build_design_matrix(
-    X: np.ndarray, terms: List[Tuple[int, ...]]
-) -> np.ndarray:
+def _build_design_matrix(X: np.ndarray, terms: List[Tuple[int, ...]]) -> np.ndarray:
     """X has shape (N, k); terms is a list of length-k exponent tuples."""
     N = X.shape[0]
     A = np.ones((N, len(terms)), dtype=float)
@@ -131,9 +130,9 @@ def fit(
     coeffs, *_ = np.linalg.lstsq(A, y, rcond=None)
     y_pred = A @ coeffs
     resid = y - y_pred
-    rmse = float(np.sqrt(np.mean(resid ** 2)))
+    rmse = float(np.sqrt(np.mean(resid**2)))
     max_abs_err = float(np.max(np.abs(resid)))
-    ss_res = float(np.sum(resid ** 2))
+    ss_res = float(np.sum(resid**2))
     ss_tot = float(np.sum((y - y.mean()) ** 2))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
 

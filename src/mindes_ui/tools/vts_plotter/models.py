@@ -1,4 +1,5 @@
-﻿"""Serializable state and VTS loading helpers for VTS Plotter."""
+"""Serializable state and VTS loading helpers for VTS Plotter."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, is_dataclass
@@ -74,11 +75,18 @@ class VtkPlotConfig:
     corner_offset: float = 0.0
 
     def migrate_legacy_axes(self, force=False):
-        values = ((self.x_axis, self.x_title), (self.y_axis, self.y_title), (self.z_axis, self.z_title))
+        values = (
+            (self.x_axis, self.x_title),
+            (self.y_axis, self.y_title),
+            (self.z_axis, self.z_title),
+        )
         for axis, title in values:
             if force or axis.title in ("X", "Y", "Z"):
                 axis.title = title
-            if force or (axis.title_style.color == "#000000" and axis.label_style.color == "#000000"):
+            if force or (
+                axis.title_style.color == "#000000"
+                and axis.label_style.color == "#000000"
+            ):
                 axis.title_style.color = self.text_color
                 axis.label_style.color = self.text_color
             if force or (axis.title_style.size == 16 and axis.label_style.size == 12):
@@ -90,7 +98,9 @@ class VtkPlotConfig:
         cfg = cls()
         if isinstance(raw, dict):
             _merge_config_dataclass(cfg, raw)
-            if not any(isinstance(raw.get(key), dict) for key in ("x_axis", "y_axis", "z_axis")):
+            if not any(
+                isinstance(raw.get(key), dict) for key in ("x_axis", "y_axis", "z_axis")
+            ):
                 cfg.migrate_legacy_axes(force=True)
         return cfg
 
@@ -167,9 +177,16 @@ class VtsPlotterState:
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> VtsPlotterState:
-        if not isinstance(raw, dict) or raw.get("version", STATE_VERSION) != STATE_VERSION:
+        if (
+            not isinstance(raw, dict)
+            or raw.get("version", STATE_VERSION) != STATE_VERSION
+        ):
             return cls()
-        datasets = [VtsDatasetConfig.from_dict(item) for item in raw.get("datasets", []) if isinstance(item, dict)]
+        datasets = [
+            VtsDatasetConfig.from_dict(item)
+            for item in raw.get("datasets", [])
+            if isinstance(item, dict)
+        ]
         dataset_ids = [item.dataset_id for item in datasets]
 
         def normalized_order(key):
@@ -181,7 +198,11 @@ class VtsPlotterState:
             vtk=VtkPlotConfig.from_dict(raw.get("vtk")),
             active_dataset_id=str(raw.get("active_dataset_id", "")),
             render_order=normalized_order("render_order"),
-            splitter_sizes=[int(value) for value in raw.get("splitter_sizes", []) if isinstance(value, (int, float))],
+            splitter_sizes=[
+                int(value)
+                for value in raw.get("splitter_sizes", [])
+                if isinstance(value, (int, float))
+            ],
         )
 
 

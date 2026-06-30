@@ -1,4 +1,5 @@
 """Configuration model for publication-quality statistic figures."""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -154,7 +155,10 @@ class FigureConfig:
     @classmethod
     def from_dict(cls, raw: dict[str, Any] | None) -> "FigureConfig":
         cfg = cls()
-        if not isinstance(raw, dict) or raw.get("version", CONFIG_VERSION) != CONFIG_VERSION:
+        if (
+            not isinstance(raw, dict)
+            or raw.get("version", CONFIG_VERSION) != CONFIG_VERSION
+        ):
             return cfg
         _merge_dataclass(cfg, raw)
         curves = []
