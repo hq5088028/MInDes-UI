@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
     QSpinBox, QTabWidget, QVBoxLayout, QWidget,
 )
-from plot_property_dialog import ColorButton
+from ...plot_property_dialog import ColorButton
 
 from .models import VtsDatasetConfig, VtkPlotConfig, dataset_display_name
 

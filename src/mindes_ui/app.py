@@ -30,7 +30,7 @@ def resource_path(relative_path):
         base_path = sys._MEIPASS # type:ignore
     except AttributeError:
         # 正常 Python 运行
-        base_path = os.path.dirname(os.path.abspath(__file__))
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(base_path, relative_path)
 
 
@@ -199,7 +199,7 @@ class MainWindow(QMainWindow):
 
         self.create_menu_bar()
 
-        from file_browser_widget import FileBrowserWidget
+        from .file_browser_widget import FileBrowserWidget
 
         self.file_browser = FileBrowserWidget()
         self.file_browser.set_current_path(
@@ -420,7 +420,7 @@ class MainWindow(QMainWindow):
     def open_csv_plotter(self):
         """Open the standalone multi-file CSV plotting tool."""
         try:
-            from Tools.CSVPlotterTools.csv_plotter_gui import CSVPlotterDialog
+            from .tools.csv_plotter.csv_plotter_gui import CSVPlotterDialog
             dialog = CSVPlotterDialog(parent=self)
             dialog.setWindowIcon(get_app_icon())
             dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -438,7 +438,7 @@ class MainWindow(QMainWindow):
     def open_vts_plotter(self):
         """Open the standalone multi-file VTS plotting tool."""
         try:
-            from Tools.VTSPlotterTools.vts_plotter_gui import VTSPlotterDialog
+            from .tools.vts_plotter.vts_plotter_gui import VTSPlotterDialog
             dialog = VTSPlotterDialog(parent=self)
             dialog.setWindowIcon(get_app_icon())
             dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
@@ -456,7 +456,7 @@ class MainWindow(QMainWindow):
     def open_common_tangent_phase2_comp3(self):
         """打开 CommonTangent Phase2Comp3 子对话框 (非模态, 不阻塞主界面)."""
         try:
-            from Tools.CommonTangentTools.common_tangent_o3_gui import (
+            from .tools.common_tangent.common_tangent_o3_gui import (
                 CommonTangentDialog, Ga_default, Gb_default,
             )
         except Exception as e:
@@ -487,7 +487,7 @@ class MainWindow(QMainWindow):
     def open_fitting_comp3(self):
         """打开 Fitting Comp3 子对话框 (非模态, 不阻塞主界面)."""
         try:
-            from Tools.FittingTools.gibbs_fitter_gui import FitterDialog
+            from .tools.fitting.gibbs_fitter_gui import FitterDialog
         except Exception as e:
             QMessageBox.critical(
                 self, "Import Error",
@@ -572,13 +572,13 @@ class MainWindow(QMainWindow):
 
     def create_tabs(self):
         self.report_startup_progress(2, 8, "Loading Build Simulation...")
-        from build_simulation_widget import BuildSimulationWidget
+        from .build_simulation_widget import BuildSimulationWidget
 
         self.build_widget = BuildSimulationWidget()
         self.tab_widget.addTab(self.build_widget, "Build Simulation")
 
         self.report_startup_progress(3, 8, "Loading Log && Statistic...")
-        from log_statistics_widget import LogStatisticsWidget
+        from .log_statistics_widget import LogStatisticsWidget
 
         self.log_stat_widget = LogStatisticsWidget(
             progress_callback=lambda detail: self.report_startup_progress(4, 8, detail)
@@ -589,7 +589,7 @@ class MainWindow(QMainWindow):
         )
 
         self.report_startup_progress(5, 8, "Loading VTS Data Viewer...")
-        from vts_viewer_widget import VTSViewerWidget
+        from .vts_viewer_widget import VTSViewerWidget
 
         self.vts_viewer = VTSViewerWidget(
             progress_callback=lambda detail: self.report_startup_progress(6, 8, detail)
@@ -679,8 +679,11 @@ class MainWindow(QMainWindow):
         return super().closeEvent(event)
 
 
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+
+    app = QApplication(argv)
 
     splash = make_splash()
     splash.show()
@@ -697,8 +700,8 @@ if __name__ == "__main__":
 
     # 启动后自动打开命令行传入的 .mindes / 文件夹
     def open_startup_target():
-        if len(sys.argv) > 1:
-            startup_path = sys.argv[1].strip().strip('"')
+        if len(argv) > 1:
+            startup_path = argv[1].strip().strip('"')
             if startup_path:
                 window.handle_open_path(startup_path)
 
@@ -711,3 +714,8 @@ if __name__ == "__main__":
 
     QTimer.singleShot(500, finish_startup)
     sys.exit(app.exec())
+    return app.exec()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

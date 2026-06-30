@@ -5,11 +5,11 @@ from PySide6.QtWidgets import (
 )
 import vtk
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
-from vts_viewer.ui_vtk_view import VTKViewMixin
-from vts_viewer.ui_control_panel import ControlPanelMixin
-from vts_viewer.data_loader import VTSDataLoaderMixin
-from vts_viewer.visualization import VisualizationMixin
-from vts_viewer.ui_plot_over_line import PlotOverLineMixin
+from .vts_viewer.ui_vtk_view import VTKViewMixin
+from .vts_viewer.ui_control_panel import ControlPanelMixin
+from .vts_viewer.data_loader import VTSDataLoaderMixin
+from .vts_viewer.visualization import VisualizationMixin
+from .vts_viewer.ui_plot_over_line import PlotOverLineMixin
 
 class VTSViewerWidget(
     QWidget,

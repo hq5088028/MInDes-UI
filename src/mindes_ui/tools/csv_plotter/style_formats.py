@@ -4,7 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass
 
-from plot_config import AxisStyle, CurveStyle, FigureConfig
+from ...plot_config import AxisStyle, CurveStyle, FigureConfig
 from .models import CsvDatasetConfig, VtkPlotConfig
 
 

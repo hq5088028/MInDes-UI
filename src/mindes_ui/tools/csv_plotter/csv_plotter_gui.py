@@ -21,8 +21,8 @@ from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as Navigation
 from matplotlib.figure import Figure
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
-from plot_config import FigureConfig, new_curve
-from plot_property_dialog import PlotPropertyDialog
+from ...plot_config import FigureConfig, new_curve
+from ...plot_property_dialog import PlotPropertyDialog
 from .models import CsvDatasetConfig, CsvPlotterState, VtkPlotConfig, dataset_display_name, load_csv, numeric_series
 from .dataset_card import DatasetControlCard
 from .rendering import render_shared_figure

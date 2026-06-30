@@ -5,7 +5,7 @@ import re
 import subprocess
 import threading
 from pathlib import Path
-from log_statistics_widget import STAT_CANDIDATES, get_existing_candidates_by_mtime
+from .log_statistics_widget import STAT_CANDIDATES, get_existing_candidates_by_mtime
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QPushButton, QComboBox,
     QPlainTextEdit, QLabel, QMenu, QMessageBox, QListWidget, 
@@ -30,7 +30,7 @@ def get_solver_dir() -> Path:
         base_dir = Path(sys.executable).parent
     else:
         # 开发时：基于 .py 文件路径
-        base_dir = Path(__file__).parent.resolve()
+        base_dir = Path(__file__).resolve().parent.parent.parent
     return base_dir / "solver"
 
 class SolverRunner(QObject):

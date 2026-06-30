@@ -9,8 +9,8 @@ import os
 import math
 import pandas as pd
 import numpy as np
-from vts_viewer.models import PandasModel
-from vts_viewer.utils import clean_excel_string
+from .models import PandasModel
+from .utils import clean_excel_string
 
 class PlotOverLineMixin:
     """

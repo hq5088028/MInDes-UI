@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QSpinBox, QStackedWidget, QVBoxLayout, QWidget,
 )
 
-from plot_config import FigureConfig, TextStyle, new_curve
+from .plot_config import FigureConfig, TextStyle, new_curve
 
 
 class ColorButton(QPushButton):
@@ -320,7 +320,7 @@ class PlotPropertyDialog(QDialog):
 
     def _load_all(self):
         self._loading = True
-        from plot_config import convert_length
+        from .plot_config import convert_length
         c = self.config; unit = c.unit
         self.unit_combo.setCurrentText(unit); self._last_unit = unit
         self.width_spin.setValue(convert_length(c.width_cm, "cm", unit)); self.height_spin.setValue(convert_length(c.height_cm, "cm", unit))
@@ -353,13 +353,13 @@ class PlotPropertyDialog(QDialog):
 
     def _unit_changed(self, unit):
         if self._loading or unit == self._last_unit: return
-        from plot_config import convert_length
+        from .plot_config import convert_length
         for widget in (self.width_spin, self.height_spin, self.margin_left, self.margin_right, self.margin_top, self.margin_bottom):
             widget.setValue(convert_length(widget.value(), self._last_unit, unit))
         self._last_unit = unit
 
     def _save_overall(self):
-        from plot_config import convert_length
+        from .plot_config import convert_length
         unit = self.unit_combo.currentText(); c = self.config; c.unit = unit
         c.width_cm = convert_length(self.width_spin.value(), unit, "cm"); c.height_cm = convert_length(self.height_spin.value(), unit, "cm")
         c.background = self.background_combo.currentText()
