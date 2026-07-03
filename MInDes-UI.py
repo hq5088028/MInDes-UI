@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSplashScreen,
+    QSpinBox,
+    QWidgetAction,
 )
 from PySide6.QtCore import Qt, QSettings, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon, QGuiApplication
@@ -153,10 +155,9 @@ class MainWindow(QMainWindow):
         screen = QGuiApplication.primaryScreen().availableGeometry()
         w = int(screen.width() * 0.8)
         h = int(screen.height() * 0.8)
-        # 给一个合理上下限
-        w = max(1100, min(w, 1800))
-        h = max(760, min(h, 1200))
-        self.resize(w, h)
+        x = screen.x() + (screen.width() - w) // 2
+        y = screen.y() + (screen.height() - h) // 2
+        self.setGeometry(x, y, w, h)
         self.setWindowIcon(get_app_icon())
         self.current_project_path = None
         self.build_widget = None
@@ -170,6 +171,11 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("MInDes", "MInDes-UI")
         last_dir = self.settings.value("last_directory", "", type=str)
         self.last_dir = Path(str(last_dir)) if last_dir else None
+        self.font_scales = {
+            key: max(20, min(300, self.settings.value(f"font_scale/{key}", 100, type=int)))
+            for key in ("navigation", "edit", "debug", "log", "statistic")
+        }
+        self.font_scale_spins = {}
 
         self.setup_ui()
 
@@ -365,6 +371,37 @@ class MainWindow(QMainWindow):
         comp3_action.triggered.connect(self.open_fitting_comp3)
         fitting_menu.addAction(comp3_action)
 
+        view_menu = menubar.addMenu("View")
+        font_size_menu = view_menu.addMenu("Font Size")
+        font_targets = (
+            ("navigation", "Navigation"),
+            ("edit", "Edit editor"),
+            ("debug", "Debug editor"),
+            ("log", "Log"),
+            ("statistic", "Statistic"),
+        )
+        for key, label_text in font_targets:
+            row = QWidget(font_size_menu)
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(8, 2, 8, 2)
+            label = QLabel(label_text, row)
+            spin = QSpinBox(row)
+            spin.setRange(20, 300)
+            spin.setSingleStep(10)
+            spin.setSuffix("%")
+            spin.setValue(self.font_scales[key])
+            spin.setKeyboardTracking(False)
+            spin.valueChanged.connect(
+                lambda value, target=key: self.set_font_scale(target, value)
+            )
+            row_layout.addWidget(label)
+            row_layout.addStretch()
+            row_layout.addWidget(spin)
+            widget_action = QWidgetAction(font_size_menu)
+            widget_action.setDefaultWidget(row)
+            font_size_menu.addAction(widget_action)
+            self.font_scale_spins[key] = spin
+
         help_menu = menubar.addMenu("About")
         about_action = QAction("About MInDes", self)
         about_action.triggered.connect(self.show_about)
@@ -558,6 +595,27 @@ class MainWindow(QMainWindow):
             progress_callback=lambda detail: self.report_startup_progress(6, 8, detail)
         )
         self.vts_tab_index = self.tab_widget.addTab(self.vts_viewer, "VTS Data Viewer")
+        self.apply_font_scales()
+
+    def set_font_scale(self, target: str, percent: int):
+        percent = max(20, min(300, int(percent)))
+        self.font_scales[target] = percent
+        self.settings.setValue(f"font_scale/{target}", percent)
+        self.apply_font_scales()
+
+    def apply_font_scales(self):
+        if getattr(self, "file_browser", None) is not None:
+            self.file_browser.set_navigation_font_scale(self.font_scales["navigation"])
+        if self.build_widget is not None:
+            self.build_widget.set_editor_font_scales(
+                edit_percent=self.font_scales["edit"],
+                debug_percent=self.font_scales["debug"],
+            )
+        if self.log_stat_widget is not None:
+            self.log_stat_widget.set_text_font_scales(
+                log_percent=self.font_scales["log"],
+                statistic_percent=self.font_scales["statistic"],
+            )
 
     def route_log_stat_status(self, message: str, level: str):
         """
@@ -645,5 +703,11 @@ if __name__ == "__main__":
                 window.handle_open_path(startup_path)
 
     QTimer.singleShot(0, open_startup_target)
-    QTimer.singleShot(500, lambda: splash.finish(window))
+    def finish_startup():
+        splash.finish(window)
+        window.showNormal()
+        window.raise_()
+        window.activateWindow()
+
+    QTimer.singleShot(500, finish_startup)
     sys.exit(app.exec())

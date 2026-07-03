@@ -75,6 +75,9 @@ class FileBrowserWidget(QWidget):
         layout.addWidget(self.path_line_edit)
 
         self.list_widget = QListWidget()
+        self._navigation_base_point_size = max(
+            1.0, self.list_widget.font().pointSizeF()
+        )
         self.list_widget.setSelectionMode(
             QAbstractItemView.SelectionMode.ExtendedSelection
         )
@@ -88,6 +91,11 @@ class FileBrowserWidget(QWidget):
         layout.addWidget(self.list_widget)
 
         self.refresh_view()
+
+    def set_navigation_font_scale(self, percent: int):
+        font = self.list_widget.font()
+        font.setPointSizeF(self._navigation_base_point_size * percent / 100.0)
+        self.list_widget.setFont(font)
 
     def _is_allowed_file(self, filename: str) -> bool:
         """判断文件是否属于允许的扩展名"""

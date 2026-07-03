@@ -151,6 +151,7 @@ class LogStatisticsWidget(QWidget):
         self.log_edit = QPlainTextEdit()
         self.log_edit.setReadOnly(True)
         self.log_edit.setFont(self._get_monospace_font())
+        self._log_base_font = QFont(self.log_edit.font())
         self.log_edit.setStyleSheet("background-color: #f0f0f0; color: black;")
         self.log_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         log_layout.addWidget(self.log_edit)
@@ -163,6 +164,7 @@ class LogStatisticsWidget(QWidget):
         self.stat_edit = QPlainTextEdit()
         self.stat_edit.setReadOnly(True)
         self.stat_edit.setFont(self._get_monospace_font())
+        self._statistic_base_font = QFont(self.stat_edit.font())
         self.stat_edit.setStyleSheet("background-color: #f0f0f0; color: black;")
         self.stat_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         stat_layout.addWidget(self.stat_edit)
@@ -176,14 +178,17 @@ class LogStatisticsWidget(QWidget):
 
         # === 固定尺寸控制区：窗口缩放时不参与纵向伸缩 ===
         self.figure_control_panel = QWidget()
-        self.figure_control_panel.setFixedHeight(64)
         self.figure_control_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         control_hbox = QHBoxLayout(self.figure_control_panel)
-        control_hbox.setContentsMargins(8, 6, 8, 6)
+        control_hbox.setContentsMargins(8, 2, 8, 2)
         control_hbox.setSpacing(8)
 
         self.figure_control_content = QWidget()
-        self.figure_control_content.setFixedWidth(900)
+        self.figure_control_content.setMaximumWidth(900)
+        self.figure_control_content.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
         control_content_layout = QHBoxLayout(self.figure_control_content)
         control_content_layout.setContentsMargins(0, 0, 0, 0)
         control_content_layout.setSpacing(8)
@@ -222,6 +227,7 @@ class LogStatisticsWidget(QWidget):
         control_hbox.addStretch()
         control_hbox.addWidget(self.figure_control_content)
         control_hbox.addStretch()
+        self.figure_control_panel.setFixedHeight(control_hbox.sizeHint().height())
         plot_layout.addWidget(self.figure_control_panel, 0)
 
         # >>> 横线 <<<
@@ -318,6 +324,21 @@ class LogStatisticsWidget(QWidget):
                 break
         font.setPointSize(9)
         return font
+
+    def set_text_font_scales(self, log_percent: int, statistic_percent: int):
+        log_font = QFont(self._log_base_font)
+        log_font.setPointSizeF(
+            self._log_base_font.pointSizeF() * max(20, min(300, log_percent)) / 100.0
+        )
+        self.log_edit.setFont(log_font)
+
+        statistic_font = QFont(self._statistic_base_font)
+        statistic_font.setPointSizeF(
+            self._statistic_base_font.pointSizeF()
+            * max(20, min(300, statistic_percent))
+            / 100.0
+        )
+        self.stat_edit.setFont(statistic_font)
 
     def _clear_watcher(self):
         files = self.watcher.files()

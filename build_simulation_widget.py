@@ -228,12 +228,13 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
 
     def highlightBlock(self, text):
         """高亮处理一个文本块"""
-        line = text.rstrip()
+        # Highlight regular syntax only before the first comment marker. The
+        # comment is formatted last so it always has the highest priority.
+        comment_pos = text.find('#')
+        syntax_text = text if comment_pos == -1 else text[:comment_pos]
+        line = syntax_text.rstrip()
         
         # 1. 注释行处理
-        if line.startswith('#'):
-            self.setFormat(0, len(text), self.comment_format)
-            return
         
         # 2. 分割键值对
         if '=' in line:
@@ -275,6 +276,9 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
                 
                 # 再高亮特殊符号（会覆盖内容颜色）
                 self._highlight_symbols(right_start, right_side)
+
+        if comment_pos != -1:
+            self.setFormat(comment_pos, len(text) - comment_pos, self.comment_format)
     
     def _highlight_value_content(self, start_pos, text):
         """高亮右侧值的具体内容"""
@@ -609,6 +613,7 @@ class BuildSimulationWidget(QWidget):
 
         def line_number_area_paint_event(self, event):
             painter = QPainter(self.line_number_area)
+            painter.setFont(self.font())
             painter.fillRect(event.rect(), QColor(EDITOR_BACKGROUND))  # 淡灰色背景
 
             block = self.firstVisibleBlock()
@@ -660,6 +665,8 @@ class BuildSimulationWidget(QWidget):
         self.mindes_highlighter = None  # .mindes 文件高亮器
         self.report_highlighter = None  # input_report.txt 高亮器
         self.current_highlighter = None  # 当前活跃的高亮器
+        self._edit_font_percent = 100
+        self._debug_font_percent = 100
 
         # input report 识别
         self.parsed_definitions = None
@@ -852,6 +859,7 @@ class BuildSimulationWidget(QWidget):
                 break
         font.setPointSize(10)
         self.text_edit.setFont(font)
+        self._editor_base_font = QFont(font)
         # 强制白色背景，不随系统主题变化
         self.text_edit.setStyleSheet("""
             QPlainTextEdit {{
@@ -1011,7 +1019,27 @@ class BuildSimulationWidget(QWidget):
         """根据当前显示状态统一刷新编辑器的可编辑性与相关按钮状态。"""
         is_report_mode = bool(self.is_showing_report)
         self.text_edit.setReadOnly(is_report_mode)
+        self._apply_editor_font_scale()
         self._update_editor_actions()
+
+    def set_editor_font_scales(self, edit_percent: int, debug_percent: int):
+        self._edit_font_percent = max(20, min(300, int(edit_percent)))
+        self._debug_font_percent = max(20, min(300, int(debug_percent)))
+        self._apply_editor_font_scale()
+
+    def _apply_editor_font_scale(self):
+        if not hasattr(self, "text_edit") or not hasattr(self, "_editor_base_font"):
+            return
+        percent = (
+            self._debug_font_percent
+            if self.is_showing_report
+            else self._edit_font_percent
+        )
+        font = QFont(self._editor_base_font)
+        font.setPointSizeF(self._editor_base_font.pointSizeF() * percent / 100.0)
+        self.text_edit.setFont(font)
+        self.text_edit.line_number_area.setFont(font)
+        self.text_edit.update_line_number_area_width()
 
     def _set_running_state(
         self,
