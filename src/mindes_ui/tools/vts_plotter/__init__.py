@@ -1,5 +1,9 @@
 """Multi-file VTS 3D plotting tool."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from .models import (
     VtsDatasetConfig,
     VtsPlotterState,
@@ -8,8 +12,11 @@ from .models import (
     VtkTextStyle,
 )
 
+if TYPE_CHECKING:
+    from .vts_plotter_gui import VTSPlotterDialog
+
 __all__ = [
-    "VTSPlotterDialog", # pyright: ignore[reportUnsupportedDunderAll]
+    "VTSPlotterDialog",
     "VtsDatasetConfig",
     "VtsPlotterState",
     "VtkAxisConfig",

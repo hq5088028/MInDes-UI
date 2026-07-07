@@ -1,5 +1,9 @@
 """Multi-file CSV plotting tool."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from .models import (
     CsvDatasetConfig,
     CsvPlotterState,
@@ -8,8 +12,11 @@ from .models import (
     VtkTextStyle,
 )
 
+if TYPE_CHECKING:
+    from .csv_plotter_gui import CSVPlotterDialog
+
 __all__ = [
-    "CSVPlotterDialog", # pyright: ignore[reportUnsupportedDunderAll]
+    "CSVPlotterDialog",
     "CsvDatasetConfig",
     "CsvPlotterState",
     "VtkAxisConfig",

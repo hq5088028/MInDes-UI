@@ -1215,7 +1215,8 @@ class CommonTangentDialog(QDialog):
             if hasattr(self, "vtk_widget") and self.vtk_widget is not None:
                 self.vtk_widget.Finalize()
         except Exception:
-            pass
+            import traceback
+            traceback.print_exc()
         super().closeEvent(event)
 
 

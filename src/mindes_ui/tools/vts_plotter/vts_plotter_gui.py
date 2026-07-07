@@ -877,7 +877,8 @@ class VTSPlotterDialog(QDialog):
         try:
             self.vtk_widget.Finalize()
         except Exception:
-            pass
+            import traceback
+            traceback.print_exc()
         super().closeEvent(event)
 
 
