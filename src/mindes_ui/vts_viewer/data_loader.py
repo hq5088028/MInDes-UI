@@ -33,18 +33,39 @@ else:
 class VTSDataLoaderMixin(_Base):
     """Handles VTS folder loading, series detection, and playback."""
 
+    def _is_vts_folder_ready(self, folder: str) -> bool:
+        if not folder or not os.path.isdir(folder):
+            return False
+
+        vts_files = glob.glob(os.path.join(folder, "*.vts"))
+        if not vts_files:
+            return False
+
+        for file_path in vts_files:
+            if self._extract_series_prefix(os.path.basename(file_path)) is not None:
+                return True
+        return False
+
+    def prepare_vts_folder(self, folder: str) -> None:
+        """Store a folder for deferred loading when the VTS tab is opened."""
+        self._pending_vts_folder = os.path.normpath(folder) if folder else None
+
+    def activate_pending_vts_load(self) -> None:
+        """Load the queued VTS folder and prompt for series selection if needed."""
+        if not self._pending_vts_folder:
+            return
+
+        if not self._is_vts_folder_ready(self._pending_vts_folder):
+            QTimer.singleShot(500, self.activate_pending_vts_load)
+            return
+
+        self._load_vts_from_folder_or_series(self._pending_vts_folder)
+
     # =====================================================
     # Public entry
     # =====================================================
     def load_vts(self, folder_path: str = "") -> None:
         if folder_path == "":
-            if not os.path.isdir(folder_path):
-                QMessageBox.critical(
-                    cast(QWidget, self),
-                    "Invalid Path",
-                    f"Not a valid directory:\n{folder_path}",
-                )
-                return
             self._load_vts_interactive()
         else:
             self._load_vts_from_folder_or_series(folder_path)
@@ -146,6 +167,7 @@ class VTSDataLoaderMixin(_Base):
         self.display_group.setVisible(True)
         self._update_file_combo()
         self._update_playback_ui_enabled(True)
+        self._pending_vts_folder = None
 
     # =====================================================
     # Single file load

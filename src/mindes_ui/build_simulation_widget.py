@@ -632,6 +632,7 @@ class ProgressOverlayWidget(QWidget):
 class BuildSimulationWidget(QWidget):
     # 信号：当构建/运行完成时，通知主窗口结果目录路径
     simulationFinished = Signal(str)  # 发送 .mindes 同名结果文件夹路径
+    outputProjectPathPrepared = Signal(str)  # 发送准备好的结果目录路径
     requestCancelSolver = Signal()  # 请求在线程中取消 solver
 
     class CodeEditor(QPlainTextEdit):
@@ -740,6 +741,12 @@ class BuildSimulationWidget(QWidget):
         self._progress_timer.setInterval(PROGRESS_POLL_INTERVAL_MS)
         self._progress_timer.timeout.connect(self._poll_simulation_progress)
         self._progress_stat_path = None
+        self._output_project_path_timer = QTimer(self)
+        self._output_project_path_timer.setInterval(250)
+        self._output_project_path_timer.timeout.connect(
+            self._poll_output_project_path_ready
+        )
+        self._pending_output_project_path: str | None = None
 
         self.setup_ui()
         self.save_btn.setEnabled(False)
@@ -1267,6 +1274,27 @@ class BuildSimulationWidget(QWidget):
         self._progress_stat_path = None
         self._reset_inline_progress()
 
+    def _stop_output_project_path_watch(self) -> None:
+        if self._output_project_path_timer.isActive():
+            self._output_project_path_timer.stop()
+        self._pending_output_project_path = None
+
+    def _start_output_project_path_watch(self, result_dir: str) -> None:
+        self._pending_output_project_path = result_dir
+        if not self._output_project_path_timer.isActive():
+            self._output_project_path_timer.start()
+        self._poll_output_project_path_ready()
+
+    def _poll_output_project_path_ready(self) -> None:
+        if not self._pending_output_project_path:
+            self._stop_output_project_path_watch()
+            return
+
+        if os.path.isdir(self._pending_output_project_path):
+            result_dir = self._pending_output_project_path
+            self._stop_output_project_path_watch()
+            self.outputProjectPathPrepared.emit(result_dir)
+
     def on_solver_started(self) -> None:
         """进程已成功启动，启用 Cancel 按钮"""
         self._set_running_state(True, "Solver started.", success=True)
@@ -1285,13 +1313,16 @@ class BuildSimulationWidget(QWidget):
             if self.current_mindes_file
             else ""
         )
+        self._poll_output_project_path_ready()
         self._close_progress_dialog()
+        self._stop_output_project_path_watch()
         self._set_running_state(False, "Solver finished.", success=True)
         if result_dir:
             self.simulationFinished.emit(result_dir)
 
     def on_solver_error(self, error_msg: str) -> None:
         self._close_progress_dialog()
+        self._stop_output_project_path_watch()
         self._set_running_state(False, f"Error: {error_msg}", error=True)
         QMessageBox.critical(self, "Solver Error", error_msg)
 
@@ -1327,6 +1358,7 @@ class BuildSimulationWidget(QWidget):
             return
 
         mindes_abs = os.path.abspath(self.current_mindes_file)
+        result_dir = os.path.splitext(mindes_abs)[0]
         solver_dir = os.path.dirname(self.selected_solver_path)
         omp_threads = max(1, (os.cpu_count() or 2) - 1)
         self._set_running_state(True, f"Launching {mode}...", info=True)
@@ -1389,6 +1421,8 @@ class BuildSimulationWidget(QWidget):
 
         self.cancel_btn.setEnabled(True)
         self.solver_thread.start()
+        # Wait until the result directory exists before announcing it.
+        self._start_output_project_path_watch(result_dir)
 
     def on_worker_done(self) -> None:
         """兼容旧接口：统一通过线程 finished 完成清理。"""
@@ -1508,6 +1542,7 @@ class BuildSimulationWidget(QWidget):
 
     def on_solver_canceled(self) -> None:
         self._close_progress_dialog()
+        self._stop_output_project_path_watch()
         self._set_running_state(False, "Solver canceled by user.", warning=True)
 
     def show_input_report(self) -> None:

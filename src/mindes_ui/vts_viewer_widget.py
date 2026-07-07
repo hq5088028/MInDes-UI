@@ -86,6 +86,7 @@ class VTSViewerWidget(
         self.vts_prefix = None
         self.vts_file_list = []  # 排序后的完整路径列表
         self.current_file_index = -1  # 当前播放索引
+        self._pending_vts_folder = None
         self.auto_update_timer = None  # QTimer 用于自动刷新
         self.auto_update_enabled = False
         self.sequential_timer = None  # 用于顺序播放的 QTimer

@@ -265,6 +265,7 @@ class MainWindow(QMainWindow):
 
         self.tab_widget = QTabWidget()
         right_layout.addWidget(self.tab_widget)  # 将 tab widget 放入布局
+        self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         splitter.addWidget(right_panel)
         self.create_tabs()
@@ -282,6 +283,10 @@ class MainWindow(QMainWindow):
         else:
             print("vts_viewer is not exist!")
             return
+
+    def on_tab_changed(self, index: int) -> None:
+        if index == self.vts_tab_index and self.vts_viewer is not None:
+            QTimer.singleShot(0, self.vts_viewer.activate_pending_vts_load)
 
     def on_path_edited(self, new_path: str):
         self.file_browser.set_current_path(new_path)
@@ -338,6 +343,12 @@ class MainWindow(QMainWindow):
         else:
             print("log_stat_widget is None")
             return
+
+    def prepare_output_targets(self, folder_path: str) -> None:
+        if self.log_stat_widget is not None:
+            self.log_stat_widget.set_project_path(folder_path)
+        if self.vts_viewer is not None:
+            self.vts_viewer.prepare_vts_folder(folder_path)
 
     def open_project_or_file(self):
         """通过一个对话框打开项目文件夹或 .mindes 文件"""
@@ -612,6 +623,8 @@ class MainWindow(QMainWindow):
         from .build_simulation_widget import BuildSimulationWidget
 
         self.build_widget = BuildSimulationWidget()
+        self.build_widget.outputProjectPathPrepared.connect(self.prepare_output_targets)
+        self.build_widget.simulationFinished.connect(self.prepare_output_targets)
         self.tab_widget.addTab(self.build_widget, "Build Simulation")
 
         self.report_startup_progress(3, 8, "Loading Log && Statistic...")

@@ -123,6 +123,7 @@ class VTSViewerProtocol(Protocol):
     vts_prefix: str | None
     vts_file_list: list[str]
     current_file_index: int
+    _pending_vts_folder: str | None
     auto_update_timer: QTimer | None
     auto_update_enabled: bool
     sequential_timer: QTimer | None
@@ -211,6 +212,8 @@ class VTSViewerProtocol(Protocol):
     _load_vts_from_folder_or_series: Callable[..., None]
     load_single_vts_file: Callable[..., bool]
     load_vts: Callable[..., None]
+    prepare_vts_folder: Callable[..., None]
+    activate_pending_vts_load: Callable[..., None]
     load_vts_from_folder: Callable[..., None]
     populate_field_combos: Callable[..., None]
     _reset_series_state: Callable[..., None]

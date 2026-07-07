@@ -13,6 +13,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QMenu,
 )
+
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher
 import os
 import shutil
@@ -84,11 +86,31 @@ class FileBrowserWidget(QWidget):
             QAbstractItemView.SelectionMode.ExtendedSelection
         )
         self.list_widget.itemDoubleClicked.connect(self.on_item_double_clicked)
+        self.list_widget.itemActivated.connect(self.on_item_double_clicked)
         self.list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
         # 禁用双击/F2 自动进入编辑
         self.list_widget.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.list_widget.itemChanged.connect(self.on_item_renamed)
+
+        # 让快捷键在文件列表获得焦点时也能生效
+        self.duplicate_action = QAction("Duplicate", self)
+        self.duplicate_action.setShortcut(QKeySequence("Ctrl+C"))
+        self.duplicate_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.duplicate_action.triggered.connect(self.duplicate_selected_items)
+        self.list_widget.addAction(self.duplicate_action)
+
+        self.rename_action = QAction("Rename", self)
+        self.rename_action.setShortcut(QKeySequence("F2"))
+        self.rename_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.rename_action.triggered.connect(self._rename_current_item)
+        self.list_widget.addAction(self.rename_action)
+
+        self.delete_action = QAction("Delete", self)
+        self.delete_action.setShortcut(QKeySequence.StandardKey.Delete)
+        self.delete_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.delete_action.triggered.connect(self.delete_selected_items)
+        self.list_widget.addAction(self.delete_action)
 
         layout.addWidget(self.list_widget)
 
@@ -210,16 +232,16 @@ class FileBrowserWidget(QWidget):
                 load_vts_action = menu.addAction("Load VTS Data")
                 menu.addSeparator()
 
-            # 点击了某一项：复制 + 删除 + 重命名
-            copy_action = menu.addAction("Copy")
-            rename_action = menu.addAction("Rename")
-            delete_action = menu.addAction("Delete")
+            # 点击了某一项：重复 + 删除 + 重命名
+            menu.addAction(self.duplicate_action)
+            menu.addAction(self.rename_action)
+            menu.addAction(self.delete_action)
             action = menu.exec(global_pos)
-            if action == copy_action:
-                self.copy_selected_items()
-            elif action == rename_action:
+            if action == self.duplicate_action:
+                self.duplicate_selected_items()
+            elif action == self.rename_action:
                 self.start_rename_edit(clicked_item)
-            elif action == delete_action:
+            elif action == self.delete_action:
                 self.delete_selected_items()
             elif action == load_action:
                 self.load_mindes_file_temp(os.path.join(self.current_path, name))
@@ -227,6 +249,15 @@ class FileBrowserWidget(QWidget):
                 self.loadLogStatisticFolderRequested.emit(full_path)
             elif load_vts_action and action == load_vts_action:
                 self.loadVtsFolderRequested.emit(full_path)
+
+    def _rename_current_item(self) -> None:
+        item = self.list_widget.currentItem()
+        if item is None:
+            selected_items = self.list_widget.selectedItems()
+            if not selected_items:
+                return
+            item = selected_items[0]
+        self.start_rename_edit(item)
 
     def start_rename_edit(self, item: QListWidgetItem) -> None:
         """启动内联重命名编辑模式"""
@@ -281,8 +312,8 @@ class FileBrowserWidget(QWidget):
             QMessageBox.critical(self, "Rename failed", f"Cannot rename:\n{e}")
             item.setText(old_name)
 
-    def copy_selected_items(self) -> None:
-        """复制选中的文件或文件夹，添加 _copy 后缀"""
+    def duplicate_selected_items(self) -> None:
+        """重复选中的文件或文件夹，添加 _copy 后缀"""
         items = self.list_widget.selectedItems()
         if not items:
             return
@@ -290,7 +321,7 @@ class FileBrowserWidget(QWidget):
             old_name = item.text()
             src_path = os.path.join(self.current_path, old_name)
             # 生成目标路径（带 _copy 后缀，自动处理重名）
-            dst_path = self._generate_copy_path(src_path)
+            dst_path = self._generate_duplicate_path(src_path)
             try:
                 if os.path.isdir(src_path):
                     shutil.copytree(src_path, dst_path)
@@ -298,12 +329,12 @@ class FileBrowserWidget(QWidget):
                     shutil.copy2(src_path, dst_path)  # 保留元数据
             except Exception as e:
                 QMessageBox.critical(
-                    self, "Copy failed", f"Failed to copy '{old_name}':\n{str(e)}"
+                    self, "Duplicate failed", f"Failed to duplicate '{old_name}':\n{str(e)}"
                 )
                 continue
         self.refresh_view()
 
-    def _generate_copy_path(self, original_path: str) -> str:
+    def _generate_duplicate_path(self, original_path: str) -> str:
         """
         生成带 _copy 后缀的新路径，自动处理重名：
         - file.txt → file_copy.txt
