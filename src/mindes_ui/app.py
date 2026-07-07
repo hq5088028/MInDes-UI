@@ -6,7 +6,7 @@ import os
 import subprocess
 from functools import partial
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 
 os.environ["QT_API"] = "pyside6"
 from PySide6.QtWidgets import (
@@ -39,9 +39,7 @@ def resource_path(relative_path: str) -> str:
             raise AttributeError
     except AttributeError:
         # 正常 Python 运行
-        base_path = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        )
+        base_path = str(Path(__file__).resolve().parents[2])
     return os.path.join(base_path, relative_path)
 
 
@@ -193,15 +191,27 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("MInDes", "MInDes-UI")
         last_dir = self.settings.value("last_directory", "", type=str)
         self.last_dir = Path(str(last_dir)) if last_dir else None
+
+        def _load_font_scale(key: str) -> int:
+            FONT_SCALE_MIN = 20
+            FONT_SCALE_MAX = 300
+            FONT_SCALE_DEFAULT = 100
+            value = self.settings.value(
+                f"font_scale/{key}", FONT_SCALE_DEFAULT, type=int
+            )
+            return max(FONT_SCALE_MIN, min(FONT_SCALE_MAX, cast(int, value)))
+
         self.font_scales = {
-            key: max(20, min(300, self.settings.value(f"font_scale/{key}", 100, type=int)))
+            key: _load_font_scale(key)
             for key in ("navigation", "edit", "debug", "log", "statistic")
         }
         self.font_scale_spins = {}
 
         self.setup_ui()
 
-    def _remove_tool_window(self, dialog: QDialog, _destroyed_obj: object | None = None) -> None:
+    def _remove_tool_window(
+        self, dialog: QDialog, _destroyed_obj: object | None = None
+    ) -> None:
         """Remove a tool dialog from the tracking list when it is destroyed."""
         if dialog in self._tool_windows:
             self._tool_windows.remove(dialog)
@@ -732,15 +742,14 @@ def main(argv: list[str] | None = None) -> int:
             if startup_path:
                 window.handle_open_path(startup_path)
 
-    QTimer.singleShot(0, open_startup_target)
     def finish_startup():
         splash.finish(window)
         window.showNormal()
         window.raise_()
         window.activateWindow()
 
+    QTimer.singleShot(0, open_startup_target)
     QTimer.singleShot(500, finish_startup)
-    sys.exit(app.exec())
     return app.exec()
 
 
