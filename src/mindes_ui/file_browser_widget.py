@@ -220,6 +220,7 @@ class FileBrowserWidget(QWidget):
             item_type = clicked_item.data(Qt.ItemDataRole.UserRole)
             name = clicked_item.text()
             full_path = os.path.join(self.current_path, name)
+            is_parent = (item_type == "parent_dir")
             load_action = None
             # 如果是 .mindes 文件，额外添加“加载”选项
             if item_type == "file" and name.lower().endswith(".mindes"):
@@ -227,15 +228,16 @@ class FileBrowserWidget(QWidget):
                 menu.addSeparator()
             load_vts_action = None
             load_log_statis_action = None
-            if os.path.isdir(full_path):
+            if os.path.isdir(full_path) and not is_parent:
                 load_log_statis_action = menu.addAction("Load Log && Statistics Data")
                 load_vts_action = menu.addAction("Load VTS Data")
                 menu.addSeparator()
 
-            # 点击了某一项：重复 + 删除 + 重命名
-            menu.addAction(self.duplicate_action)
-            menu.addAction(self.rename_action)
-            menu.addAction(self.delete_action)
+            # 点击了某一项：重复 + 删除 + 重命名（.. 父目录项不可修改）
+            if not is_parent:
+                menu.addAction(self.duplicate_action)
+                menu.addAction(self.rename_action)
+                menu.addAction(self.delete_action)
             action = menu.exec(global_pos)
             if action == self.duplicate_action:
                 self.duplicate_selected_items()
@@ -257,7 +259,14 @@ class FileBrowserWidget(QWidget):
             if not selected_items:
                 return
             item = selected_items[0]
+        if self._is_parent_dir(item):
+            return
         self.start_rename_edit(item)
+
+    @staticmethod
+    def _is_parent_dir(item: QListWidgetItem) -> bool:
+        """Return True if the item is the '..' parent-directory entry."""
+        return item.data(Qt.ItemDataRole.UserRole) == "parent_dir"
 
     def start_rename_edit(self, item: QListWidgetItem) -> None:
         """启动内联重命名编辑模式"""
@@ -318,6 +327,8 @@ class FileBrowserWidget(QWidget):
         if not items:
             return
         for item in items:
+            if self._is_parent_dir(item):
+                continue
             old_name = item.text()
             src_path = os.path.join(self.current_path, old_name)
             # 生成目标路径（带 _copy 后缀，自动处理重名）
@@ -421,6 +432,11 @@ class FileBrowserWidget(QWidget):
 
     def delete_selected_items(self) -> None:
         items = self.list_widget.selectedItems()
+        if not items:
+            return
+
+        # 过滤掉 .. 父目录项
+        items = [it for it in items if not self._is_parent_dir(it)]
         if not items:
             return
 
