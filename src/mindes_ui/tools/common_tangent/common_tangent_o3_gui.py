@@ -840,7 +840,9 @@ class CommonTangentDialog(QDialog):
             if rw is not None:
                 rw.Render()
         except Exception:
-            pass
+            import traceback
+
+            traceback.print_exc()
 
     def _schedule_view_refresh(self):
         """Coalesce Qt, Matplotlib and native VTK redraws after layout settles."""
@@ -864,7 +866,9 @@ class CommonTangentDialog(QDialog):
             try:
                 self.canvas.draw()
             except Exception:
-                pass
+                import traceback
+
+                traceback.print_exc()
 
         self._safe_render_vtk()
 
@@ -1208,7 +1212,9 @@ class CommonTangentDialog(QDialog):
             ):
                 self._layout_refresh_timer.stop()
         except Exception:
-            pass
+            import traceback
+
+            traceback.print_exc()
 
         # 彻底释放 VTK 资源, 避免 Qt 关闭时残留 OpenGL 上下文报错
         try:
@@ -1216,6 +1222,7 @@ class CommonTangentDialog(QDialog):
                 self.vtk_widget.Finalize()
         except Exception:
             import traceback
+
             traceback.print_exc()
         super().closeEvent(event)
 

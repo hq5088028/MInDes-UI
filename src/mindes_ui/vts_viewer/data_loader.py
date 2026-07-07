@@ -367,7 +367,9 @@ class VTSDataLoaderMixin(_Base):
             # self.file_combo.setCurrentIndex(self.current_file_index)
             # self.current_file_index += 1
             # self.update_visualization()
-            pass
+            import traceback
+
+            traceback.print_stack()
         # 4. 安排下一帧（无论是否从缓冲区获取）
         if self.is_sequential_playing and self.current_file_index < len(
             self.vts_file_list

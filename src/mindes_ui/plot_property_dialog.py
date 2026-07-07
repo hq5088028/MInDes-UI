@@ -462,7 +462,7 @@ class PlotPropertyDialog(QDialog):
         self.error_color = ColorButton()
         self.band_color = ColorButton()
         self.band_alpha = self._double(0, 1, 2)
-        fields: list[tuple[str,QWidget]] = [
+        fields: list[tuple[str, QWidget]] = [
             ("Visible:", self.curve_visible),
             ("Legend text:", self.legend_edit),
             ("Line color:", self.line_color),

@@ -96,19 +96,25 @@ class FileBrowserWidget(QWidget):
         # 让快捷键在文件列表获得焦点时也能生效
         self.duplicate_action = QAction("Duplicate", self)
         self.duplicate_action.setShortcut(QKeySequence("Ctrl+C"))
-        self.duplicate_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.duplicate_action.setShortcutContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
         self.duplicate_action.triggered.connect(self.duplicate_selected_items)
         self.list_widget.addAction(self.duplicate_action)
 
         self.rename_action = QAction("Rename", self)
         self.rename_action.setShortcut(QKeySequence("F2"))
-        self.rename_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.rename_action.setShortcutContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
         self.rename_action.triggered.connect(self._rename_current_item)
         self.list_widget.addAction(self.rename_action)
 
         self.delete_action = QAction("Delete", self)
         self.delete_action.setShortcut(QKeySequence.StandardKey.Delete)
-        self.delete_action.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        self.delete_action.setShortcutContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
         self.delete_action.triggered.connect(self.delete_selected_items)
         self.list_widget.addAction(self.delete_action)
 
@@ -220,7 +226,7 @@ class FileBrowserWidget(QWidget):
             item_type = clicked_item.data(Qt.ItemDataRole.UserRole)
             name = clicked_item.text()
             full_path = os.path.join(self.current_path, name)
-            is_parent = (item_type == "parent_dir")
+            is_parent = item_type == "parent_dir"
             load_action = None
             # 如果是 .mindes 文件，额外添加“加载”选项
             if item_type == "file" and name.lower().endswith(".mindes"):
@@ -340,7 +346,9 @@ class FileBrowserWidget(QWidget):
                     shutil.copy2(src_path, dst_path)  # 保留元数据
             except Exception as e:
                 QMessageBox.critical(
-                    self, "Duplicate failed", f"Failed to duplicate '{old_name}':\n{str(e)}"
+                    self,
+                    "Duplicate failed",
+                    f"Failed to duplicate '{old_name}':\n{str(e)}",
                 )
                 continue
         self.refresh_view()

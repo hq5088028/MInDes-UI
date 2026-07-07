@@ -65,7 +65,14 @@ class SolverRunner(QObject):
     error = Signal(str)
     output_received = Signal(str)  # 可选：用于实时日志
 
-    def __init__(self, solver_path: str, input_base: str | None, cwd: str, cleanup_files: list[str] | None = None, omp_threads: int = 4) -> None:
+    def __init__(
+        self,
+        solver_path: str,
+        input_base: str | None,
+        cwd: str,
+        cleanup_files: list[str] | None = None,
+        omp_threads: int = 4,
+    ) -> None:
         super().__init__()
         self.solver_path = solver_path
         self.input_base = input_base
@@ -81,7 +88,9 @@ class SolverRunner(QObject):
             try:
                 os.remove(f)
             except OSError:
-                pass
+                import traceback
+
+                traceback.print_exc()
 
     def run(self) -> None:
         try:
@@ -162,7 +171,9 @@ class SolverRunner(QObject):
                 try:
                     self._proc.wait(timeout=3)
                 except subprocess.TimeoutExpired:
-                    pass
+                    import traceback
+
+                    traceback.print_stack()
 
 
 class LineNumberArea(QFrame):
@@ -233,7 +244,9 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         self.tuple_pattern = re.compile(r"\([^)]+\)")
         self.macro_pattern = re.compile(r"\$[^$]+\$")
 
-    def _create_format(self, color: str | QColor, bold: bool = False) -> QTextCharFormat:
+    def _create_format(
+        self, color: str | QColor, bold: bool = False
+    ) -> QTextCharFormat:
         """创建文本格式的辅助方法"""
         fmt = QTextCharFormat()
         fmt.setForeground(QColor(color))
@@ -253,12 +266,12 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
         """高亮处理一个文本块"""
         # Highlight regular syntax only before the first comment marker. The
         # comment is formatted last so it always has the highest priority.
-        comment_pos = text.find('#')
+        comment_pos = text.find("#")
         syntax_text = text if comment_pos == -1 else text[:comment_pos]
         line = syntax_text.rstrip()
-        
+
         # 1. 注释行处理
-        
+
         # 2. 分割键值对
         if "=" in line:
             eq_pos = line.find("=")
@@ -302,7 +315,7 @@ class MindesSyntaxHighlighter(QSyntaxHighlighter):
 
         if comment_pos != -1:
             self.setFormat(comment_pos, len(text) - comment_pos, self.comment_format)
-    
+
     def _highlight_value_content(self, start_pos: int, text: str):
         """高亮右侧值的具体内容"""
         # 1. 高亮宏变量 $...$
@@ -938,8 +951,7 @@ class BuildSimulationWidget(QWidget):
         self.text_edit.setFont(font)
         self._editor_base_font = QFont(font)
         # 强制白色背景，不随系统主题变化
-        self.text_edit.setStyleSheet(
-            """
+        self.text_edit.setStyleSheet("""
             QPlainTextEdit {{
                 background-color: {bg};  /* 淡灰色 */
                 color: black;
@@ -949,8 +961,7 @@ class BuildSimulationWidget(QWidget):
                 border: 1px solid #ccc;
                 border-radius: 4px;
             }}
-        """.format(bg=EDITOR_BACKGROUND)
-        )
+        """.format(bg=EDITOR_BACKGROUND))
         # 创建高亮器实例
         self.mindes_highlighter = MindesSyntaxHighlighter(self.text_edit.document())
         self.report_highlighter = ReportSyntaxHighlighter(self.text_edit.document())
@@ -1200,7 +1211,9 @@ class BuildSimulationWidget(QWidget):
         )
         return stat_candidates[0] if stat_candidates else None
 
-    def _read_latest_progress_info(self, stat_path: Path) -> tuple[float | None, str | None]:
+    def _read_latest_progress_info(
+        self, stat_path: Path
+    ) -> tuple[float | None, str | None]:
         try:
             with open(stat_path, "r", encoding="utf-8") as f:
                 lines = [line.strip() for line in f if line.strip()]
@@ -1235,7 +1248,9 @@ class BuildSimulationWidget(QWidget):
                     if 0.0 <= value <= 1.0:
                         progress_value = value
                 except ValueError:
-                    pass
+                    import traceback
+
+                    traceback.print_exc()
 
             if (
                 sim_step_value is None
@@ -1809,7 +1824,11 @@ class BuildSimulationWidget(QWidget):
         return False
 
     def _parse_function_line(
-        self, line: str, functions: list[dict[str, Any]], func_names: set[str], builtin_funcs: set[str]
+        self,
+        line: str,
+        functions: list[dict[str, Any]],
+        func_names: set[str],
+        builtin_funcs: set[str],
     ) -> None:
         parts = [p.strip().replace("\t", " ") for p in line.split("|")]
         parts = [p for p in parts if p]
@@ -1822,7 +1841,9 @@ class BuildSimulationWidget(QWidget):
                     functions.append({"no": no, "name": name, "expr": cleaned_expr})
                     func_names.add(name)
 
-    def _parse_variable_line(self, line: str, variables: list[dict[str, Any]], func_names: set[str]) -> None:
+    def _parse_variable_line(
+        self, line: str, variables: list[dict[str, Any]], func_names: set[str]
+    ) -> None:
         parts = [p.strip().replace("\t", " ") for p in line.split("|")]
         parts = [p for p in parts if p]
         if len(parts) >= 3:
@@ -1833,7 +1854,9 @@ class BuildSimulationWidget(QWidget):
                 if not name.isdigit() and name not in func_names:
                     variables.append({"no": no, "name": name, "value": value})
 
-    def _parse_parameter_line(self, line: str, parameters: list[dict[str, str]]) -> None:
+    def _parse_parameter_line(
+        self, line: str, parameters: list[dict[str, str]]
+    ) -> None:
         import re
 
         match = re.match(r">\s*\[([^\]]+)\]\s*([^=]+?)\s*=\s*(.+)", line)
@@ -1905,7 +1928,9 @@ class BuildSimulationWidget(QWidget):
                     self.mindes_highlighter.setDocument(self.text_edit.document())
                 self.current_highlighter = self.mindes_highlighter
 
-    def _build_merged_definitions_data(self, variables: list[dict[str, Any]], functions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _build_merged_definitions_data(
+        self, variables: list[dict[str, Any]], functions: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         将变量列表和函数列表按名称合并，生成用于表格显示的统一数据列表。
 
@@ -1954,7 +1979,9 @@ class BuildSimulationWidget(QWidget):
         all_items.sort(key=lambda x: x["no"])
         return all_items
 
-    def _populate_definition_table(self, table: QTableWidget, items: list[dict[str, Any]]) -> None:
+    def _populate_definition_table(
+        self, table: QTableWidget, items: list[dict[str, Any]]
+    ) -> None:
         """
         将合并后的定义项列表填充到 QTableWidget 中。
 

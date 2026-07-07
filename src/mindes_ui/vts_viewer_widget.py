@@ -22,7 +22,11 @@ class VTSViewerWidget(
 ):
     progress_callback: Callable[[str], None] | None
 
-    def __init__(self, parent: QWidget | None = None, progress_callback: Callable[[str], None] | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        progress_callback: Callable[[str], None] | None = None,
+    ) -> None:
         vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow())  # 禁用vts的自动弹窗
         super().__init__(parent)
         self.progress_callback = progress_callback

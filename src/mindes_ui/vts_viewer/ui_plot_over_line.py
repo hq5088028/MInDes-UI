@@ -376,7 +376,9 @@ class PlotOverLineMixin(_Base):
     def _pick_field_color(self, field: str) -> None:
         current = self._line_styles[field]["color"]
         qcolor = QColor.fromRgbF(*current)
-        new_color = QColorDialog.getColor(qcolor, cast(QWidget, self), f"Color for {field}")
+        new_color = QColorDialog.getColor(
+            qcolor, cast(QWidget, self), f"Color for {field}"
+        )
         if new_color.isValid():
             rgb = (new_color.redF(), new_color.greenF(), new_color.blueF())
             self._line_styles[field]["color"] = rgb

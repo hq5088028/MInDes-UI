@@ -60,7 +60,7 @@ try:
     from . import fitter_core as fc
 except ImportError:
     # 独立脚本运行 (python gibbs_fitter_gui.py) 时的 fallback
-    import fitter_core as fc # type: ignore
+    import fitter_core as fc  # type: ignore
 
 APP_TITLE = "Ternary Gibbs Free Energy Polynomial Fitter"
 DEFAULT_GRID_N = 80
@@ -458,6 +458,7 @@ class FitterDialog(QDialog):
         df = self.df
 
         from matplotlib.tri import Triangulation
+
         if df is None or self.fit_result is None:
             return
         tri = Triangulation(df["x1"].to_numpy(), df["x2"].to_numpy())

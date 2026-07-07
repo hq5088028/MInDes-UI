@@ -140,7 +140,9 @@ class CSVPlotterDialog(QDialog):
                         )
                     )
                 except (TypeError, ValueError, json.JSONDecodeError):
-                    pass
+                    import traceback
+
+                    traceback.print_exc()
             self.settings.setValue(
                 STYLE_2D_KEY,
                 json.dumps(make_2d_style_payload(figure), ensure_ascii=False),
@@ -715,7 +717,9 @@ class CSVPlotterDialog(QDialog):
                     self.status.setText(f"LaTeX failed; using MathText: {exc}")
                     return
                 except Exception:
-                    pass
+                    import traceback
+
+                    traceback.print_stack()
             QMessageBox.warning(self, "2D Plot Error", str(exc))
 
     def _apply_canvas_size(self):
@@ -1228,14 +1232,14 @@ class CSVPlotterDialog(QDialog):
         capture.ReadFrontBufferOff()
         capture.Update()
         suffix = Path(path).suffix.lower()
-        
+
         if suffix == ".png":
             writer = vtk.vtkPNGWriter()
         elif suffix in (".jpg", ".jpeg"):
-            writer =  vtk.vtkJPEGWriter()
+            writer = vtk.vtkJPEGWriter()
         else:
             writer = vtk.vtkTIFFWriter()
-        
+
         writer.SetFileName(path)
         writer.SetInputConnection(capture.GetOutputPort())
         writer.Write()
@@ -1258,6 +1262,7 @@ class CSVPlotterDialog(QDialog):
             self.vtk_widget.Finalize()
         except Exception:
             import traceback
+
             traceback.print_exc()
         super().closeEvent(event)
 

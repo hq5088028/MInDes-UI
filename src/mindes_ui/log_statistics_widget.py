@@ -78,7 +78,11 @@ class LogStatisticsWidget(QWidget):
     # 状态信号：(message, level) 其中 level in {"info", "warning", "error"}
     statusMessage = Signal(str, str)
 
-    def __init__(self, parent: QWidget | None = None, progress_callback: Callable[[str], None] | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        progress_callback: Callable[[str], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.progress_callback = progress_callback
         self._project_path: Optional[Path] = None  # .mindes 同名结果目录
@@ -91,7 +95,9 @@ class LogStatisticsWidget(QWidget):
         self._parse_retry_count = 0
         self.log_content = ""
         self.stat_content = ""
-        self.plot_canvas: Any  # FigureCanvasQTAgg — typed at class level to satisfy strict mode
+        self.plot_canvas: (
+            Any  # FigureCanvasQTAgg — typed at class level to satisfy strict mode
+        )
 
         # 绘图监控
         self.is_drawing = False
@@ -193,7 +199,9 @@ class LogStatisticsWidget(QWidget):
 
         # === 固定尺寸控制区：窗口缩放时不参与纵向伸缩 ===
         self.figure_control_panel = QWidget()
-        self.figure_control_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.figure_control_panel.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         control_hbox = QHBoxLayout(self.figure_control_panel)
         control_hbox.setContentsMargins(8, 2, 8, 2)
         control_hbox.setSpacing(8)
