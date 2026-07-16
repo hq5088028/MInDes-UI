@@ -8,3 +8,5 @@ MInDes-UI.exe
 /software_infile
 /solver_bk
 /.venv
+
+*.egg-info

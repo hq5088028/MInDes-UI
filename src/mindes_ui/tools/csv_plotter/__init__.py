@@ -1,0 +1,33 @@
+"""Multi-file CSV plotting tool."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from .models import (
+    CsvDatasetConfig,
+    CsvPlotterState,
+    VtkAxisConfig,
+    VtkPlotConfig,
+    VtkTextStyle,
+)
+
+if TYPE_CHECKING:
+    from .csv_plotter_gui import CSVPlotterDialog
+
+__all__ = [
+    "CSVPlotterDialog",
+    "CsvDatasetConfig",
+    "CsvPlotterState",
+    "VtkAxisConfig",
+    "VtkPlotConfig",
+    "VtkTextStyle",
+]
+
+
+def __getattr__(name):
+    if name == "CSVPlotterDialog":
+        from .csv_plotter_gui import CSVPlotterDialog
+
+        return CSVPlotterDialog
+    raise AttributeError(name)
