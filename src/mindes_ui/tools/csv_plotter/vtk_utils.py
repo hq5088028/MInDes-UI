@@ -160,13 +160,21 @@ def _text_layer(config, bounds, raw_min, raw_max, camera, selected, kind):
         getattr(actor, f"Set{name}Title")(
             axis.title if selected_visible and kind == "title" else ""
         )
+        # vtkCubeAxesActor (VTK 9.5) only builds an axis title while that
+        # axis's label visibility is enabled.  Title layers therefore keep
+        # labels enabled as an internal rendering prerequisite, then make the
+        # duplicate label text transparent below.
         getattr(actor, f"Set{name}AxisLabelVisibility")(
-            bool(selected_visible and kind == "label")
+            bool(selected_visible and kind in ("label", "title"))
         )
         getattr(actor, f"Set{name}LabelFormat")(_label_format(axis))
         _hide_axis_geometry(actor, name)
         _apply_text_style(actor.GetTitleTextProperty(index), axis.title_style)
         _apply_text_style(actor.GetLabelTextProperty(index), axis.label_style)
+        if selected_visible and kind == "title":
+            label_property = actor.GetLabelTextProperty(index)
+            label_property.SetOpacity(0.0)
+            label_property.Modified()
     actor.Modified()
     return actor
 

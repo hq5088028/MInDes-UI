@@ -231,12 +231,9 @@ def apply_dataset_template(
 def make_3d_style_payload(config: VtkPlotConfig, datasets=None, templates=None) -> dict:
     clean = deepcopy(config)
     clean.migrate_legacy_axes()
-    clean.x_title = "X"
-    clean.y_title = "Y"
-    clean.z_title = "Z"
-    clean.x_axis.title = "X"
-    clean.y_axis.title = "Y"
-    clean.z_axis.title = "Z"
+    # Axis titles are user-authored visual properties.  Keep them in the saved
+    # style; otherwise Apply appears to work only until the dialog/application
+    # is reopened, when the titles silently fall back to X/Y/Z.
     clean.auto_bounds = True
     clean.x_min = 0.0
     clean.x_max = 1.0
@@ -262,8 +259,6 @@ def make_3d_style_payload(config: VtkPlotConfig, datasets=None, templates=None) 
         "z_max",
     ):
         vtk_raw.pop(key, None)
-    for key in ("x_axis", "y_axis", "z_axis"):
-        vtk_raw.get(key, {}).pop("title", None)
     return {
         "kind": STYLE_3D_KIND,
         "version": STYLE_3D_VERSION,
@@ -289,13 +284,12 @@ def parse_3d_style_payload(raw: dict) -> tuple[VtkPlotConfig, list[CsvDatasetCon
             CsvDatasetConfig(), value, f"dataset_templates[{index}]"
         )
     config = VtkPlotConfig.from_dict(vtk_raw)
-    config.x_title = "X"
-    config.y_title = "Y"
-    config.z_title = "Z"
     config.auto_bounds = True
-    config.x_axis.title = "X"
-    config.y_axis.title = "Y"
-    config.z_axis.title = "Z"
+    # Older style payloads do not contain per-axis titles and naturally retain
+    # the dataclass defaults.  New payloads keep the titles parsed above.
+    config.x_title = config.x_axis.title
+    config.y_title = config.y_axis.title
+    config.z_title = config.z_axis.title
     config.x_min = 0.0
     config.x_max = 1.0
     config.y_min = 0.0
@@ -314,12 +308,9 @@ def apply_3d_visual_style(
     current: VtkPlotConfig, style: VtkPlotConfig
 ) -> VtkPlotConfig:
     result = deepcopy(style)
-    result.x_title = current.x_title
-    result.y_title = current.y_title
-    result.z_title = current.z_title
-    result.x_axis.title = current.x_axis.title
-    result.y_axis.title = current.y_axis.title
-    result.z_axis.title = current.z_axis.title
+    result.x_title = result.x_axis.title
+    result.y_title = result.y_axis.title
+    result.z_title = result.z_axis.title
     result.auto_bounds = current.auto_bounds
     result.x_min = current.x_min
     result.x_max = current.x_max
