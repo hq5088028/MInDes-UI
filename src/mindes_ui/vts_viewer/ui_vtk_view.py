@@ -19,6 +19,8 @@ from matplotlib.figure import Figure
 
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
+from ..i18n import tr
+
 if TYPE_CHECKING:
     from ._types import VTSViewerProtocol as _Base
 else:
@@ -29,10 +31,19 @@ class VTKViewMixin(_Base):
     """Creates the VTK render window, matplotlib figure, and Plot-Over-Line tab."""
 
     def _create_vtk_and_tabs(self):
+        # Keep the native QVTK widget attached to the same direct parent for its
+        # entire lifetime. Reparenting QVTK after construction can invalidate
+        # the native window handle used by VTK when the layout is resized.
+        self.tab_widget = QTabWidget()
+        self.vtk_page = QWidget()
+        vtk_layout = QVBoxLayout(self.vtk_page)
+        vtk_layout.setContentsMargins(0, 0, 0, 0)
+
         # =========================
         # VTK Render Window
         # =========================
-        self.vtk_widget = QVTKRenderWindowInteractor()
+        self.vtk_widget = QVTKRenderWindowInteractor(self.vtk_page)
+        vtk_layout.addWidget(self.vtk_widget)
 
         self.renderer = vtk.vtkRenderer()
         self.update_background_color()  # 使用主类已有方法
@@ -46,8 +57,7 @@ class VTKViewMixin(_Base):
         # =========================
         # Tab Widget
         # =========================
-        self.tab_widget = QTabWidget()
-        self.tab_widget.addTab(self.vtk_widget, "3D View")
+        self.tab_widget.addTab(self.vtk_page, tr("vts.tab.3d"))
 
         # =========================
         # Plot Over Line Tab
@@ -76,7 +86,7 @@ class VTKViewMixin(_Base):
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
         plot_layout.addWidget(self.line_table_view)
-        self.tab_widget.addTab(self.plot_tab, "Plot Over Line")
+        self.tab_widget.addTab(self.plot_tab, tr("vts.tab.plot_line"))
         # plot lines 初始化
         self._line_styles = {}
         self.active_line_data = None  # 单条线数据 DataFrame

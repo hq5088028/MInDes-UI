@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QDoubleValidator, QPixmap, QPainter, QColor
 from PySide6.QtCore import Qt
 
+from ..i18n import add_combo_items, combo_value, set_combo_value, tr
+
 if TYPE_CHECKING:
     from ._types import VTSViewerProtocol as _Base
 else:
@@ -41,13 +43,13 @@ class ControlPanelMixin(_Base):
     """Creates all control-panel widgets and wires their signals."""
 
     def _create_control_panel(self):
-        panel = QGroupBox("Data Controls")
+        panel = QGroupBox(tr("vts.controls"))
         layout = QVBoxLayout()
 
         # =====================================================
         # Load
         # =====================================================
-        self.load_btn: QPushButton = QPushButton("📂 Load .vts Folder")
+        self.load_btn: QPushButton = QPushButton(tr("vts.load_folder"))
         self.load_btn.clicked.connect(self._load_vts_interactive)
         layout.addWidget(self.load_btn)
 
@@ -55,32 +57,41 @@ class ControlPanelMixin(_Base):
         # Background
         # =====================================================
         bg_layout = QHBoxLayout()
-        bg_layout.addWidget(QLabel("Background Color:"))
+        bg_layout.addWidget(QLabel(tr("vts.background")))
         self.bg_color_combo: QComboBox = QComboBox()
-        self.bg_color_combo.addItems(
-            ["White", "Light Gray", "Gray", "Dark Gray", "Black"]
+        add_combo_items(
+            self.bg_color_combo,
+            (
+                ("choice.white", "White"),
+                ("choice.light_gray", "Light Gray"),
+                ("choice.gray", "Gray"),
+                ("choice.dark_gray", "Dark Gray"),
+                ("choice.black", "Black"),
+            ),
         )
-        self.bg_color_combo.setCurrentText("Light Gray")
-        self.bg_color_combo.currentTextChanged.connect(self.update_background_color)
+        set_combo_value(self.bg_color_combo, "Light Gray")
+        self.bg_color_combo.currentIndexChanged.connect(
+            lambda _index: self.update_background_color(combo_value(self.bg_color_combo))
+        )
         bg_layout.addWidget(self.bg_color_combo)
         layout.addLayout(bg_layout)
 
         # =====================================================
         # Playback
         # =====================================================
-        self.playback_group: QGroupBox = QGroupBox("Playback Control")
+        self.playback_group: QGroupBox = QGroupBox(tr("vts.playback"))
         playback_layout = QVBoxLayout()
 
         play_btns = QHBoxLayout()
-        self.draw_btns: QPushButton = QPushButton("🧊 Draw")
+        self.draw_btns: QPushButton = QPushButton(tr("vts.draw"))
         self.draw_btns.clicked.connect(self.update_visualization)
         play_btns.addWidget(self.draw_btns)
 
-        self.play_button: QPushButton = QPushButton("▶ Play")
+        self.play_button: QPushButton = QPushButton(tr("vts.play"))
         self.play_button.clicked.connect(self.start_sequential_playback)
         play_btns.addWidget(self.play_button)
 
-        self.stop_button: QPushButton = QPushButton("⏹ Stop")
+        self.stop_button: QPushButton = QPushButton(tr("vts.stop"))
         self.stop_button.clicked.connect(self.stop_sequential_playback)
         self.stop_button.setEnabled(False)
         play_btns.addWidget(self.stop_button)
@@ -88,11 +99,11 @@ class ControlPanelMixin(_Base):
         playback_layout.addLayout(play_btns)
 
         auto_layout = QHBoxLayout()
-        self.auto_update_checkbox: QCheckBox = QCheckBox("Auto Update")
+        self.auto_update_checkbox: QCheckBox = QCheckBox(tr("vts.auto_update"))
         self.auto_update_checkbox.stateChanged.connect(self.toggle_auto_update)
         auto_layout.addWidget(self.auto_update_checkbox)
 
-        auto_layout.addWidget(QLabel("Interval:"))
+        auto_layout.addWidget(QLabel(tr("vts.interval")))
         self.auto_update_interval_combo: QComboBox = QComboBox()
         self.auto_update_interval_combo.addItems(
             ["0.02s", "0.05s", "0.1s", "0.2s", "0.5s"]
@@ -111,11 +122,11 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Field & Colormap
         # =====================================================
-        self.playback_status_label = QLabel("No data loaded")
+        self.playback_status_label = QLabel(tr("vts.status.no_data_loaded"))
         playback_layout.addWidget(self.playback_status_label)
 
         file_layout = QHBoxLayout()
-        file_layout.addWidget(QLabel("VTS Files:"))
+        file_layout.addWidget(QLabel(tr("vts.files")))
         self.file_combo: QComboBox = QComboBox()
         self.file_combo.currentIndexChanged.connect(self.on_file_combo_changed)
         self.file_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
@@ -130,12 +141,12 @@ class ControlPanelMixin(_Base):
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred
         )
         self.refresh_btn.clicked.connect(self.refresh_file_list)
-        self.refresh_btn.setToolTip("Reload vts files")
+        self.refresh_btn.setToolTip(tr("vts.reload_files"))
         file_layout.addWidget(self.refresh_btn)
         playback_layout.addLayout(file_layout)
 
         field_layout = QHBoxLayout()
-        field_layout.addWidget(QLabel("Data Fields:"))
+        field_layout.addWidget(QLabel(tr("vts.fields")))
         self.field_combo: QComboBox = QComboBox()
         self.field_combo.currentTextChanged.connect(self.on_field_selection_changed)
         self.field_combo.setSizePolicy(
@@ -152,10 +163,17 @@ class ControlPanelMixin(_Base):
         # =================
 
         map_layout = QHBoxLayout()
-        map_layout.addWidget(QLabel("Colormap:"))
+        map_layout.addWidget(QLabel(tr("vts.colormap")))
         self.colormap_combo: QComboBox = QComboBox()
-        self.colormap_combo.addItems(
-            ["Cool-Warm", "Rainbow", "Grayscale", "Viridis", "Plasma"]
+        add_combo_items(
+            self.colormap_combo,
+            (
+                ("choice.cool_warm", "Cool-Warm"),
+                ("choice.rainbow", "Rainbow"),
+                ("choice.grayscale", "Grayscale"),
+                ("choice.viridis", "Viridis"),
+                ("choice.plasma", "Plasma"),
+            ),
         )
         self.colormap_combo.currentIndexChanged.connect(self.update_colormap_preview)
         self.colormap_combo.setSizePolicy(
@@ -164,7 +182,7 @@ class ControlPanelMixin(_Base):
         map_layout.addWidget(self.colormap_combo)
         playback_layout.addLayout(map_layout)
 
-        self.auto_range_checkbox = QCheckBox("Auto Data Range")
+        self.auto_range_checkbox = QCheckBox(tr("vts.auto_range"))
         self.auto_range_checkbox.setChecked(True)
         self.auto_range_checkbox.toggled.connect(self.toggle_range_edit)
         playback_layout.addWidget(self.auto_range_checkbox)
@@ -180,13 +198,13 @@ class ControlPanelMixin(_Base):
         self.max_spin.setDecimals(4)
         self.max_spin.setEnabled(False)
 
-        range_layout.addWidget(QLabel("Min:"))
+        range_layout.addWidget(QLabel(tr("common.min")))
         range_layout.addWidget(self.min_spin)
-        range_layout.addWidget(QLabel("Max:"))
+        range_layout.addWidget(QLabel(tr("common.max")))
         range_layout.addWidget(self.max_spin)
         playback_layout.addLayout(range_layout)
 
-        playback_layout.addWidget(QLabel("Colormap:"))
+        playback_layout.addWidget(QLabel(tr("vts.colormap")))
         self.colorbar_label = QLabel()
         self.colorbar_label.setFixedHeight(20)
         playback_layout.addWidget(self.colorbar_label)
@@ -202,12 +220,21 @@ class ControlPanelMixin(_Base):
         # Visualization mode
         # =====================================================
         map_layout = QHBoxLayout()
-        map_layout.addWidget(QLabel("Draw Mode:"))
+        map_layout.addWidget(QLabel(tr("vts.draw_mode")))
         self.vis_mode_combo: QComboBox = QComboBox()
-        self.vis_mode_combo.addItems(
-            ["Surface", "Surface with Grid", "Clip", "Contour", "Vector Arrows"]
+        add_combo_items(
+            self.vis_mode_combo,
+            (
+                ("choice.surface", "Surface"),
+                ("choice.surface_grid", "Surface with Grid"),
+                ("choice.clip", "Clip"),
+                ("choice.contour", "Contour"),
+                ("choice.vector_arrows", "Vector Arrows"),
+            ),
         )
-        self.vis_mode_combo.currentTextChanged.connect(self.on_vis_mode_changed)
+        self.vis_mode_combo.currentIndexChanged.connect(
+            lambda _index: self.on_vis_mode_changed(combo_value(self.vis_mode_combo))
+        )
         self.vis_mode_combo.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
         )
@@ -218,31 +245,31 @@ class ControlPanelMixin(_Base):
         # model controls
         # =====================================================
         # Clip controls
-        self.clip_group = QGroupBox("Clip Plane")
+        self.clip_group = QGroupBox(tr("vts.clip_plane"))
         clip_layout = QVBoxLayout()
 
         self.clip_axis_combo: QComboBox = QComboBox()
         self.clip_axis_combo.addItems(["X", "Y", "Z"])
         self.clip_axis_combo.currentTextChanged.connect(self.on_clip_axis_changed)
-        clip_layout.addWidget(QLabel("Clip Axis:"))
+        clip_layout.addWidget(QLabel(tr("vts.clip_axis")))
         clip_layout.addWidget(self.clip_axis_combo)
 
         self.clip_slider = QDoubleSpinBox()
         self.clip_slider.setRange(-1e6, 1e6)
         self.clip_slider.setDecimals(4)
         self.clip_slider.setValue(0.0)
-        clip_layout.addWidget(QLabel("Clip Position:"))
+        clip_layout.addWidget(QLabel(tr("vts.clip_position")))
         clip_layout.addWidget(self.clip_slider)
         self.clip_group.setLayout(clip_layout)
         self.clip_group.setVisible(False)
         playback_layout.addWidget(self.clip_group)
 
         # Contour controls
-        self.contour_group = QGroupBox("Contour (Isosurface)")
+        self.contour_group = QGroupBox(tr("vts.contour"))
         contour_layout = QVBoxLayout()
         self.contour_levels_edit = QLineEdit()
-        self.contour_levels_edit.setPlaceholderText("e.g., 0.5, 1.0, 1.5")
-        contour_layout.addWidget(QLabel("Levels (comma-separated):"))
+        self.contour_levels_edit.setPlaceholderText(tr("vts.contour.placeholder"))
+        contour_layout.addWidget(QLabel(tr("vts.contour.levels")))
         contour_layout.addWidget(self.contour_levels_edit)
         self.contour_group.setLayout(contour_layout)
         self.contour_group.setVisible(False)
@@ -251,36 +278,44 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Vector Arrows Controls (Glyph)
         # =====================================================
-        self.glyph_group: QGroupBox = QGroupBox("Vector Arrows")
+        self.glyph_group: QGroupBox = QGroupBox(tr("vts.vector_arrows"))
         glyph_layout = QVBoxLayout()
 
         # 颜色模式
         color_mode_layout = QHBoxLayout()
-        color_mode_layout.addWidget(QLabel("Color Mode:"))
+        color_mode_layout.addWidget(QLabel(tr("vts.color_mode")))
         self.glyph_color_mode_combo: QComboBox = QComboBox()
-        self.glyph_color_mode_combo.addItems(["Single Color", "Colormap"])
-        self.glyph_color_mode_combo.currentTextChanged.connect(
-            self.on_glyph_color_mode_changed
+        add_combo_items(
+            self.glyph_color_mode_combo,
+            (("choice.single_color", "Single Color"), ("choice.colormap", "Colormap")),
+        )
+        self.glyph_color_mode_combo.currentIndexChanged.connect(
+            lambda _index: self.on_glyph_color_mode_changed(
+                combo_value(self.glyph_color_mode_combo)
+            )
         )
         color_mode_layout.addWidget(self.glyph_color_mode_combo)
         glyph_layout.addLayout(color_mode_layout)
 
         # 设置箭头颜色按钮（仅 Single Color 时可用）
-        self.arrow_color_btn: QPushButton = QPushButton("Set Arrow Color")
+        self.arrow_color_btn: QPushButton = QPushButton(tr("vts.arrow_color"))
         self.arrow_color_btn.clicked.connect(self.pick_arrow_color)
         glyph_layout.addWidget(self.arrow_color_btn)
 
         # 箭头大小模式
         size_mode_layout = QHBoxLayout()
-        size_mode_layout.addWidget(QLabel("Size Mode:"))
+        size_mode_layout.addWidget(QLabel(tr("vts.size_mode")))
         self.glyph_size_mode_combo: QComboBox = QComboBox()
-        self.glyph_size_mode_combo.addItems(["Magnitude", "Uniform"])
+        add_combo_items(
+            self.glyph_size_mode_combo,
+            (("choice.magnitude", "Magnitude"), ("choice.uniform", "Uniform")),
+        )
         size_mode_layout.addWidget(self.glyph_size_mode_combo)
         glyph_layout.addLayout(size_mode_layout)
 
         # 缩放因子
         scale_layout = QHBoxLayout()
-        scale_layout.addWidget(QLabel("Scale Factor:"))
+        scale_layout.addWidget(QLabel(tr("vts.scale_factor")))
         # 创建 QLineEdit 代替 QSlider
         self.glyph_scale_edit: QLineEdit = QLineEdit()
         self.glyph_scale_edit.setText("1.0")  # 默认值 1.0
@@ -317,13 +352,13 @@ class ControlPanelMixin(_Base):
         self.opacity_slider.valueChanged.connect(self.on_opacity_slider_changed)
         self.opacity_value_label = QLabel("1.00")
         self.opacity_value_label.setMinimumWidth(40)
-        op_layout.addWidget(QLabel("Opacity:"))
+        op_layout.addWidget(QLabel(tr("common.opacity")))
         op_layout.addWidget(self.opacity_slider)
         op_layout.addWidget(self.opacity_value_label)
         playback_layout.addLayout(op_layout)
 
         # With boundary
-        self.show_with_boundary_checkbox: QCheckBox = QCheckBox("With Boundary")
+        self.show_with_boundary_checkbox: QCheckBox = QCheckBox(tr("vts.with_boundary"))
         self.show_with_boundary_checkbox.setChecked(True)
         playback_layout.addWidget(self.show_with_boundary_checkbox)
 
@@ -333,12 +368,12 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Plot Over Line
         # =====================================================
-        self.plot_line_checkbox: QCheckBox = QCheckBox("📏 Plot Over Line")
+        self.plot_line_checkbox: QCheckBox = QCheckBox(tr("vts.plot_line"))
         self.plot_line_checkbox.stateChanged.connect(self.toggle_plot_over_line)
         self.plot_line_checkbox.setVisible(False)
         layout.addWidget(self.plot_line_checkbox)
 
-        self.line_endpoint_group = QGroupBox("Line Manual")
+        self.line_endpoint_group = QGroupBox(tr("vts.line_manual"))
         line_grid = QGridLayout()
         line_grid.setSpacing(6)  # 控件之间留点空隙
         line_grid.setContentsMargins(10, 10, 10, 10)  # 可选：内边距更美观
@@ -391,12 +426,12 @@ class ControlPanelMixin(_Base):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.set_line_btn = QPushButton("Get Data")
+        self.set_line_btn = QPushButton(tr("vts.get_data"))
         self.set_line_btn.clicked.connect(self.set_line_from_inputs)
         self.set_line_btn.setEnabled(False)
         button_layout.addWidget(self.set_line_btn)
 
-        self.export_excel_btn = QPushButton("📤 Export Data")
+        self.export_excel_btn = QPushButton(tr("vts.export_data"))
         self.export_excel_btn.clicked.connect(self.export_line_data)
         button_layout.addWidget(self.export_excel_btn)
 
@@ -414,9 +449,9 @@ class ControlPanelMixin(_Base):
         self.line_style_group = self._create_line_style_group()
         layout.addWidget(self.line_style_group)
 
-        self.y_axis_range_group = QGroupBox("Y Axis Range")
+        self.y_axis_range_group = QGroupBox(tr("vts.y_range"))
         y_range_layout = QGridLayout()
-        self.auto_y_range_checkbox = QCheckBox("Auto Y Range")
+        self.auto_y_range_checkbox = QCheckBox(tr("vts.auto_y_range"))
         self.auto_y_range_checkbox.setChecked(True)
         self.auto_y_range_checkbox.toggled.connect(self.toggle_y_axis_range)
         y_range_layout.addWidget(self.auto_y_range_checkbox, 0, 0, 1, 4)
@@ -430,9 +465,9 @@ class ControlPanelMixin(_Base):
             spin.editingFinished.connect(self.apply_manual_y_axis_range)
         self.y_max_spin.setValue(1.0)
 
-        y_range_layout.addWidget(QLabel("Min:"), 1, 0)
+        y_range_layout.addWidget(QLabel(tr("common.min")), 1, 0)
         y_range_layout.addWidget(self.y_min_spin, 1, 1)
-        y_range_layout.addWidget(QLabel("Max:"), 1, 2)
+        y_range_layout.addWidget(QLabel(tr("common.max")), 1, 2)
         y_range_layout.addWidget(self.y_max_spin, 1, 3)
         self.y_axis_range_group.setLayout(y_range_layout)
         self.y_axis_range_group.setVisible(False)
@@ -442,20 +477,20 @@ class ControlPanelMixin(_Base):
         # =====================================================
         # Visualization Enhancements
         # =====================================================
-        self.display_group = QGroupBox("Display Options:")
+        self.display_group = QGroupBox(tr("vts.display_options"))
         display_layout = QVBoxLayout()
 
-        self.show_axes_checkbox = QCheckBox("Show XYZ Axes")
+        self.show_axes_checkbox = QCheckBox(tr("vts.show_axes"))
         self.show_axes_checkbox.setChecked(False)
         self.show_axes_checkbox.stateChanged.connect(self.update_axes_visibility)
         display_layout.addWidget(self.show_axes_checkbox)
 
-        self.show_bounds_checkbox = QCheckBox("Show Domain Bounds")
+        self.show_bounds_checkbox = QCheckBox(tr("vts.show_bounds"))
         self.show_bounds_checkbox.setChecked(False)
         self.show_bounds_checkbox.stateChanged.connect(self.update_bounds_visibility)
         display_layout.addWidget(self.show_bounds_checkbox)
 
-        self.show_colorbar_checkbox = QCheckBox("Show Color Bar")
+        self.show_colorbar_checkbox = QCheckBox(tr("vts.show_colorbar"))
         self.show_colorbar_checkbox.setChecked(False)
         self.show_colorbar_checkbox.stateChanged.connect(
             self.update_colorbar_visibility
@@ -465,7 +500,7 @@ class ControlPanelMixin(_Base):
         # View reset buttons
         view_hbox = QHBoxLayout()
         for axis in ["X", "Y", "Z"]:
-            btn = QPushButton(f"View {axis}")
+            btn = QPushButton(tr("vts.view_axis", axis=axis))
             btn.clicked.connect(lambda _, a=axis: self.reset_view(a))
             view_hbox.addWidget(btn)
         display_layout.addLayout(view_hbox)
@@ -474,7 +509,7 @@ class ControlPanelMixin(_Base):
         layout.addWidget(self.display_group)
 
         # Save screenshot
-        self.save_btn = QPushButton("💾 Save Screenshot")
+        self.save_btn = QPushButton(tr("vts.save_screenshot"))
         self.save_btn.clicked.connect(self.save_screenshot)
         layout.addWidget(self.save_btn)
         # =====================================================
@@ -502,11 +537,11 @@ class ControlPanelMixin(_Base):
         is_vector = display_text.startswith("[V]")
         # 纠偏
         self.vis_mode_combo.blockSignals(True)
-        arrow_index = self.vis_mode_combo.findText("Vector Arrows")
+        arrow_index = self.vis_mode_combo.findData("Vector Arrows")
         if (arrow_index == current_index and not is_vector) or current_index == -1:
-            index = self.vis_mode_combo.findText("Surface")
+            index = self.vis_mode_combo.findData("Surface")
             self.vis_mode_combo.setCurrentIndex(index)
-            self.vis_mode_combo.setCurrentText("Surface")
+            set_combo_value(self.vis_mode_combo, "Surface")
             self.on_vis_mode_changed("Surface")
         self.vis_mode_combo.blockSignals(False)
         self.update_range_inputs()
@@ -525,7 +560,7 @@ class ControlPanelMixin(_Base):
         color = QColorDialog.getColor(
             QColor.fromRgbF(*self.arrow_color),
             cast(QWidget, self),
-            "Select Arrow Color",
+            tr("vts.dialog.arrow_color"),
         )
         if color.isValid():
             self.arrow_color = (color.redF(), color.greenF(), color.blueF())
@@ -556,15 +591,9 @@ class ControlPanelMixin(_Base):
 
     def save_screenshot(self):
         # 定义支持的格式
-        file_filter = (
-            "PNG Files (*.png);;"
-            "JPEG Files (*.jpg *.jpeg);;"
-            "TIFF Files (*.tiff *.tif);;"
-            "BMP Files (*.bmp);;"
-            "All Files (*)"
-        )
+        file_filter = tr("filter.images")
         file_path, selected_filter = QFileDialog.getSaveFileName(
-            cast(QWidget, self), "Save Screenshot", "", file_filter
+            cast(QWidget, self), tr("vts.dialog.save_screenshot"), "", file_filter
         )
         if not file_path:
             return  # 用户取消
@@ -580,13 +609,13 @@ class ControlPanelMixin(_Base):
             or lower_path.endswith(".bmp")
         ):
             # 根据选中的 filter 添加默认扩展名
-            if "PNG" in selected_filter:
+            if selected_filter == tr("filter.png_files"):
                 file_path += ".png"
-            elif "JPEG" in selected_filter:
+            elif selected_filter == tr("filter.jpeg_files"):
                 file_path += ".jpg"
-            elif "TIFF" in selected_filter:
+            elif selected_filter == tr("filter.tiff_files"):
                 file_path += ".tiff"
-            elif "BMP" in selected_filter:
+            elif selected_filter == tr("filter.bmp_files"):
                 file_path += ".bmp"
             else:
                 file_path += ".png"  # 默认
@@ -611,7 +640,7 @@ class ControlPanelMixin(_Base):
         elif ext.endswith(".bmp"):
             writer = vtk.vtkBMPWriter()
         else:
-            self.playback_status_label.setText("❌ Unsupported image format.")
+            self.playback_status_label.setText(tr("vts.status.unsupported_image"))
             return
 
         writer.SetFileName(file_path)
@@ -619,12 +648,12 @@ class ControlPanelMixin(_Base):
         writer.Write()
 
         self.playback_status_label.setText(
-            f"✅ Screenshot saved: {os.path.basename(file_path)}"
+            tr("vts.status.screenshot_saved", name=os.path.basename(file_path))
         )
 
     def _update_arrow_controls_visibility(self):
         is_vector = self.field_combo.currentText().startswith("[V]")
-        vsi_mode = self.vis_mode_combo.currentText()
+        vsi_mode = combo_value(self.vis_mode_combo)
         show_glyph = vsi_mode == "Vector Arrows" and is_vector
         self.arrow_color_btn.setVisible(show_glyph)
         self.color_arrows_by_mag_checkbox.setVisible(show_glyph)
@@ -635,7 +664,7 @@ class ControlPanelMixin(_Base):
         if not self.current_data or not self.auto_range_checkbox.isChecked():
             return
         display_text = self.field_combo.currentText()
-        if "(No fields)" in display_text:
+        if self.field_combo.currentData() == "__NO_FIELDS__":
             return
         field_name = display_text[4:]
         if display_text.startswith("[S]"):
@@ -652,7 +681,7 @@ class ControlPanelMixin(_Base):
             self.max_spin.blockSignals(False)
 
     def _create_line_style_group(self):
-        group = QGroupBox("Line Style")
+        group = QGroupBox(tr("vts.line_style"))
         self.line_style_layout = QVBoxLayout()
         group.setLayout(self.line_style_layout)
         self.line_style_group = group
@@ -732,7 +761,7 @@ class ControlPanelMixin(_Base):
         pixmap.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pixmap)
         lut = vtk.vtkLookupTable()
-        colormap_name = self.colormap_combo.currentText()
+        colormap_name = combo_value(self.colormap_combo)
         if colormap_name == "Cool-Warm":
             self._setup_coolwarm_lut(lut)
         elif colormap_name == "Rainbow":

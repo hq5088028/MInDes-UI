@@ -41,6 +41,8 @@ from PySide6.QtGui import (
 )
 from PySide6.QtCore import Qt, Signal, QRect, QSize, QThread, QObject, QTimer
 
+from .i18n import tr
+
 EDITOR_BACKGROUND = "#f0f0f0"
 PROGRESS_COLUMN_CANDIDATES = ["progress"]
 SIM_STEP_COLUMN_CANDIDATES = ["sim_step", "istep"]
@@ -144,7 +146,7 @@ class SolverRunner(QObject):
             self._cleanup_files()
 
             if return_code != 0:
-                raise RuntimeError(f"Solver exited with code {return_code}")
+                raise RuntimeError(tr("build.solver.exit_code", code=return_code))
 
             self.finished.emit()
 
@@ -778,13 +780,13 @@ class BuildSimulationWidget(QWidget):
 
         # Solver 下拉框
         self.solver_combo = QComboBox()
-        self.solver_combo.setPlaceholderText("Select Solver...")
+        self.solver_combo.setPlaceholderText(tr("build.solver.placeholder"))
         self.solver_combo.currentTextChanged.connect(self.on_solver_selected)
-        top_layout.addWidget(QLabel("Solver:"))
+        top_layout.addWidget(QLabel(tr("build.solver.label")))
         top_layout.addWidget(self.solver_combo)
 
         # Save 按钮（新增）
-        self.save_btn = QPushButton("Save")
+        self.save_btn = QPushButton(tr("build.save"))
         self.save_btn.clicked.connect(self.save_current_content)
         self.save_btn.setShortcut(QKeySequence("Ctrl+S"))
         self.save_btn.setStyleSheet("""
@@ -810,7 +812,7 @@ class BuildSimulationWidget(QWidget):
         top_layout.addWidget(self.save_btn)
 
         # Build 按钮
-        self.build_btn = QPushButton("Build")
+        self.build_btn = QPushButton(tr("build.build"))
         self.build_btn.clicked.connect(lambda: self.execute_solver(mode="build"))
         self.build_btn.setShortcut(QKeySequence("Ctrl+B"))
         self.build_btn.setStyleSheet("""
@@ -836,7 +838,7 @@ class BuildSimulationWidget(QWidget):
         top_layout.addWidget(self.build_btn)
 
         # === 新增：Debug/Edit 按钮 ===
-        self.debug_edit_btn = QPushButton("Debug/Edit")
+        self.debug_edit_btn = QPushButton(tr("build.debug_edit"))
         self.debug_edit_btn.clicked.connect(self._switch_to_input_report_if_needed)
         self.debug_edit_btn.setShortcut(QKeySequence("Ctrl+D"))  # 与右键一致
         self.debug_edit_btn.setStyleSheet("""
@@ -862,7 +864,7 @@ class BuildSimulationWidget(QWidget):
         top_layout.addWidget(self.debug_edit_btn)
 
         # Run 按钮
-        self.run_btn = QPushButton("Run")
+        self.run_btn = QPushButton(tr("build.run"))
         self.run_btn.clicked.connect(lambda: self.execute_solver(mode="run"))
         self.run_btn.setShortcut(QKeySequence("Ctrl+R"))
         self.run_btn.setStyleSheet("""
@@ -888,7 +890,7 @@ class BuildSimulationWidget(QWidget):
         top_layout.addWidget(self.run_btn)
 
         # === 新增：取消按钮和运行状态 ===
-        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn = QPushButton(tr("build.cancel"))
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.clicked.connect(self.cancel_solver)
         self.cancel_btn.setStyleSheet("""
@@ -980,7 +982,7 @@ class BuildSimulationWidget(QWidget):
         status_layout.setContentsMargins(0, 0, 0, 0)
         status_layout.setSpacing(6)
 
-        self.note_label = QLabel("Note:")
+        self.note_label = QLabel(tr("build.note"))
         self.note_label.setStyleSheet("""
                 QLabel {
                     background-color: #f0f0f0;
@@ -991,8 +993,8 @@ class BuildSimulationWidget(QWidget):
                     font-weight: bold;
                 }
             """)
-        self.status_line = QLabel("Ready.")
-        self.update_status("Ready.")  # 初始状态设置
+        self.status_line = QLabel(tr("build.status.ready"))
+        self.update_status(tr("build.status.ready"))  # 初始状态设置
         self.status_line.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
@@ -1086,7 +1088,7 @@ class BuildSimulationWidget(QWidget):
     def load_solvers(self) -> None:
         """扫描 solver/ 目录下的子文件夹，每个子文件夹视为一个求解器（含 MInDes.exe）"""
         if not self.solver_dir.exists():
-            self.update_status("Error: solver directory not found.", error=True)
+            self.update_status(tr("build.status.solver_dir_missing"), error=True)
             return
 
         solvers: list[tuple[str, str]] = []
@@ -1105,13 +1107,13 @@ class BuildSimulationWidget(QWidget):
             self.solver_combo.setCurrentIndex(0)
             self.selected_solver_path = solvers[0][1]
         else:
-            self.update_status("No solvers found in 'solver/' directory.", warning=True)
+            self.update_status(tr("build.status.no_solvers"), warning=True)
 
     def on_solver_selected(self, name: str) -> None:
         data = self.solver_combo.currentData()
         if data:
             self.selected_solver_path = data
-            self.update_status(f"Solver selected: {name}")
+            self.update_status(tr("build.status.solver_selected", name=name))
         self._update_progress_overlay()
 
     def _update_editor_actions(self) -> None:
@@ -1195,9 +1197,11 @@ class BuildSimulationWidget(QWidget):
         # 确保使用正确的 .mindes 高亮器
         self.switch_highlighter(False)
         self.text_edit.setPlainText(content)
+        self.text_edit.document().setModified(False)
         self._apply_editor_mode()
         self._set_running_state(
-            self.is_running, f"Loaded: {os.path.basename(file_path)}"
+            self.is_running,
+            tr("build.status.loaded", name=os.path.basename(file_path)),
         )
         self._update_progress_overlay()
         # TODO: 可在此处添加语法高亮/着色逻辑（预留）
@@ -1312,7 +1316,7 @@ class BuildSimulationWidget(QWidget):
 
     def on_solver_started(self) -> None:
         """进程已成功启动，启用 Cancel 按钮"""
-        self._set_running_state(True, "Solver started.", success=True)
+        self._set_running_state(True, tr("build.status.started"), success=True)
 
         if self._current_run_mode == "run":
             self._update_progress_overlay(stat_file_found=False)
@@ -1331,15 +1335,17 @@ class BuildSimulationWidget(QWidget):
         self._poll_output_project_path_ready()
         self._close_progress_dialog()
         self._stop_output_project_path_watch()
-        self._set_running_state(False, "Solver finished.", success=True)
+        self._set_running_state(False, tr("build.status.finished"), success=True)
         if result_dir:
             self.simulationFinished.emit(result_dir)
 
     def on_solver_error(self, error_msg: str) -> None:
         self._close_progress_dialog()
         self._stop_output_project_path_watch()
-        self._set_running_state(False, f"Error: {error_msg}", error=True)
-        QMessageBox.critical(self, "Solver Error", error_msg)
+        self._set_running_state(
+            False, tr("build.status.error", error=error_msg), error=True
+        )
+        QMessageBox.critical(self, tr("build.dialog.solver_error"), error_msg)
 
     def _reset_buttons(self) -> None:
         """恢复按钮状态"""
@@ -1349,22 +1355,36 @@ class BuildSimulationWidget(QWidget):
         """取消正在运行的求解器"""
         if self.solver_worker and self.is_running:
             self.cancel_btn.setEnabled(False)
-            self.update_status("Terminating solver...", warning=True)
+            self.update_status(tr("build.status.terminating"), warning=True)
             self.solver_worker.cancel()
 
     def execute_solver(self, mode: str) -> None:
         if not self.current_mindes_file:
-            QMessageBox.warning(self, "No File", "Please load a .mindes file first.")
+            QMessageBox.warning(
+                self,
+                tr("build.dialog.no_file.title"),
+                tr("build.dialog.no_file.body"),
+            )
             return
         if not self.selected_solver_path:
-            QMessageBox.warning(self, "No Solver", "Please select a solver.")
+            QMessageBox.warning(
+                self,
+                tr("build.dialog.no_solver.title"),
+                tr("build.dialog.no_solver.body"),
+            )
             return
         if self.is_running:
-            QMessageBox.information(self, "Busy", "A solver is already running.")
+            QMessageBox.information(
+                self,
+                tr("build.dialog.busy.title"),
+                tr("build.dialog.busy.running"),
+            )
             return  # 防止重复点击
         if self.solver_worker or self.solver_thread:
             QMessageBox.information(
-                self, "Busy", "Previous solver resources are still being cleaned up."
+                self,
+                tr("build.dialog.busy.title"),
+                tr("build.dialog.busy.cleanup"),
             )
             return
 
@@ -1376,7 +1396,9 @@ class BuildSimulationWidget(QWidget):
         result_dir = os.path.splitext(mindes_abs)[0]
         solver_dir = os.path.dirname(self.selected_solver_path)
         omp_threads = max(1, (os.cpu_count() or 2) - 1)
-        self._set_running_state(True, f"Launching {mode}...", info=True)
+        self._set_running_state(
+            True, tr("build.status.launching", mode=mode), info=True
+        )
         self._current_run_mode = mode
 
         # === 根据 mode 准备参数 ===
@@ -1405,7 +1427,9 @@ class BuildSimulationWidget(QWidget):
             self._progress_stat_path = None
             self._update_progress_overlay(stat_file_found=False)
         else:
-            self._set_running_state(False, f"Unknown mode: {mode}", error=True)
+            self._set_running_state(
+                False, tr("build.status.unknown_mode", mode=mode), error=True
+            )
             return
 
         # === 启动后台线程 ===
@@ -1456,14 +1480,14 @@ class BuildSimulationWidget(QWidget):
         self._solver_shutdown_in_progress = True
         if self.is_running:
             self.cancel_btn.setEnabled(False)
-            self.update_status("Stopping solver before exit...", warning=True)
+            self.update_status(tr("build.status.stopping"), warning=True)
             self.requestCancelSolver.emit()
 
         if self.solver_thread.isRunning():
             self.solver_thread.quit()
             if self.solver_thread.wait(timeout_ms):
                 return True
-            self.update_status("Solver did not stop cleanly before exit.", warning=True)
+            self.update_status(tr("build.status.stop_failed"), warning=True)
             return False
         return True
 
@@ -1475,23 +1499,23 @@ class BuildSimulationWidget(QWidget):
 
         if not self.is_showing_report:
             # 显示 .mindes 文件时的菜单
-            save_action = menu.addAction("Save (Ctrl+S)")
-            Build_action = menu.addAction("Build (Ctrl+B)")
-            read_report_action = menu.addAction("Debug Infile (Ctrl+D)")
-            Run_action = menu.addAction("Run (Ctrl+R)")
-            Cancel_action = menu.addAction("Cancel (Ctrl+E)")
+            save_action = menu.addAction(tr("build.menu.save"))
+            Build_action = menu.addAction(tr("build.menu.build"))
+            read_report_action = menu.addAction(tr("build.menu.debug"))
+            Run_action = menu.addAction(tr("build.menu.run"))
+            Cancel_action = menu.addAction(tr("build.menu.cancel"))
             menu.addSeparator()
             if has_selection:
-                copy_action = menu.addAction("Copy (Ctrl+C)")
-                cut_action = menu.addAction("Cut (Ctrl+X)")
+                copy_action = menu.addAction(tr("build.menu.copy"))
+                cut_action = menu.addAction(tr("build.menu.cut"))
             else:
-                menu.addAction("No Selection").setEnabled(False)
+                menu.addAction(tr("common.no_selection")).setEnabled(False)
                 copy_action = None
                 cut_action = None
-            paste_action = menu.addAction("Paste (Ctrl+V)")
+            paste_action = menu.addAction(tr("build.menu.paste"))
             menu.addSeparator()
-            custom_def_action = menu.addAction("Custom Definitions")
-            input_helper_action = menu.addAction("Input Helper")
+            custom_def_action = menu.addAction(tr("build.menu.custom_definitions"))
+            input_helper_action = menu.addAction(tr("build.menu.input_helper"))
             if has_selection:
                 selected_text = cursor.selectedText()
                 if self._is_valid_for_input_helper(selected_text):
@@ -1524,13 +1548,13 @@ class BuildSimulationWidget(QWidget):
                 self._launch_input_helper(cursor.selectedText())
         else:
             if has_selection:
-                copy_action = menu.addAction("Copy")
+                copy_action = menu.addAction(tr("common.copy"))
                 action = menu.exec(self.text_edit.mapToGlobal(pos))
                 if action == copy_action:
                     self.text_edit.copy()
             else:
-                menu.addAction("No Selection").setEnabled(False)
-            read_write_action = menu.addAction("Edit Infile (Ctrl+D)")
+                menu.addAction(tr("common.no_selection")).setEnabled(False)
+            read_write_action = menu.addAction(tr("build.menu.edit_infile"))
             action = menu.exec(self.text_edit.mapToGlobal(pos))
             if action == read_write_action:
                 self._switch_to_input_report_if_needed()
@@ -1550,15 +1574,17 @@ class BuildSimulationWidget(QWidget):
 
         try:
             self.parsed_definitions = self.parse_input_report(report_path)
-            self.update_status("Custom definitions reloaded.", success=True)
+            self.update_status(tr("build.status.definitions_reloaded"), success=True)
         except Exception as e:
-            self.update_status(f"Failed to reload definitions: {e}", error=True)
+            self.update_status(
+                tr("build.status.definitions_reload_failed", error=e), error=True
+            )
             self.parsed_definitions = None
 
     def on_solver_canceled(self) -> None:
         self._close_progress_dialog()
         self._stop_output_project_path_watch()
-        self._set_running_state(False, "Solver canceled by user.", warning=True)
+        self._set_running_state(False, tr("build.status.canceled"), warning=True)
 
     def show_input_report(self) -> None:
         """显示 input_report.txt 文件"""
@@ -1575,14 +1601,15 @@ class BuildSimulationWidget(QWidget):
                 # 切换高亮器
                 self.switch_highlighter(True)
                 self.text_edit.setPlainText(content)
+                self.text_edit.document().setModified(False)
                 self._apply_editor_mode()
-                self.update_status("Showing input_report.txt (read-only)")
+                self.update_status(tr("build.status.showing_report"))
             except Exception as e:
                 self.update_status(
-                    f"Failed to read input_report.txt: {str(e)}", error=True
+                    tr("build.status.report_read_failed", error=e), error=True
                 )
         else:
-            self.update_status("input_report.txt not found", warning=True)
+            self.update_status(tr("build.status.report_missing"), warning=True)
 
     def _replace_selected_text(self, new_text: str):
         """替换当前选中文本"""
@@ -1601,10 +1628,16 @@ class BuildSimulationWidget(QWidget):
             # 切换高亮器
             self.switch_highlighter(False)
             self.text_edit.setPlainText(content)
+            self.text_edit.document().setModified(False)
             self._apply_editor_mode()
-            self.update_status(f"Editing: {os.path.basename(self.current_mindes_file)}")
+            self.update_status(
+                tr(
+                    "build.status.editing",
+                    name=os.path.basename(self.current_mindes_file),
+                )
+            )
         except Exception as e:
-            self.update_status(f"Failed to reload .mindes file: {str(e)}", error=True)
+            self.update_status(tr("build.status.reload_failed", error=e), error=True)
 
     def update_status(
         self,
@@ -1677,6 +1710,13 @@ class BuildSimulationWidget(QWidget):
         """获取当前文本编辑器的内容"""
         return self.text_edit.toPlainText()
 
+    def has_unsaved_changes(self) -> bool:
+        return bool(
+            self.current_mindes_file
+            and not self.is_showing_report
+            and self.text_edit.document().isModified()
+        )
+
     def save_current_content(self) -> bool:
         """保存当前内容到 .mindes 文件（如果存在）"""
         if self.current_mindes_file and not self.is_showing_report:
@@ -1686,10 +1726,11 @@ class BuildSimulationWidget(QWidget):
                     self.current_mindes_file, "w", newline="\n", encoding="utf-8"
                 ) as f:
                     f.write(content)
-                self.update_status("File saved successfully.", success=True)
+                self.text_edit.document().setModified(False)
+                self.update_status(tr("build.status.saved"), success=True)
                 return True
             except Exception as e:
-                self.update_status(f"Save failed: {str(e)}", error=True)
+                self.update_status(tr("build.status.save_failed", error=e), error=True)
                 return False
         return False
 
@@ -2018,20 +2059,24 @@ class BuildSimulationWidget(QWidget):
 
         if not variables and not functions:
             QMessageBox.information(
-                self, "Custom Definitions", "No custom variables or functions found."
+                self,
+                tr("build.definitions.title"),
+                tr("build.definitions.empty"),
             )
             return
 
         # 创建非模态浮动窗口
         popup = QWidget(self, Qt.WindowType.Window)
-        popup.setWindowTitle("Custom Definitions")
+        popup.setWindowTitle(tr("build.definitions.title"))
         popup.resize(500, 400)
         layout = QVBoxLayout(popup)
 
         # 创建表格
         table = QTableWidget()
         table.setColumnCount(3)
-        table.setHorizontalHeaderLabels(["Name", "Value", "Expression"])
+        table.setHorizontalHeaderLabels(
+            [tr("common.name"), tr("common.value"), tr("common.expression")]
+        )
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(
             QTableWidget.SelectionBehavior.SelectItems
@@ -2062,8 +2107,8 @@ class BuildSimulationWidget(QWidget):
         # === 右键菜单 ===
         def show_context_menu(pos: Any) -> None:
             context_menu = QMenu(popup)
-            copy_action = context_menu.addAction("Copy")
-            refresh_action = context_menu.addAction("Refresh")
+            copy_action = context_menu.addAction(tr("common.copy"))
+            refresh_action = context_menu.addAction(tr("common.refresh"))
 
             action = context_menu.exec(table.viewport().mapToGlobal(pos))
             if action == copy_action:
@@ -2078,7 +2123,7 @@ class BuildSimulationWidget(QWidget):
         table.customContextMenuRequested.connect(show_context_menu)
 
         layout.addWidget(table)
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("common.close"))
         close_btn.clicked.connect(popup.close)
         layout.addWidget(close_btn)
 
@@ -2096,7 +2141,9 @@ class BuildSimulationWidget(QWidget):
 
         if not os.path.exists(report_path):
             QMessageBox.warning(
-                popup_widget, "Refresh Failed", "input_report.txt not found."
+                popup_widget,
+                tr("build.definitions.refresh_failed"),
+                tr("build.definitions.report_missing"),
             )
             return
 
@@ -2118,13 +2165,17 @@ class BuildSimulationWidget(QWidget):
 
             # 关键：同步主状态，确保下次打开弹窗也是最新合并数据
             self.parsed_definitions = new_parsed
-            self.update_status("Custom Definitions refreshed.", success=True)
+            self.update_status(tr("build.definitions.refreshed"), success=True)
 
         except Exception as e:
             QMessageBox.critical(
-                popup_widget, "Refresh Error", f"Failed to refresh: {str(e)}"
+                popup_widget,
+                tr("build.definitions.refresh_error"),
+                tr("build.definitions.refresh_error_body", error=e),
             )
-            self.update_status(f"Refresh failed: {e}", error=True)
+            self.update_status(
+                tr("build.definitions.refresh_status_failed", error=e), error=True
+            )
 
     def clean_function_expression(self, expr: str) -> str:
         """
@@ -2178,7 +2229,9 @@ class BuildSimulationWidget(QWidget):
             self._show_tuple_helper(text)
         else:
             QMessageBox.information(
-                self, "Input Helper", "No helper available for this selection."
+                self,
+                tr("build.input_helper.title"),
+                tr("build.input_helper.unavailable"),
             )
 
     # ----------------------------------------------------------------------------------
@@ -2189,10 +2242,10 @@ class BuildSimulationWidget(QWidget):
     def _show_tuple_helper(self, current_text: str) -> None:
         """辅助生成元组 (a, b, c)"""
         dialog = QDialog(self)
-        dialog.setWindowTitle("Tuple Helper")
+        dialog.setWindowTitle(tr("build.tuple_helper.title"))
         layout = QVBoxLayout(dialog)
 
-        label = QLabel("Edit tuple elements:")
+        label = QLabel(tr("build.tuple_helper.label"))
         layout.addWidget(label)
 
         text_edit = QTextEdit()

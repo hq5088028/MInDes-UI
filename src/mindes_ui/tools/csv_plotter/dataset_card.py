@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...i18n import tr
+
 
 class OpaqueColumnComboBox(QComboBox):
     """Column selector with a fully opaque popup on Windows native styles."""
@@ -91,7 +93,7 @@ class DatasetControlCard(QFrame):
         root.setSpacing(6)
         header = QHBoxLayout()
         root.addLayout(header)
-        self.on_checkbox = QCheckBox("On")
+        self.on_checkbox = QCheckBox(tr("common.on"))
         self.on_checkbox.setChecked(dataset.enabled and available)
         header.addWidget(self.on_checkbox)
         header.addStretch()
@@ -119,13 +121,13 @@ class DatasetControlCard(QFrame):
         self.y3d_combo = self._column_combo(columns, dataset.y3d)
         self.z3d_combo = self._column_combo(columns, dataset.z3d)
         self._field_specs = [
-            ("Label", self.label_edit),
-            ("File", self.file_label),
-            ("2D X", self.x2d_combo),
-            ("2D Y", self.y2d_combo),
-            ("3D X", self.x3d_combo),
-            ("3D Y", self.y3d_combo),
-            ("3D Z", self.z3d_combo),
+            (tr("common.label"), self.label_edit),
+            (tr("common.file"), self.file_label),
+            (tr("dataset.field.2d_x"), self.x2d_combo),
+            (tr("dataset.field.2d_y"), self.y2d_combo),
+            (tr("dataset.field.3d_x"), self.x3d_combo),
+            (tr("dataset.field.3d_y"), self.y3d_combo),
+            (tr("dataset.field.3d_z"), self.z3d_combo),
         ]
         self._field_boxes = [
             self._make_field(label, widget) for label, widget in self._field_specs
@@ -277,14 +279,14 @@ class DatasetControlCard(QFrame):
 
     def _show_menu(self, pos):
         menu = QMenu(self)
-        up = menu.addAction("Move Up")
-        down = menu.addAction("Move Down")
-        top = menu.addAction("Move to Top")
-        bottom = menu.addAction("Move to Bottom")
+        up = menu.addAction(tr("dataset.move_up"))
+        down = menu.addAction(tr("dataset.move_down"))
+        top = menu.addAction(tr("dataset.move_top"))
+        bottom = menu.addAction(tr("dataset.move_bottom"))
         menu.addSeparator()
-        duplicate_action = menu.addAction("Duplicate Dataset")
-        reload_action = menu.addAction("Reload This CSV")
-        remove_action = menu.addAction("Remove This CSV")
+        duplicate_action = menu.addAction(tr("dataset.duplicate"))
+        reload_action = menu.addAction(tr("dataset.reload_csv"))
+        remove_action = menu.addAction(tr("dataset.remove_csv"))
         action = menu.exec(self.mapToGlobal(pos))
         mapping = {up: "up", down: "down", top: "top", bottom: "bottom"}
         if action in mapping:

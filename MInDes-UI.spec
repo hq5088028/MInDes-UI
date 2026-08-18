@@ -8,12 +8,26 @@
 
 block_cipher = None
 
+from PyInstaller.utils.hooks import collect_data_files
+
 # ---------------------------------------------------------------------------
 # Runtime resources
 # ---------------------------------------------------------------------------
 datas = [
     ('icon', 'icon'),
-]
+] + collect_data_files(
+    'PySide6',
+    includes=[
+        'translations/qt_zh_CN.qm', 'translations/qtbase_zh_CN.qm',
+        'translations/qt_zh_TW.qm', 'translations/qtbase_zh_TW.qm',
+        'translations/qt_de.qm', 'translations/qtbase_de.qm',
+        'translations/qt_fr.qm', 'translations/qtbase_fr.qm',
+        'translations/qt_es.qm', 'translations/qtbase_es.qm',
+        'translations/qt_ru.qm', 'translations/qtbase_ru.qm',
+        'translations/qt_ko.qm', 'translations/qtbase_ko.qm',
+        'translations/qt_ja.qm', 'translations/qtbase_ja.qm',
+    ],
+)
 
 # ---------------------------------------------------------------------------
 # Hidden imports PyInstaller sometimes misses
@@ -24,6 +38,17 @@ hiddenimports = [
     'vtkmodules.qt.QVTKRenderWindowInteractor',
     'matplotlib.backends.backend_qtagg',
     'openpyxl',
+    'mindes_ui.i18n',
+    'mindes_ui.i18n.manager',
+    'mindes_ui.i18n.en',
+    'mindes_ui.i18n.zh_cn',
+    'mindes_ui.i18n.zh_tw',
+    'mindes_ui.i18n.de',
+    'mindes_ui.i18n.fr',
+    'mindes_ui.i18n.es',
+    'mindes_ui.i18n.ru',
+    'mindes_ui.i18n.ko',
+    'mindes_ui.i18n.ja',
     # tools 以包方式被 import, 这里保险起见显式列出
     'mindes_ui.tools',
     'mindes_ui.tools.csv_plotter',

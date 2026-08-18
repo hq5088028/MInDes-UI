@@ -67,6 +67,8 @@ import vtk
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 from matplotlib.figure import Figure
+
+from ...i18n import tr
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavToolbar
 from PySide6.QtGui import QGuiApplication
@@ -116,14 +118,14 @@ class PhaseGFunction:
 class ColumnMappingDialog(QDialog):
     def __init__(self, frame, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Map composition and Gibbs columns")
+        self.setWindowTitle(tr("tangent.map_title"))
         self.resize(430, 480)
         layout = QVBoxLayout(self)
         form = QFormLayout()
         layout.addLayout(form)
         self.g_combo = QComboBox()
         self.g_combo.addItems([str(value) for value in frame.columns])
-        form.addRow("Gibbs energy:", self.g_combo)
+        form.addRow(tr("tangent.gibbs_energy"), self.g_combo)
         names = [str(value).strip().lower() for value in frame.columns]
         suggested = next(
             (
@@ -134,7 +136,7 @@ class ColumnMappingDialog(QDialog):
             len(names) - 1,
         )
         self.g_combo.setCurrentIndex(max(0, suggested))
-        layout.addWidget(QLabel("Composition columns (select at least three):"))
+        layout.addWidget(QLabel(tr("tangent.composition_columns")))
         self.columns = QListWidget()
         layout.addWidget(self.columns, 1)
         for column in frame.columns:
@@ -174,13 +176,13 @@ class ColumnMappingDialog(QDialog):
         if self.g_combo.currentText() in selected:
             QMessageBox.warning(
                 self,
-                "Column mapping",
-                "The Gibbs-energy column cannot also be a composition column.",
+                tr("tangent.column_mapping"),
+                tr("tangent.gibbs_conflict"),
             )
             return
         if len(selected) < 3:
             QMessageBox.warning(
-                self, "Column mapping", "Select at least three composition columns."
+                self, tr("tangent.column_mapping"), tr("tangent.select_three")
             )
             return
         self.accept()
@@ -389,7 +391,7 @@ class CommonTangentDialog(QDialog):
         self.phase_b = self._wrap(Gb_func, "beta") if Gb_func else None
         self.tangent_result = None
 
-        self.setWindowTitle("Two-phase Gibbs common-tangent viewer  (ternary A-B-C)")
+        self.setWindowTitle(tr("tangent.title"))
         self.setWindowFlag(Qt.WindowType.Window, True)  # 允许最大化/最小化按钮
         self._set_adaptive_dialog_size(parent)
         self._zscale = 1.0  # 3D 显示的 Z 方向压缩比, compute 时重设
@@ -496,14 +498,14 @@ class CommonTangentDialog(QDialog):
         active = tuple(combo.currentText() for combo in self.active_combos)
         if len(set(active)) != 3:
             QMessageBox.warning(
-                self, "Section", "Choose three distinct active components."
+                self, tr("tangent.section"), tr("tangent.choose_distinct")
             )
             return
         self.active_components = active
         if self.phase_table_a is not None or self.phase_table_b is not None:
             if self.phase_table_a is None or self.phase_table_b is None:
                 QMessageBox.information(
-                    self, "Section", "Load both phase tables first."
+                    self, tr("tangent.section"), tr("tangent.load_both")
                 )
                 return
             try:
@@ -513,7 +515,7 @@ class CommonTangentDialog(QDialog):
                 self.section_a = self.phase_table_a.section(active, fixed, tolerances)
                 self.section_b = self.phase_table_b.section(active, fixed, tolerances)
             except Exception as exc:
-                QMessageBox.critical(self, "Invalid section", str(exc))
+                QMessageBox.critical(self, tr("tangent.invalid_section"), str(exc))
                 return
             self.phase_a, self.phase_b = self.section_a, self.section_b
         self._update_dynamic_labels()
@@ -527,13 +529,19 @@ class CommonTangentDialog(QDialog):
         if hasattr(self, "axes"):
             self.axes.SetXTitle(a)
             self.axes.SetYTitle(b)
-            self.axes.SetZTitle("G (scaled)")
+            self.axes.SetZTitle(tr("tangent.axis.g_scaled"))
         if hasattr(self, "lbl_input_a"):
             self.lbl_input_a.setText(f"{a}:")
             self.lbl_input_b.setText(f"{b}:")
             total = self.section_a.active_total if self.section_a is not None else 1.0
             self.inp_group.setTitle(
-                f"Input composition ({c} = {total:.4g} − {a} − {b})"
+                tr(
+                    "tangent.input_composition_dynamic",
+                    c=c,
+                    total=f"{total:.4g}",
+                    a=a,
+                    b=b,
+                )
             )
             for spin in (self.spin_x1, self.spin_x2):
                 spin.setRange(0.0, total)
@@ -548,12 +556,7 @@ class CommonTangentDialog(QDialog):
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(6)
 
-        banner = QLabel(
-            "<b>Constrained ternary section at fixed T/P.</b> "
-            "Both phases must be at the <b>same temperature</b>, "
-            "with consistent reference state and units. "
-            "For multicomponent data choose three active components and fix all remaining components."
-        )
+        banner = QLabel(tr("tangent.banner"))
         banner.setStyleSheet(
             "background:#fff8dc; padding:6px; border:1px solid #d2b48c;font-size:12px;"
         )
@@ -561,7 +564,7 @@ class CommonTangentDialog(QDialog):
         banner.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         root.addWidget(banner)
 
-        section_group = QGroupBox("Multicomponent section")
+        section_group = QGroupBox(tr("tangent.multicomponent"))
         section_layout = QVBoxLayout(section_group)
         active_row = QHBoxLayout()
         section_layout.addLayout(active_row)
@@ -570,17 +573,21 @@ class CommonTangentDialog(QDialog):
             combo = QComboBox()
             combo.addItems(self.component_names)
             combo.setCurrentIndex(index)
-            active_row.addWidget(QLabel(f"Active {index + 1}:"))
+            active_row.addWidget(QLabel(tr("tangent.active_component", index=index + 1)))
             active_row.addWidget(combo)
             self.active_combos.append(combo)
             combo.currentTextChanged.connect(self._refresh_fixed_rows)
-        self.btn_apply_section = QPushButton("Apply section")
+        self.btn_apply_section = QPushButton(tr("tangent.apply_section"))
         self.btn_apply_section.clicked.connect(self._apply_section)
         active_row.addWidget(self.btn_apply_section)
         active_row.addStretch()
         self.fixed_table = QTableWidget(0, 3)
         self.fixed_table.setHorizontalHeaderLabels(
-            ["Fixed component", "Value", "Tolerance"]
+            [
+                tr("tangent.fixed_component"),
+                tr("common.value"),
+                tr("tangent.tolerance"),
+            ]
         )
         self.fixed_table.verticalHeader().setVisible(False)
         self.fixed_table.setMaximumHeight(130)
@@ -637,7 +644,7 @@ class CommonTangentDialog(QDialog):
         self.axes.SetCamera(self.renderer.GetActiveCamera())
         self.axes.SetXTitle("x1")
         self.axes.SetYTitle("x2")
-        self.axes.SetZTitle("G (scaled)")
+        self.axes.SetZTitle(tr("tangent.axis.g_scaled"))
         for prop in (
             self.axes.GetTitleTextProperty(0),
             self.axes.GetTitleTextProperty(1),
@@ -722,10 +729,10 @@ class CommonTangentDialog(QDialog):
         ctrl_row = QHBoxLayout(ctrl_bar)
         ctrl_row.setContentsMargins(0, 0, 0, 0)
 
-        io_group = QGroupBox("Data import")
+        io_group = QGroupBox(tr("tangent.data_import"))
         io_lay = QHBoxLayout(io_group)
-        self.btn_load_a = QPushButton("Import phase α (CSV)")
-        self.btn_load_b = QPushButton("Import phase β (CSV)")
+        self.btn_load_a = QPushButton(tr("tangent.import_alpha"))
+        self.btn_load_b = QPushButton(tr("tangent.import_beta"))
         self.btn_load_a.clicked.connect(lambda: self.on_load_csv("alpha"))
         self.btn_load_b.clicked.connect(lambda: self.on_load_csv("beta"))
         self.lbl_src_a = QLabel("α: <i>demo</i>" if self.phase_a else "α: —")
@@ -747,20 +754,20 @@ class CommonTangentDialog(QDialog):
         io_lay.addStretch(1)
         ctrl_row.addWidget(io_group, stretch=2)
 
-        comp_group = QGroupBox("Compute")
+        comp_group = QGroupBox(tr("tangent.compute"))
         comp_lay = QHBoxLayout(comp_group)
-        comp_lay.addWidget(QLabel("grid n:"))
+        comp_lay.addWidget(QLabel(tr("tangent.grid_n")))
         self.spin_n = QSpinBox()
         self.spin_n.setRange(10, 400)
         self.spin_n.setValue(n_init)
         comp_lay.addWidget(self.spin_n)
-        self.btn_compute = QPushButton("Compute")
+        self.btn_compute = QPushButton(tr("tangent.compute"))
         self.btn_compute.clicked.connect(self.on_compute)
         comp_lay.addWidget(self.btn_compute)
         comp_lay.addStretch(1)
         ctrl_row.addWidget(comp_group, stretch=1)
 
-        self.inp_group = QGroupBox("Input composition  (x3 = 1 − x1 − x2)")
+        self.inp_group = QGroupBox(tr("tangent.input_composition"))
         inp_lay = QHBoxLayout(self.inp_group)
         self.lbl_input_a = QLabel("x1:")
         inp_lay.addWidget(self.lbl_input_a)
@@ -780,7 +787,7 @@ class CommonTangentDialog(QDialog):
         self.spin_x2.setValue(0.20)
         inp_lay.addWidget(self.spin_x2)
 
-        self.btn_update_pt = QPushButton("Update input point")
+        self.btn_update_pt = QPushButton(tr("tangent.update_point"))
         self.btn_update_pt.clicked.connect(self.on_update_point)
         inp_lay.addWidget(self.btn_update_pt)
         inp_lay.addStretch(1)
@@ -788,7 +795,7 @@ class CommonTangentDialog(QDialog):
 
         root.addWidget(ctrl_bar)
 
-        self.lbl_result = QLabel("Load two phases, then press Compute.")
+        self.lbl_result = QLabel(tr("tangent.status.begin"))
         self.lbl_result.setStyleSheet(
             "font-weight:bold; font-size:13px; padding:6px;"
             "background:#eef; border:1px solid #99c;"
@@ -816,8 +823,7 @@ class CommonTangentDialog(QDialog):
         self.ax2d.set_xlim(-0.1, 1.15)
         self.ax2d.set_ylim(-0.1, 1.15)
         self.ax2d.set_title(
-            f"Tie-lines on constrained {a}-{b}-{c} section\n"
-            "(load phases and press Compute)"
+            tr("tangent.plot.awaiting", a=a, b=b, c=c)
         )
         self.canvas.draw()
 
@@ -900,16 +906,16 @@ class CommonTangentDialog(QDialog):
     def on_load_csv(self, which):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            f"Select CSV for phase {which}",
+            tr("tangent.dialog.select_phase", phase=which),
             "",
-            "CSV files (*.csv *.txt);;All files (*)",
+            tr("filter.csv_txt_all"),
         )
         if not path:
             return
         try:
             table = load_csv_phase_table(path, parent=self, label=which)
         except Exception as e:
-            QMessageBox.critical(self, "Failed to load CSV", str(e))
+            QMessageBox.critical(self, tr("tangent.failed_load"), str(e))
             return
         if table is None:
             return
@@ -929,24 +935,28 @@ class CommonTangentDialog(QDialog):
             self.section_b = None
             self.lbl_src_b.setText(f"β: {info}")
         if self.phase_table_a is None or self.phase_table_b is None:
-            self.lbl_result.setText(
-                "Load the second phase table, then configure the constrained section."
-            )
+            self.lbl_result.setText(tr("tangent.status.load_second"))
             return
         if set(self.phase_table_a.components) != set(self.phase_table_b.components):
             QMessageBox.critical(
                 self,
-                "Incompatible phase tables",
-                "The two phases must contain the same component columns.\n"
-                f"α: {', '.join(self.phase_table_a.components)}\n"
-                f"β: {', '.join(self.phase_table_b.components)}",
+                tr("tangent.incompatible"),
+                tr(
+                    "tangent.error.incompatible_columns",
+                    alpha=", ".join(self.phase_table_a.components),
+                    beta=", ".join(self.phase_table_b.components),
+                ),
             )
             if which == "alpha":
                 self.phase_table_a = None
-                self.lbl_src_a.setText("α: incompatible table; load another CSV")
+                self.lbl_src_a.setText(
+                    tr("tangent.status.incompatible_phase", phase="α")
+                )
             else:
                 self.phase_table_b = None
-                self.lbl_src_b.setText("β: incompatible table; load another CSV")
+                self.lbl_src_b.setText(
+                    tr("tangent.status.incompatible_phase", phase="β")
+                )
             return
         canonical = self.phase_table_a.components
         if self.phase_table_b.components != canonical:
@@ -961,15 +971,12 @@ class CommonTangentDialog(QDialog):
         if len(canonical) == 3:
             self._apply_section()
         else:
-            self.lbl_result.setText(
-                "Choose three active components, enter every fixed fraction and tolerance, "
-                "then press Apply section."
-            )
+            self.lbl_result.setText(tr("tangent.status.configure_section"))
 
     def on_compute(self):
         if self.phase_a is None or self.phase_b is None:
             QMessageBox.information(
-                self, "Missing data", "Please load both phases (α and β) first."
+                self, tr("tangent.missing_data"), tr("tangent.load_phases")
             )
             return
         n = self.spin_n.value()
@@ -978,7 +985,7 @@ class CommonTangentDialog(QDialog):
                 self.phase_a, self.phase_b, n=n
             )
         except Exception as e:
-            QMessageBox.critical(self, "Compute failed", str(e))
+            QMessageBox.critical(self, tr("tangent.compute_failed"), str(e))
             return
         self.draw_3d()
         self.draw_2d()
@@ -1072,7 +1079,7 @@ class CommonTangentDialog(QDialog):
         a_name, b_name, _ = self.active_components
         self.axes.SetXTitle(a_name)
         self.axes.SetYTitle(b_name)
-        self.axes.SetZTitle("G (scaled)")
+        self.axes.SetZTitle(tr("tangent.axis.g_scaled"))
         self.axes.SetBounds(
             x_range[0],
             x_range[1],
@@ -1118,7 +1125,7 @@ class CommonTangentDialog(QDialog):
                 pa_arr[:, 1],
                 s=12,
                 c="tab:blue",
-                label="α endpoints",
+                label=tr("tangent.legend.alpha_endpoints"),
                 zorder=3,
             )
             self.ax2d.scatter(
@@ -1126,16 +1133,28 @@ class CommonTangentDialog(QDialog):
                 pb_arr[:, 1],
                 s=12,
                 c="tab:red",
-                label="β endpoints",
+                label=tr("tangent.legend.beta_endpoints"),
                 zorder=3,
             )
 
         self._input_scatter = self.ax2d.scatter(
-            [], [], s=160, c="black", marker="*", label="input composition", zorder=5
+            [],
+            [],
+            s=160,
+            c="black",
+            marker="*",
+            label=tr("tangent.legend.input_composition"),
+            zorder=5,
         )
 
         (self._active_tie,) = self.ax2d.plot(
-            [], [], "-", color="limegreen", lw=2.5, label="active tie-line", zorder=4
+            [],
+            [],
+            "-",
+            color="limegreen",
+            lw=2.5,
+            label=tr("tangent.legend.active_tie_line"),
+            zorder=4,
         )
 
         self.ax2d.set_xlabel(a_name)
@@ -1144,7 +1163,7 @@ class CommonTangentDialog(QDialog):
         self.ax2d.set_xlim(-0.1, 1.15)
         self.ax2d.set_ylim(-0.1, 1.15)
         self.ax2d.set_title(
-            f"Tie-lines on constrained {a_name}-{b_name}-{c_name} section"
+            tr("tangent.plot.section", a=a_name, b=b_name, c=c_name)
         )
         self.ax2d.legend(loc="upper right", fontsize=8)
 
@@ -1158,16 +1177,14 @@ class CommonTangentDialog(QDialog):
         )
         if x1 + x2 > active_total + 1e-9:
             self.lbl_result.setText(
-                f"Invalid input: the first two active fractions must sum to at most {active_total:.6g}."
+                tr("tangent.error.active_sum", maximum=f"{active_total:.6g}")
             )
             self._schedule_view_refresh()
             return
         u1, u2 = x1 / active_total, x2 / active_total
         fr = phase_fraction((u1, u2), self.tangent_result["tie_segments_xy"])
         if fr is None:
-            self.lbl_result.setText(
-                "No tie-line found — composition likely in a single-phase region."
-            )
+            self.lbl_result.setText(tr("tangent.status.no_tie_line"))
             self._schedule_view_refresh()
             return
         pa, pb, fa, fb, _ = fr
@@ -1189,13 +1206,16 @@ class CommonTangentDialog(QDialog):
                 f"{name}={value:.4f}" for name, value in zip(names, values)
             )
 
-        msg = (
-            f"Overall: {fmt(input_full)}\n"
-            f"α: {fmt(alpha_full)}\n"
-            f"β: {fmt(beta_full)}\n"
-            f"Phase fractions (lever rule): f_α={fa:.4f}, f_β={fb:.4f}   |   "
-            f"nearest tie-line distance={distance:.5g}   |   "
-            f"grid n={self.tangent_result['grid_n']} (Δu={self.tangent_result['grid_resolution']:.5g})"
+        msg = tr(
+            "tangent.result",
+            overall=fmt(input_full),
+            alpha=fmt(alpha_full),
+            beta=fmt(beta_full),
+            fa=f"{fa:.4f}",
+            fb=f"{fb:.4f}",
+            distance=f"{distance:.5g}",
+            grid_n=self.tangent_result["grid_n"],
+            resolution=f"{self.tangent_result['grid_resolution']:.5g}",
         )
         self.lbl_result.setText(msg)
         self._input_scatter.set_offsets([[u1, u2]])

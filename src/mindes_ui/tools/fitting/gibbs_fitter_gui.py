@@ -51,6 +51,8 @@ import matplotlib
 
 matplotlib.use("QtAgg")  # 显式指定, 避免误拉 TkAgg
 from matplotlib.figure import Figure
+
+from ...i18n import tr
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavToolbar
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
@@ -69,7 +71,7 @@ DEFAULT_GRID_N = 80
 class FitterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(APP_TITLE)
+        self.setWindowTitle(tr("fitter.title"))
         self.setWindowFlag(Qt.WindowType.Window, True)
         self._set_adaptive_dialog_size(parent)
 
@@ -121,15 +123,15 @@ class FitterDialog(QDialog):
         top = QHBoxLayout()
         root.addLayout(top)
 
-        self.btn_load = QPushButton("Load CSV...")
+        self.btn_load = QPushButton(tr("fitter.load_csv"))
         self.btn_load.clicked.connect(self.on_load_csv)
         top.addWidget(self.btn_load)
 
-        self.lbl_file = QLabel("(no file)")
+        self.lbl_file = QLabel(tr("fitter.no_file"))
         self.lbl_file.setStyleSheet("color:#555;")
         top.addWidget(self.lbl_file, stretch=1)
 
-        top.addWidget(QLabel("Mode:"))
+        top.addWidget(QLabel(tr("common.mode")))
         self.cbo_mode = QComboBox()
         self.cbo_mode.addItems(["bivariate", "ternary"])
         self.cbo_mode.setCurrentText("ternary")
@@ -159,15 +161,15 @@ class FitterDialog(QDialog):
         ):
             top.addWidget(w)
 
-        self.btn_fit = QPushButton("Fit")
+        self.btn_fit = QPushButton(tr("fitter.fit"))
         self.btn_fit.clicked.connect(self.on_fit)
         top.addWidget(self.btn_fit)
 
-        self.btn_export_coef = QPushButton("Export coefficients...")
+        self.btn_export_coef = QPushButton(tr("fitter.export_coefficients"))
         self.btn_export_coef.clicked.connect(self.on_export_coeffs)
         top.addWidget(self.btn_export_coef)
 
-        self.btn_export_data = QPushButton("Export data+fit...")
+        self.btn_export_data = QPushButton(tr("fitter.export_data"))
         self.btn_export_data.clicked.connect(self.on_export_data)
         top.addWidget(self.btn_export_data)
 
@@ -182,9 +184,9 @@ class FitterDialog(QDialog):
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
 
-        gb_stats = QGroupBox("Fit summary")
+        gb_stats = QGroupBox(tr("fitter.summary"))
         stats_lay = QVBoxLayout(gb_stats)
-        self.lbl_summary = QLabel("(no fit yet)")
+        self.lbl_summary = QLabel(tr("fitter.no_fit_yet"))
         self.lbl_summary.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop
         )
@@ -195,7 +197,7 @@ class FitterDialog(QDialog):
         stats_lay.addWidget(self.lbl_summary)
         left_lay.addWidget(gb_stats)
 
-        gb_coef = QGroupBox("Coefficients")
+        gb_coef = QGroupBox(tr("fitter.coefficients"))
         coef_lay = QVBoxLayout(gb_coef)
         self.tbl_coef = QTableWidget(0, 4)
         self.tbl_coef.setHorizontalHeaderLabels(
@@ -218,14 +220,14 @@ class FitterDialog(QDialog):
         self.tab_3d = self._make_plot_tab()
         self.tab_ct = self._make_plot_tab()
         self.tab_res = self._make_plot_tab()
-        right.addTab(self.tab_3d["widget"], "3D surface")
-        right.addTab(self.tab_ct["widget"], "Contours (raw vs fit)")
-        right.addTab(self.tab_res["widget"], "Residuals")
+        right.addTab(self.tab_3d["widget"], tr("fitter.tab.surface"))
+        right.addTab(self.tab_ct["widget"], tr("fitter.tab.contours"))
+        right.addTab(self.tab_res["widget"], tr("fitter.tab.residuals"))
         splitter.addWidget(right)
         splitter.setSizes([340, 620])
 
         # --- 状态栏 ---
-        self.lbl_status = QLabel("Load a CSV to begin.")
+        self.lbl_status = QLabel(tr("fitter.status.begin"))
         self.lbl_status.setStyleSheet(
             "background:#f0f0f0; padding:3px; border-top:1px solid #aaa;"
         )
@@ -249,30 +251,37 @@ class FitterDialog(QDialog):
     # -- actions ------------------------------------------------------------
     def on_load_csv(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, "Select CSV file", "", "CSV files (*.csv);;All files (*.*)"
+            self, tr("fitter.dialog.select_csv"), "", tr("filter.csv_all")
         )
         if not path:
             return
         try:
             df = fc.load_csv(path)
         except Exception as e:
-            QMessageBox.critical(self, "Failed to load CSV", str(e))
+            QMessageBox.critical(self, tr("fitter.failed_load"), str(e))
             return
         self.df = df
         self.csv_path = path
         self.lbl_file.setText(os.path.basename(path))
         self.lbl_status.setText(
-            f"Loaded {len(df)} rows from {os.path.basename(path)}. "
-            f"x1 in [{df['x1'].min():.3g}, {df['x1'].max():.3g}], "
-            f"x2 in [{df['x2'].min():.3g}, {df['x2'].max():.3g}], "
-            f"G in [{df['G'].min():.4g}, {df['G'].max():.4g}]."
+            tr(
+                "fitter.status.loaded",
+                count=len(df),
+                name=os.path.basename(path),
+                x1_min=f"{df['x1'].min():.3g}",
+                x1_max=f"{df['x1'].max():.3g}",
+                x2_min=f"{df['x2'].min():.3g}",
+                x2_max=f"{df['x2'].max():.3g}",
+                g_min=f"{df['G'].min():.4g}",
+                g_max=f"{df['G'].max():.4g}",
+            )
         )
         self.fit_result = None
         self._render_raw_only()
 
     def on_fit(self):
         if self.df is None:
-            QMessageBox.information(self, "No data", "Please load a CSV first.")
+            QMessageBox.information(self, tr("fitter.no_data"), tr("fitter.load_first"))
             return
         mode = self.cbo_mode.currentText()
         try:
@@ -286,24 +295,33 @@ class FitterDialog(QDialog):
                 )
             result = fc.fit(self.df, mode, degrees)
         except Exception as e:
-            QMessageBox.critical(self, "Fit failed", f"{e}\n\n{traceback.format_exc()}")
+            QMessageBox.critical(self, tr("fitter.fit_failed"), f"{e}\n\n{traceback.format_exc()}")
             return
         self.fit_result = result
         self._refresh_summary()
         self._refresh_coeff_table()
         self._refresh_plots()
         self.lbl_status.setText(
-            f"Fit OK | mode={result.mode} degrees={result.degrees} "
-            f"params={result.n_params} RMSE={result.rmse:.4g} "
-            f"max|err|={result.max_abs_err:.4g} R^2={result.r2:.6f}"
+            tr(
+                "fitter.status.fit_ok",
+                mode=result.mode,
+                degrees=result.degrees,
+                params=result.n_params,
+                rmse=f"{result.rmse:.4g}",
+                max_err=f"{result.max_abs_err:.4g}",
+                r2=f"{result.r2:.6f}",
+            )
         )
 
     def on_export_coeffs(self):
         if self.fit_result is None:
-            QMessageBox.information(self, "No fit", "Run a fit first.")
+            QMessageBox.information(self, tr("fitter.no_fit"), tr("fitter.run_first"))
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save coefficient table", "coefficients.csv", "CSV (*.csv)"
+            self,
+            tr("fitter.dialog.save_coefficients"),
+            "coefficients.csv",
+            tr("filter.csv"),
         )
         if not path:
             return
@@ -318,16 +336,19 @@ class FitterDialog(QDialog):
                 f.write(f"# max_abs_err,{self.fit_result.max_abs_err}\n")
                 f.write(f"# r2,{self.fit_result.r2}\n")
                 table.to_csv(f, index=False)
-            QMessageBox.information(self, "Saved", f"Wrote {path}")
+            QMessageBox.information(self, tr("common.saved"), tr("fitter.wrote", path=path))
         except Exception as e:
-            QMessageBox.critical(self, "Save failed", str(e))
+            QMessageBox.critical(self, tr("fitter.save_failed"), str(e))
 
     def on_export_data(self):
         if self.fit_result is None or self.df is None:
-            QMessageBox.information(self, "No fit", "Run a fit first.")
+            QMessageBox.information(self, tr("fitter.no_fit"), tr("fitter.run_first"))
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save data + fit", "data_vs_fit.csv", "CSV (*.csv)"
+            self,
+            tr("fitter.dialog.save_data_fit"),
+            "data_vs_fit.csv",
+            tr("filter.csv"),
         )
         if not path:
             return
@@ -347,26 +368,28 @@ class FitterDialog(QDialog):
                 }
             )
             out.to_csv(path, index=False)
-            QMessageBox.information(self, "Saved", f"Wrote {path}")
+            QMessageBox.information(self, tr("common.saved"), tr("fitter.wrote", path=path))
         except Exception as e:
-            QMessageBox.critical(self, "Save failed", str(e))
+            QMessageBox.critical(self, tr("fitter.save_failed"), str(e))
 
     # -- rendering ----------------------------------------------------------
     def _refresh_summary(self):
         r = self.fit_result
         if r is None:
-            self.lbl_summary.setText("(no fit yet)")
+            self.lbl_summary.setText(tr("fitter.no_fit_yet"))
             return
-        lines = [
-            f"Mode:       {r.mode}",
-            f"Degrees:    {r.degrees}",
-            f"# points:   {r.n_points}",
-            f"# params:   {r.n_params}",
-            f"RMSE:       {r.rmse:.6g}",
-            f"max |err|:  {r.max_abs_err:.6g}",
-            f"R^2:        {r.r2:.8f}",
-        ]
-        self.lbl_summary.setText("\n".join(lines))
+        self.lbl_summary.setText(
+            tr(
+                "fitter.summary.result",
+                mode=r.mode,
+                degrees=r.degrees,
+                points=r.n_points,
+                params=r.n_params,
+                rmse=f"{r.rmse:.6g}",
+                max_err=f"{r.max_abs_err:.6g}",
+                r2=f"{r.r2:.8f}",
+            )
+        )
 
     def _refresh_coeff_table(self):
         self.tbl_coef.setRowCount(0)
@@ -408,7 +431,7 @@ class FitterDialog(QDialog):
             ax.set_xlabel("x1")
             ax.set_ylabel("x2")
             ax.set_zlabel("G")
-            ax.set_title("Raw data (no fit)")
+            ax.set_title(tr("fitter.plot.raw"))
         self.tab_3d["canvas"].draw_idle()
 
         self.tab_ct["fig"].clf()
@@ -447,8 +470,11 @@ class FitterDialog(QDialog):
         ax.set_ylabel("x2")
         ax.set_zlabel("G")
         ax.set_title(
-            f"Data (black dots) vs fitted surface — "
-            f"mode={self.fit_result.mode}, degrees={self.fit_result.degrees}"
+            tr(
+                "fitter.plot.data_vs_fit",
+                mode=self.fit_result.mode,
+                degrees=self.fit_result.degrees,
+            )
         )
         self.tab_3d["canvas"].draw_idle()
 
@@ -465,7 +491,7 @@ class FitterDialog(QDialog):
 
         ax1 = fig.add_subplot(1, 2, 1)
         tcf1 = ax1.tricontourf(tri, df["G"].values, levels=20, cmap="viridis")
-        ax1.set_title("Raw G")
+        ax1.set_title(tr("fitter.plot.raw_g"))
         ax1.set_xlabel("x1")
         ax1.set_ylabel("x2")
         ax1.set_aspect("equal")
@@ -478,7 +504,7 @@ class FitterDialog(QDialog):
         Zm = np.where(mask, Z, np.nan)
         levels = tcf1.levels
         cf2 = ax2.contourf(X1, X2, Zm, levels=levels, cmap="viridis")
-        ax2.set_title(f"Fitted G ({self.fit_result.mode}, {self.fit_result.degrees})")
+        ax2.set_title(tr("fitter.plot.fitted", mode=self.fit_result.mode, degrees=self.fit_result.degrees))
         ax2.set_xlabel("x1")
         ax2.set_ylabel("x2")
         ax2.set_aspect("equal")
@@ -506,16 +532,19 @@ class FitterDialog(QDialog):
         ax1.set_aspect("equal")
         ax1.set_xlabel("x1")
         ax1.set_ylabel("x2")
-        ax1.set_title("Residual (data - fit) over composition")
+        ax1.set_title(tr("fitter.plot.residual"))
         fig.colorbar(sc, ax=ax1, shrink=0.8)
 
         ax2 = fig.add_subplot(1, 2, 2)
         ax2.hist(resid, bins=50, color="#6a8caf", edgecolor="k")
-        ax2.set_xlabel("residual")
-        ax2.set_ylabel("count")
+        ax2.set_xlabel(tr("fitter.axis.residual"))
+        ax2.set_ylabel(tr("fitter.axis.count"))
         ax2.set_title(
-            f"Residual histogram\nRMSE={self.fit_result.rmse:.4g}, "
-            f"max|err|={self.fit_result.max_abs_err:.4g}"
+            tr(
+                "fitter.plot.residual_histogram",
+                rmse=f"{self.fit_result.rmse:.4g}",
+                max_err=f"{self.fit_result.max_abs_err:.4g}",
+            )
         )
 
         fig.tight_layout()

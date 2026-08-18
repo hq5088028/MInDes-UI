@@ -46,6 +46,7 @@ class VTSViewerProtocol(Protocol):
 
     # ── VTKViewMixin ──
     vtk_widget: QVTKRenderWindowInteractor
+    vtk_page: QWidget
     renderer: vtk.vtkRenderer
     iren: vtk.vtkRenderWindowInteractor
     tab_widget: QTabWidget
@@ -191,8 +192,6 @@ class VTSViewerProtocol(Protocol):
     control_panel_width: int
 
     # ── Cross-mixin callbacks ──
-    progress_callback: Callable[[str], None] | None
-    _report_progress: Callable[..., None]
     update_background_color: Callable[..., None]
     on_file_combo_changed: Callable[..., None]
     start_sequential_playback: Callable[..., None]

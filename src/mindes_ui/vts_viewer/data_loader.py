@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import Qt, QTimer
+
+from ..i18n import combo_value, set_combo_value, tr
 from vtkmodules.vtkCommonCore import vtkAbstractArray
 
 if TYPE_CHECKING:
@@ -75,7 +77,7 @@ class VTSDataLoaderMixin(_Base):
     # =====================================================
     def _load_vts_interactive(self) -> None:
         folder = QFileDialog.getExistingDirectory(
-            cast(QWidget, self), "Select VTS Output Folder"
+            cast(QWidget, self), tr("vts.dialog.select_folder")
         )
         if folder:
             self._load_vts_from_folder_or_series(folder)
@@ -88,8 +90,8 @@ class VTSDataLoaderMixin(_Base):
         if not vts_files:
             QMessageBox.warning(
                 cast(QWidget, self),
-                "No Files",
-                "No .vts files found in the selected folder.",
+                tr("vts.dialog.no_files.title"),
+                tr("vts.dialog.no_files.body"),
             )
             return
 
@@ -101,7 +103,9 @@ class VTSDataLoaderMixin(_Base):
 
         if not prefixes:
             QMessageBox.warning(
-                cast(QWidget, self), "No Valid Series", "No valid VTS series found."
+                cast(QWidget, self),
+                tr("vts.dialog.no_series.title"),
+                tr("vts.dialog.no_series.body"),
             )
             return
 
@@ -109,18 +113,18 @@ class VTSDataLoaderMixin(_Base):
 
         # Multiple series → dialog
         dialog = QDialog(cast(QWidget, self))
-        dialog.setWindowTitle("Select VTS Series")
+        dialog.setWindowTitle(tr("vts.select_series.title"))
 
         layout = QVBoxLayout(dialog)
-        layout.addWidget(QLabel("Multiple series detected:"))
+        layout.addWidget(QLabel(tr("vts.select_series.body")))
 
         combo = QComboBox()
         combo.addItems(prefixes)
         layout.addWidget(combo)
 
         btns = QHBoxLayout()
-        ok_btn = QPushButton("OK")
-        cancel_btn = QPushButton("Cancel")
+        ok_btn = QPushButton(tr("common.ok"))
+        cancel_btn = QPushButton(tr("common.cancel"))
         btns.addWidget(ok_btn)
         btns.addWidget(cancel_btn)
         layout.addLayout(btns)
@@ -148,7 +152,9 @@ class VTSDataLoaderMixin(_Base):
 
         if not files:
             QMessageBox.warning(
-                cast(QWidget, self), "No Files", "No matching .vts files found."
+                cast(QWidget, self),
+                tr("vts.dialog.no_files.title"),
+                tr("vts.dialog.no_matching_files"),
             )
             return
 
@@ -180,7 +186,7 @@ class VTSDataLoaderMixin(_Base):
 
             output = reader.GetOutput()
             if not output or output.GetNumberOfPoints() == 0:
-                self.playback_status_label.setText("❌ Empty dataset")
+                self.playback_status_label.setText(tr("vts.status.empty"))
                 self.current_data = None
                 return False
 
@@ -188,21 +194,21 @@ class VTSDataLoaderMixin(_Base):
             self.populate_field_combos()
 
             self.playback_status_label.setText(
-                f"✅ Loaded: {os.path.basename(file_path)}"
+                tr("vts.status.loaded", name=os.path.basename(file_path))
             )
 
             self._update_current_state_snapshot()
 
             # Initialize clip slider range
             if self.current_vis_mode == "Clip":
-                self.on_clip_axis_changed(self.clip_axis_combo.currentText())
+                self.on_clip_axis_changed(combo_value(self.clip_axis_combo))
             self.playback_group.setVisible(True)
             self.refresh_plot_over_line_for_current_data()
 
             return True
 
         except Exception as e:
-            self.playback_status_label.setText(f"❌ Error: {e}")
+            self.playback_status_label.setText(tr("vts.status.error", error=e))
             self.current_data = None
             return False
 
@@ -227,7 +233,7 @@ class VTSDataLoaderMixin(_Base):
             # 如果没有文件了，清空列表
             self.vts_file_list = []
             self._update_file_combo()
-            self.playback_status_label.setText("⚠️ No .vts files found.")
+            self.playback_status_label.setText(tr("vts.status.no_files"))
             return
 
         # 提取数字并排序（与 auto-update 逻辑一致）
@@ -273,7 +279,7 @@ class VTSDataLoaderMixin(_Base):
             # 否则 combo 为空
         self.file_combo.blockSignals(False)
         # 可选：更新状态提示
-        self.playback_status_label.setText("✅ File list refreshed.")
+        self.playback_status_label.setText(tr("vts.status.refreshed"))
 
     def _update_file_combo(self):
         self.file_combo.blockSignals(True)
@@ -344,7 +350,10 @@ class VTSDataLoaderMixin(_Base):
             self.file_combo.setCurrentIndex(index)
             self.file_combo.blockSignals(False)
             self.playback_status_label.setText(
-                f"✅ Playing: {os.path.basename(self.vts_file_list[index])}"
+                tr(
+                    "vts.status.playing",
+                    name=os.path.basename(self.vts_file_list[index]),
+                )
             )
             # 3. 触发渲染（在 GUI 线程）
             self.update_visualization()
@@ -452,7 +461,7 @@ class VTSDataLoaderMixin(_Base):
         self.refresh_file_list()
         self._restore_scroll_position()
         if not self.vts_file_list:
-            self.playback_status_label.setText("⚠️ Auto-check: No .vts files.")
+            self.playback_status_label.setText(tr("vts.status.auto_no_files"))
             return
 
         latest_file = self.vts_file_list[-1]
@@ -479,13 +488,13 @@ class VTSDataLoaderMixin(_Base):
                     self.file_combo.setCurrentIndex(self.current_file_index)
                     self.update_visualization()
                     self.file_combo.blockSignals(False)
-                    self.playback_status_label.setText("✅ Auto-loaded latest file.")
+                    self.playback_status_label.setText(tr("vts.status.auto_loaded"))
                 else:
-                    self.playback_status_label.setText("❌ Auto-load failed.")
+                    self.playback_status_label.setText(tr("vts.status.auto_failed"))
             except Exception as e:
-                self.playback_status_label.setText(f"❌ Auto-load error: {str(e)}")
+                self.playback_status_label.setText(tr("vts.status.auto_error", error=e))
         else:
-            self.playback_status_label.setText("ℹ️ No new files.")
+            self.playback_status_label.setText(tr("vts.status.no_new_files"))
 
     # =====================================================
     # Helpers
@@ -495,9 +504,9 @@ class VTSDataLoaderMixin(_Base):
             self.vts_file_list
         ):
             fname = os.path.basename(self.vts_file_list[self.current_file_index])
-            self.playback_status_label.setText(f"✅ Loaded: {fname}")
+            self.playback_status_label.setText(tr("vts.status.loaded", name=fname))
         else:
-            self.playback_status_label.setText("⚠️ No data")
+            self.playback_status_label.setText(tr("vts.status.no_data"))
 
     def _reset_series_state(self):
         # 重置所有状态（因为换了数据系列）
@@ -518,7 +527,7 @@ class VTSDataLoaderMixin(_Base):
         self.plot_line_enabled = False
         self.show_with_boundary_checkbox.setChecked(True)
         self.auto_range_checkbox.setChecked(True)
-        self.bg_color_combo.setCurrentText("Light Gray")
+        set_combo_value(self.bg_color_combo, "Light Gray")
         self.auto_update_interval_combo.setCurrentText("0.5s")
         self.glyph_group.setVisible(False)
 
@@ -619,7 +628,7 @@ class VTSDataLoaderMixin(_Base):
             self.field_combo.setCurrentIndex(target_index)
             self.update_range_inputs()
         else:
-            self.field_combo.addItem("(No fields)")
+            self.field_combo.addItem(tr("vts.no_fields"), "__NO_FIELDS__")
         self.field_combo.blockSignals(False)
 
     def _update_current_state_snapshot(self):
@@ -634,11 +643,11 @@ class VTSDataLoaderMixin(_Base):
         self.camera_distance = cam.GetDistance()
 
         self.field_selection = self.field_combo.currentText()
-        self.colormap_selection = self.colormap_combo.currentText()
+        self.colormap_selection = combo_value(self.colormap_combo)
         self.auto_range_enabled = self.auto_range_checkbox.isChecked()
         self.user_min_val = self.min_spin.value()
         self.user_max_val = self.max_spin.value()
-        self.vis_mode = self.vis_mode_combo.currentText()
+        self.vis_mode = combo_value(self.vis_mode_combo)
         self.clip_axis = self.clip_axis_combo.currentText()
         self.clip_position = self.clip_slider.value()
         self.contour_levels_text = self.contour_levels_edit.text()

@@ -34,6 +34,7 @@ from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToo
 from matplotlib.figure import Figure
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
+from ...i18n import tr
 from ...plot_config import FigureConfig, new_curve
 from ...plot_property_dialog import PlotPropertyDialog
 from .models import (
@@ -76,7 +77,7 @@ STYLE_3D_KEY = "csv_plotter/visual_3d_v1"
 class CSVPlotterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("CSV Plotter")
+        self.setWindowTitle(tr("plotter.csv.title"))
         self.setWindowFlag(Qt.WindowType.Window, True)
         self._set_size(parent)
         self.settings = QSettings("MInDes", "MInDes-UI")
@@ -209,7 +210,7 @@ class CSVPlotterDialog(QDialog):
         left_layout.setContentsMargins(0, 0, 0, 0)
         controls = QHBoxLayout()
         left_layout.addLayout(controls)
-        self.select_all = QCheckBox("Select All")
+        self.select_all = QCheckBox(tr("common.select_all"))
         self.select_all.setTristate(True)
         self.select_all.clicked.connect(self._toggle_select_all)
         controls.addWidget(self.select_all)
@@ -228,9 +229,9 @@ class CSVPlotterDialog(QDialog):
         left_layout.addLayout(data_buttons)
         self.data_action_buttons = []
         for text, slot in (
-            ("Add", self.add_csv),
-            ("Remove", self.remove_selected),
-            ("Reload", self.reload_selected),
+            (tr("common.add"), self.add_csv),
+            (tr("common.remove"), self.remove_selected),
+            (tr("common.reload"), self.reload_selected),
         ):
             button = QPushButton(text)
             button.clicked.connect(slot)
@@ -255,7 +256,7 @@ class CSVPlotterDialog(QDialog):
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setSizes(self.state.splitter_sizes or [420, 780])
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
-        self.status = QLabel("Add one or more CSV files to begin.")
+        self.status = QLabel(tr("plotter.status.csv_begin"))
         self.status.setStyleSheet(
             "background:#f0f0f0;padding:4px;border-top:1px solid #bbb;"
         )
@@ -276,15 +277,15 @@ class CSVPlotterDialog(QDialog):
         buttons = QHBoxLayout()
         layout.addLayout(buttons)
         for text, slot in (
-            ("Draw 2D", self.draw_2d),
-            ("Property", self.open_2d_property),
-            ("Export Figure", self.export_2d),
+            (tr("plotter.draw_2d"), self.draw_2d),
+            (tr("common.property"), self.open_2d_property),
+            (tr("plotter.export_figure"), self.export_2d),
         ):
             button = QPushButton(text)
             button.clicked.connect(slot)
             buttons.addWidget(button)
         buttons.addStretch()
-        self.tabs.addTab(page, "2D Plot")
+        self.tabs.addTab(page, tr("plotter.tab.2d"))
         self._apply_canvas_size()
 
     def _build_3d_tab(self):
@@ -307,20 +308,20 @@ class CSVPlotterDialog(QDialog):
         self.scalarbar.SetWidth(0.1)
         self.scalarbar.SetHeight(0.7)
         self._build_3d_action_buttons(layout)
-        self.tabs.addTab(page, "3D Plot")
+        self.tabs.addTab(page, tr("plotter.tab.3d"))
 
     def _build_3d_action_buttons(self, layout):
         buttons = QGridLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(buttons)
         actions = [
-            ("Draw 3D", self.draw_3d, 0, 0),
-            ("Property", self.open_3d_property, 0, 1),
-            ("Screenshot", self.save_screenshot, 0, 3),
-            ("Reset", self.reset_view, 1, 0),
-            ("View X", lambda: self.view_axis("X"), 1, 1),
-            ("View Y", lambda: self.view_axis("Y"), 1, 2),
-            ("View Z", lambda: self.view_axis("Z"), 1, 3),
+            (tr("plotter.draw_3d"), self.draw_3d, 0, 0),
+            (tr("common.property"), self.open_3d_property, 0, 1),
+            (tr("common.screenshot"), self.save_screenshot, 0, 3),
+            (tr("common.reset"), self.reset_view, 1, 0),
+            (tr("plotter.view_x"), lambda: self.view_axis("X"), 1, 1),
+            (tr("plotter.view_y"), lambda: self.view_axis("Y"), 1, 2),
+            (tr("plotter.view_z"), lambda: self.view_axis("Z"), 1, 3),
         ]
         self.view_action_buttons = []
         for text, slot, row, column in actions:
@@ -343,7 +344,7 @@ class CSVPlotterDialog(QDialog):
                 try:
                     self.frames[dataset.dataset_id] = load_csv(dataset.path)
                 except Exception as exc:
-                    self.status.setText(f"Failed to restore {dataset.path}: {exc}")
+                    self.status.setText(tr("plotter.status.restore_failed", path=dataset.path, error=exc))
             self._append_card(dataset)
         valid_ids = {d.dataset_id for d in self.state.datasets}
         if self.state.active_dataset_id not in valid_ids:
@@ -355,13 +356,13 @@ class CSVPlotterDialog(QDialog):
 
     def add_csv(self):
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Add CSV files", "", "CSV files (*.csv);;All files (*)"
+            self, tr("plotter.add_csv"), "", tr("filter.csv_files")
         )
         for path in paths:
             try:
                 frame = load_csv(path)
             except Exception as exc:
-                QMessageBox.warning(self, "CSV Error", f"Failed to read {path}:\n{exc}")
+                QMessageBox.warning(self, tr("plotter.csv_error"), tr("plotter.read_failed", path=path, error=exc))
                 continue
             absolute_path = os.path.abspath(path)
             dataset = CsvDatasetConfig(
@@ -469,9 +470,7 @@ class CSVPlotterDialog(QDialog):
         self._sync_figure_curves()
         self._refresh_cards()
         self._save_state()
-        self.status.setText(
-            f"Duplicated {dataset_display_name(source)} as {dataset_display_name(duplicate)}."
-        )
+        self.status.setText(tr("plotter.status.duplicated", source=dataset_display_name(source), target=dataset_display_name(duplicate)))
 
     def _dataset_by_id(self, dataset_id):
         return next(
@@ -556,12 +555,12 @@ class CSVPlotterDialog(QDialog):
             if dataset.enabled and dataset.dataset_id in self.frames
         ]
         if not selected:
-            self.status.setText("No On dataset is selected for removal.")
+            self.status.setText(tr("plotter.status.no_remove"))
             return
         names = "\n".join(f"• {dataset_display_name(item)}" for item in selected)
         if (
             QMessageBox.question(
-                self, "Remove CSV", f"Remove these datasets?\n\n{names}"
+                self, tr("plotter.remove_csv.title"), tr("plotter.remove_csv.multiple", names=names)
             )
             != QMessageBox.StandardButton.Yes
         ):
@@ -572,7 +571,7 @@ class CSVPlotterDialog(QDialog):
     def reload_selected(self):
         targets = [dataset for dataset in self.state.datasets if dataset.enabled]
         if not targets:
-            self.status.setText("No On dataset is selected for reload.")
+            self.status.setText(tr("plotter.status.no_reload"))
             return
         errors = [
             message
@@ -582,22 +581,22 @@ class CSVPlotterDialog(QDialog):
         if errors:
             QMessageBox.warning(
                 self,
-                "Reload CSV",
-                "Some files could not be reloaded:\n\n" + "\n".join(errors),
+                tr("plotter.reload_csv.title"),
+                tr("plotter.reload_csv.failed", errors="\n".join(errors)),
             )
         else:
-            self.status.setText(f"Reloaded {len(targets)} dataset(s).")
+            self.status.setText(tr("plotter.status.reloaded_count", count=len(targets)))
 
     def reload_dataset(self, dataset_id, show_error=True):
         dataset = self._dataset_by_id(dataset_id)
         if dataset is None:
-            return "Dataset no longer exists."
+            return tr("plotter.dataset_missing")
         try:
             frame = load_csv(dataset.path)
         except Exception as exc:
             message = f"{dataset_display_name(dataset)}: {exc}"
             if show_error:
-                QMessageBox.warning(self, "CSV Error", message)
+                QMessageBox.warning(self, tr("plotter.csv_error"), message)
             return message
         self.frames[dataset_id] = frame
         card = next(card for card in self.cards if card.dataset_id == dataset_id)
@@ -613,7 +612,7 @@ class CSVPlotterDialog(QDialog):
         if (
             confirm
             and QMessageBox.question(
-                self, "Remove CSV", f"Remove {dataset_display_name(dataset)}?"
+                self, tr("plotter.remove_csv.title"), tr("plotter.remove_csv.single", name=dataset_display_name(dataset))
             )
             != QMessageBox.StandardButton.Yes
         ):
@@ -699,28 +698,26 @@ class CSVPlotterDialog(QDialog):
     def draw_2d(self):
         series = self._series_2d()
         if not series:
-            self.status.setText("No enabled dataset has complete 2D X/Y mappings.")
+            self.status.setText(tr("plotter.status.no_2d_mapping"))
             return
         try:
             render_shared_figure(self.figure, self.figure_config, series)
             self._apply_canvas_size()
             self.canvas.draw()
-            self.status.setText(
-                f"2D: rendered {len(series)} dataset(s); NaN/Inf values remain as gaps."
-            )
+            self.status.setText(tr("plotter.status.rendered_2d", count=len(series)))
         except Exception as exc:
             if self.figure_config.use_latex:
                 self.figure_config.use_latex = False
                 try:
                     render_shared_figure(self.figure, self.figure_config, series)
                     self.canvas.draw()
-                    self.status.setText(f"LaTeX failed; using MathText: {exc}")
+                    self.status.setText(tr("plotter.status.latex_failed", error=exc))
                     return
                 except Exception:
                     import traceback
 
                     traceback.print_stack()
-            QMessageBox.warning(self, "2D Plot Error", str(exc))
+            QMessageBox.warning(self, tr("plotter.error.2d"), str(exc))
 
     def _apply_canvas_size(self):
         width_in, height_in = (
@@ -821,7 +818,7 @@ class CSVPlotterDialog(QDialog):
 
     def _save_2d_format_file(self, config, format_templates):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save 2D Plot Format", "", "MInDes 2D style (*.mindes2dstyle.json)"
+            self, tr("plotter.save_2d_format"), "", tr("filter.style_2d")
         )
         if not path:
             return
@@ -838,16 +835,16 @@ class CSVPlotterDialog(QDialog):
                 encoding="utf-8",
             )
         except OSError as exc:
-            QMessageBox.warning(self, "Save Format", str(exc))
+            QMessageBox.warning(self, tr("plotter.save_format"), str(exc))
             return
-        self.status.setText(f"Saved 2D plot format: {Path(path).name}")
+        self.status.setText(tr("plotter.status.saved_2d_format", name=Path(path).name))
 
     def _load_2d_format_file(self, current, _format_templates):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Load 2D Plot Format",
+            tr("plotter.load_2d_format"),
             "",
-            "MInDes 2D style (*.mindes2dstyle.json);;JSON files (*.json)",
+            tr("filter.style_2d_json"),
         )
         if not path:
             return None
@@ -857,7 +854,7 @@ class CSVPlotterDialog(QDialog):
             )
             return apply_2d_visual_style(current, style, templates), templates
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            QMessageBox.warning(self, "Load Format", str(exc))
+            QMessageBox.warning(self, tr("plotter.load_format"), str(exc))
             return None
 
     def export_2d(self):
@@ -867,18 +864,18 @@ class CSVPlotterDialog(QDialog):
             return
         path, selected = QFileDialog.getSaveFileName(
             self,
-            "Export 2D Figure",
+            tr("plotter.export_2d"),
             "",
-            "PNG (*.png);;JPEG (*.jpg);;TIFF (*.tif *.tiff);;PDF (*.pdf);;SVG (*.svg)",
+            tr("filter.export_figure"),
         )
         if not path:
             return
         ext = {
-            "PNG (*.png)": ".png",
-            "JPEG (*.jpg)": ".jpg",
-            "TIFF (*.tif *.tiff)": ".tif",
-            "PDF (*.pdf)": ".pdf",
-            "SVG (*.svg)": ".svg",
+            tr("filter.png"): ".png",
+            tr("filter.jpeg"): ".jpg",
+            tr("filter.tiff"): ".tif",
+            tr("filter.pdf"): ".pdf",
+            tr("filter.svg"): ".svg",
         }.get(selected, ".png")
         if not Path(path).suffix:
             path += ext
@@ -889,7 +886,7 @@ class CSVPlotterDialog(QDialog):
             transparent=transparent,
             facecolor="none" if transparent else "white",
         )
-        self.status.setText(f"Saved 2D figure: {Path(path).name}")
+        self.status.setText(tr("plotter.status.saved_2d", name=Path(path).name))
 
     def _configured_3d(self):
         items = []
@@ -918,7 +915,7 @@ class CSVPlotterDialog(QDialog):
     def draw_3d(self):
         items = self._configured_3d()
         if not items:
-            self.status.setText("No enabled dataset has complete 3D X/Y/Z mappings.")
+            self.status.setText(tr("plotter.status.no_3d_mapping"))
             return
         self.renderer.RemoveAllViewProps()
         cfg = self.vtk_config
@@ -928,7 +925,7 @@ class CSVPlotterDialog(QDialog):
             if valid.any():
                 arrays.append(np.column_stack([x[valid], y[valid], z[valid]]))
         if not arrays:
-            self.status.setText("No finite 3D points are available.")
+            self.status.setText(tr("plotter.status.no_finite_3d"))
             return
         union = np.vstack(arrays)
         raw_min = np.nanmin(union, axis=0)
@@ -1010,7 +1007,7 @@ class CSVPlotterDialog(QDialog):
         self.renderer.ResetCamera()
         self.renderer.ResetCameraClippingRange()
         self.vtk_widget.GetRenderWindow().Render()
-        text = f"3D: rendered {len(actor_entries)} dataset(s)."
+        text = tr("plotter.status.rendered", count=len(actor_entries))
         if fallback_messages:
             text += " " + " | ".join(fallback_messages)
         self.status.setText(text)
@@ -1136,7 +1133,7 @@ class CSVPlotterDialog(QDialog):
 
     def _save_3d_format_file(self, config, datasets, order, format_templates):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save 3D Plot Format", "", "MInDes 3D style (*.mindes3dstyle.json)"
+            self, tr("plotter.save_3d_format"), "", tr("filter.style_3d")
         )
         if not path:
             return
@@ -1152,16 +1149,16 @@ class CSVPlotterDialog(QDialog):
                 json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         except OSError as exc:
-            QMessageBox.warning(self, "Save Format", str(exc))
+            QMessageBox.warning(self, tr("plotter.save_format"), str(exc))
             return
-        self.status.setText(f"Saved 3D plot format: {Path(path).name}")
+        self.status.setText(tr("plotter.status.saved_3d_format", name=Path(path).name))
 
     def _load_3d_format_file(self, current, datasets, order, _format_templates):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Load 3D Plot Format",
+            tr("plotter.load_3d_format"),
             "",
-            "MInDes 3D style (*.mindes3dstyle.json);;JSON files (*.json)",
+            tr("filter.style_3d_json"),
         )
         if not path:
             return None
@@ -1170,7 +1167,7 @@ class CSVPlotterDialog(QDialog):
                 json.loads(Path(path).read_text(encoding="utf-8"))
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            QMessageBox.warning(self, "Load Format", str(exc))
+            QMessageBox.warning(self, tr("plotter.load_format"), str(exc))
             return None
         by_id = {dataset.dataset_id: dataset for dataset in datasets}
         for index, dataset_id in enumerate(value for value in order if value in by_id):
@@ -1213,16 +1210,16 @@ class CSVPlotterDialog(QDialog):
     def save_screenshot(self):
         path, selected = QFileDialog.getSaveFileName(
             self,
-            "Save 3D Screenshot",
+            tr("plotter.save_3d_screenshot"),
             "",
-            "PNG (*.png);;JPEG (*.jpg);;TIFF (*.tif *.tiff)",
+            tr("filter.screenshot_3d"),
         )
         if not path:
             return
         ext = {
-            "PNG (*.png)": ".png",
-            "JPEG (*.jpg)": ".jpg",
-            "TIFF (*.tif *.tiff)": ".tif",
+            tr("filter.png"): ".png",
+            tr("filter.jpeg"): ".jpg",
+            tr("filter.tiff"): ".tif",
         }.get(selected, ".png")
         if not Path(path).suffix:
             path += ext
@@ -1243,7 +1240,7 @@ class CSVPlotterDialog(QDialog):
         writer.SetFileName(path)
         writer.SetInputConnection(capture.GetOutputPort())
         writer.Write()
-        self.status.setText(f"Saved 3D screenshot: {Path(path).name}")
+        self.status.setText(tr("plotter.status.saved_3d", name=Path(path).name))
 
     def _save_state(self):
         if hasattr(self, "splitter"):

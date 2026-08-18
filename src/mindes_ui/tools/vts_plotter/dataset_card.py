@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...i18n import tr
+
 
 class OpaqueColumnComboBox(QComboBox):
     def __init__(self, parent=None):
@@ -88,7 +90,7 @@ class VtsDatasetCard(QFrame):
 
         header = QHBoxLayout()
         root.addLayout(header)
-        self.on_checkbox = QCheckBox("On")
+        self.on_checkbox = QCheckBox(tr("common.on"))
         self.on_checkbox.setChecked(dataset.enabled and available)
         header.addWidget(self.on_checkbox)
         header.addStretch()
@@ -129,9 +131,9 @@ class VtsDatasetCard(QFrame):
             layout.addWidget(widget)
             return box
 
-        fields_layout.addWidget(make_field_box("Label", self.label_edit))
-        fields_layout.addWidget(make_field_box("File", self.file_label))
-        fields_layout.addWidget(make_field_box("Data Field", self.field_combo))
+        fields_layout.addWidget(make_field_box(tr("common.label"), self.label_edit))
+        fields_layout.addWidget(make_field_box(tr("common.file"), self.file_label))
+        fields_layout.addWidget(make_field_box(tr("dataset.field.data"), self.field_combo))
 
         root.addWidget(fields_widget)
 
@@ -224,14 +226,14 @@ class VtsDatasetCard(QFrame):
 
     def _show_menu(self, pos):
         menu = QMenu(self)
-        up = menu.addAction("Move Up")
-        down = menu.addAction("Move Down")
-        top = menu.addAction("Move to Top")
-        bottom = menu.addAction("Move to Bottom")
+        up = menu.addAction(tr("dataset.move_up"))
+        down = menu.addAction(tr("dataset.move_down"))
+        top = menu.addAction(tr("dataset.move_top"))
+        bottom = menu.addAction(tr("dataset.move_bottom"))
         menu.addSeparator()
-        duplicate_action = menu.addAction("Duplicate Dataset")
-        reload_action = menu.addAction("Reload This VTS")
-        remove_action = menu.addAction("Remove This VTS")
+        duplicate_action = menu.addAction(tr("dataset.duplicate"))
+        reload_action = menu.addAction(tr("dataset.reload_vts"))
+        remove_action = menu.addAction(tr("dataset.remove_vts"))
         action = menu.exec(self.mapToGlobal(pos))
         mapping = {up: "up", down: "down", top: "top", bottom: "bottom"}
         if action in mapping:

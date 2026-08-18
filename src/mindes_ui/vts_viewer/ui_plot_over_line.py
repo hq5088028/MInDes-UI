@@ -26,6 +26,7 @@ from vtkmodules.vtkCommonCore import vtkCommand
 from vtkmodules.vtkInteractionWidgets import vtkLineWidget
 from .models import PandasModel
 from .utils import clean_excel_string
+from ..i18n import tr
 
 if TYPE_CHECKING:
     from ._types import VTSViewerProtocol as _Base
@@ -275,8 +276,8 @@ class PlotOverLineMixin(_Base):
         else:
             ax.set_yticks([])
 
-        ax.set_xlabel("Arc Length")
-        ax.set_ylabel("Value")
+        ax.set_xlabel(tr("vts.plot.arc_length"))
+        ax.set_ylabel(tr("vts.plot.value"))
         ax.grid(True)
         ax.legend(fontsize=8)
         self.plot_canvas.draw()
@@ -346,7 +347,7 @@ class PlotOverLineMixin(_Base):
                 lambda state, f=field: self._on_line_visible_changed(f, state)
             )
 
-            color_btn = QPushButton("Color")
+            color_btn = QPushButton(tr("common.color"))
             color_btn.clicked.connect(lambda _, f=field: self._pick_field_color(f))
 
             linestyle_combo = QComboBox()
@@ -377,7 +378,7 @@ class PlotOverLineMixin(_Base):
         current = self._line_styles[field]["color"]
         qcolor = QColor.fromRgbF(*current)
         new_color = QColorDialog.getColor(
-            qcolor, cast(QWidget, self), f"Color for {field}"
+            qcolor, cast(QWidget, self), tr("vts.color_for", field=field)
         )
         if new_color.isValid():
             rgb = (new_color.redF(), new_color.greenF(), new_color.blueF())
@@ -394,16 +395,16 @@ class PlotOverLineMixin(_Base):
 
         path, selected_filter = QFileDialog.getSaveFileName(
             cast(QWidget, self),
-            "Save Line Data",
+            tr("vts.dialog.save_line"),
             "",
-            "CSV Files (*.csv);;Excel Files (*.xlsx);;All Files (*)",
+            tr("filter.line_data"),
         )
         if not path:
             return
 
         extension = os.path.splitext(path)[1].lower()
         if extension not in (".csv", ".xlsx"):
-            extension = ".xlsx" if selected_filter.startswith("Excel Files") else ".csv"
+            extension = ".xlsx" if selected_filter == tr("filter.xlsx") else ".csv"
             path += extension
 
         df = self.active_line_data.copy()
@@ -415,4 +416,6 @@ class PlotOverLineMixin(_Base):
             df.to_excel(path, index=False)
         else:
             df.to_csv(path, index=False, encoding="utf-8-sig")
-        self.playback_status_label.setText(f"✅ Exported to {os.path.basename(path)}")
+        self.playback_status_label.setText(
+            tr("vts.status.exported", name=os.path.basename(path))
+        )

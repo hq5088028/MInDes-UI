@@ -26,8 +26,25 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QWidgetAction,
 )
-from PySide6.QtCore import Qt, QSettings, QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QFont, QPixmap, QIcon, QGuiApplication
+from PySide6.QtCore import Qt, QSettings, QTimer, QProcess
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QFont,
+    QPixmap,
+    QIcon,
+    QGuiApplication,
+)
+
+from .i18n import (
+    LANGUAGE_SPECS,
+    active_language,
+    initialize as initialize_i18n,
+    preferred_language,
+    set_preferred_language,
+    tr,
+)
 
 
 def resource_path(relative_path: str) -> str:
@@ -57,10 +74,11 @@ def make_splash() -> QSplashScreen:
     splash_path = resource_path(os.path.join("icon", "splash.png"))
     pixmap = QPixmap(splash_path)
     splash = QSplashScreen(pixmap)
-    _progress_lines = ["Starting MInDes..."]
+    _progress_lines = [tr("startup.starting")]
+    setattr(splash, "_progress_lines", _progress_lines)
     splash.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
     splash.showMessage(
-        "\n".join(_progress_lines + ["Loading UI shell..."]),
+        "\n".join(_progress_lines),
         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignBottom,
         Qt.GlobalColor.black,
     )
@@ -71,10 +89,16 @@ def update_splash_progress(
     splash: QSplashScreen, current: int, total: int, detail: str
 ) -> None:
     percent = int(current * 100 / total)
-    line = f"[{current}/{total}] {detail} ({percent}%)"
+    line = tr(
+        "startup.progress",
+        current=current,
+        total=total,
+        detail=detail,
+        percent=percent,
+    )
 
     _progress_lines: list[str] = getattr(
-        splash, "_progress_lines", ["Starting MInDes..."]
+        splash, "_progress_lines", [tr("startup.starting")]
     )
     if not _progress_lines or _progress_lines[-1] != line:
         _progress_lines.append(line)
@@ -94,7 +118,7 @@ def update_splash_progress(
 class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("About MInDes")
+        self.setWindowTitle(tr("about.title"))
         self.setFixedSize(400, 450)
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
@@ -115,34 +139,32 @@ class AboutDialog(QDialog):
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # --- 标题 ---
-        title_label = QLabel("Microstructure Intelligent Design")
+        title_label = QLabel(tr("app.product_name"))
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
 
         # --- 版本和版权信息（多行居中）---
-        info_text = """Version: 1.0
-Copyright © Qi Huang"""
+        info_text = "\n".join(
+            (tr("about.version", version="1.0"), tr("about.copyright_owner"))
+        )
         info_label = QLabel(info_text)
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info_label.setFont(QFont("Arial", 10))
 
         # --- 链接（可点击）---
-        home_text = """<a href='https://github.com/hq5088028/MInDes-UI' style='color:#0078d7;'>MInDes-UI (GitHub)</a><br>
-<a href='https://github.com/Microstructure-Intelligent-Design/MInDes' style='color:#0078d7;'>MInDes-Solver (GitHub)</a>"""
+        home_text = tr("about.links")
         home_label = QLabel(home_text)
         home_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         home_label.setOpenExternalLinks(True)  # 允许点击跳转
 
         # --- 邮箱 ---
-        email_label = QLabel(
-            "Email: <a href='mailto:qihuang0908@163.com' style='color:#0078d7;'>qihuang0908@163.com</a>"
-        )
+        email_label = QLabel(tr("about.email_link"))
         email_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         email_label.setOpenExternalLinks(True)
 
         # --- 关闭按钮 ---
         button_layout = QHBoxLayout()
-        close_btn = QPushButton("Close")
+        close_btn = QPushButton(tr("common.close"))
         close_btn.clicked.connect(self.accept)
         button_layout.addWidget(close_btn)
         button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -171,7 +193,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__()
         self.startup_progress = startup_progress
-        self.setWindowTitle("MInDes - Microstructure Intelligent Design")
+        self.setWindowTitle(tr("app.title"))
         screen = QGuiApplication.primaryScreen().availableGeometry()
         w = int(screen.width() * 0.8)
         h = int(screen.height() * 0.8)
@@ -187,6 +209,7 @@ class MainWindow(QMainWindow):
         self.vts_placeholder = None
         self.log_tab_index = -1
         self.vts_tab_index = -1
+        self._restart_requested = False
 
         self.settings = QSettings("MInDes", "MInDes-UI")
         last_dir = self.settings.value("last_directory", "", type=str)
@@ -227,10 +250,11 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setOpaqueResize(False)
 
         # 左侧面板
         left_panel = QWidget()
-        left_panel.setFixedWidth(200)
+        left_panel.setMinimumWidth(200)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(5, 0, 2, 5)
 
@@ -259,6 +283,7 @@ class MainWindow(QMainWindow):
 
         # 右侧面板
         right_panel = QWidget()
+        right_panel.setMinimumWidth(200)
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(2, 0, 5, 5)
         right_layout.setSpacing(0)  # 可选：控件间距
@@ -268,6 +293,8 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         splitter.addWidget(right_panel)
+        splitter.setCollapsible(0, False)
+        splitter.setCollapsible(1, False)
         self.create_tabs()
 
         splitter.setSizes([200, 1000])
@@ -286,6 +313,7 @@ class MainWindow(QMainWindow):
 
     def on_tab_changed(self, index: int) -> None:
         if index == self.vts_tab_index and self.vts_viewer is not None:
+            self.vts_viewer.schedule_render_refresh()
             QTimer.singleShot(0, self.vts_viewer.activate_pending_vts_load)
 
     def on_path_edited(self, new_path: str):
@@ -311,8 +339,8 @@ class MainWindow(QMainWindow):
 
         QMessageBox.warning(
             self,
-            "Unsupported Path",
-            "Please select a project folder or a .mindes file.",
+            tr("dialog.unsupported_path.title"),
+            tr("dialog.unsupported_path.body"),
         )
 
     def load_mindes_file(self, file_path: str):
@@ -332,7 +360,9 @@ class MainWindow(QMainWindow):
                     self.tab_widget.setCurrentIndex(0)
             except Exception as e:
                 QMessageBox.critical(
-                    self, "Load Error", f"Failed to load .mindes file:\n{str(e)}"
+                    self,
+                    tr("dialog.load_error.title"),
+                    tr("dialog.load_mindes_failed", error=e),
                 )
 
     def load_log_statistic_file(self, folder_path: str):
@@ -352,10 +382,10 @@ class MainWindow(QMainWindow):
 
     def open_project_or_file(self):
         """通过一个对话框打开项目文件夹或 .mindes 文件"""
-        dialog = QFileDialog(self, "Open ...")
-        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, False)
+        dialog = QFileDialog(self, tr("dialog.open.title"))
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         dialog.setFileMode(QFileDialog.FileMode.AnyFile)
-        dialog.setNameFilter("MInDes Project (*.mindes);;All Files (*)")
+        dialog.setNameFilter(tr("dialog.filter.mindes"))
         if self.last_dir and self.last_dir.exists():
             dialog.setDirectory(str(self.last_dir))
         elif self.file_browser and self.file_browser.current_path:
@@ -367,7 +397,8 @@ class MainWindow(QMainWindow):
 
     def open_project_folder(self):
         """通过对话框打开文件夹到导航栏"""
-        dialog = QFileDialog(self, "Open Folder...")
+        dialog = QFileDialog(self, tr("dialog.open_folder.title"))
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         dialog.setFileMode(QFileDialog.FileMode.Directory)
         if self.last_dir and self.last_dir.exists():
             dialog.setDirectory(str(self.last_dir))
@@ -380,14 +411,14 @@ class MainWindow(QMainWindow):
 
     def create_menu_bar(self) -> None:
         menubar = self.menuBar()
-        file_menu = menubar.addMenu("File")
+        file_menu = menubar.addMenu(tr("menu.file"))
 
         # Open file or folder
-        open_action = QAction("Open...", self)
+        open_action = QAction(tr("menu.file.open"), self)
         open_action.triggered.connect(self.open_project_or_file)
         file_menu.addAction(open_action)
 
-        open_folder_action = QAction("Open Folder...", self)
+        open_folder_action = QAction(tr("menu.file.open_folder"), self)
         open_folder_action.triggered.connect(self.open_project_folder)
         file_menu.addAction(open_folder_action)
 
@@ -395,39 +426,39 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
 
         # Exit
-        exit_action = QAction("Exit", self)
+        exit_action = QAction(tr("menu.file.exit"), self)
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # --- Tools menu (inserted between File and About) ---
-        tools_menu = menubar.addMenu("Tools")
-        csv_plotter_action = QAction("CSV Plotter", self)
+        tools_menu = menubar.addMenu(tr("menu.tools"))
+        csv_plotter_action = QAction(tr("menu.tools.csv_plotter"), self)
         csv_plotter_action.triggered.connect(self.open_csv_plotter)
         tools_menu.addAction(csv_plotter_action)
-        vts_plotter_action = QAction("VTS Plotter", self)
+        vts_plotter_action = QAction(tr("menu.tools.vts_plotter"), self)
         vts_plotter_action.triggered.connect(self.open_vts_plotter)
         tools_menu.addAction(vts_plotter_action)
 
-        thermo_calc_menu = tools_menu.addMenu("Thermo-Calc")
+        thermo_calc_menu = tools_menu.addMenu(tr("menu.tools.thermo_calc"))
 
-        common_tangent_menu = thermo_calc_menu.addMenu("CommonTangent")
-        phase2_comp3_action = QAction("Phase2Comp3", self)
+        common_tangent_menu = thermo_calc_menu.addMenu(tr("menu.tools.common_tangent"))
+        phase2_comp3_action = QAction(tr("menu.tools.phase2_comp3"), self)
         phase2_comp3_action.triggered.connect(self.open_common_tangent_phase2_comp3)
         common_tangent_menu.addAction(phase2_comp3_action)
 
-        fitting_menu = thermo_calc_menu.addMenu("Fitting")
-        comp3_action = QAction("Comp3", self)
+        fitting_menu = thermo_calc_menu.addMenu(tr("menu.tools.fitting"))
+        comp3_action = QAction(tr("menu.tools.comp3"), self)
         comp3_action.triggered.connect(self.open_fitting_comp3)
         fitting_menu.addAction(comp3_action)
 
-        view_menu = menubar.addMenu("View")
-        font_size_menu = view_menu.addMenu("Font Size")
+        view_menu = menubar.addMenu(tr("menu.view"))
+        font_size_menu = view_menu.addMenu(tr("menu.view.font_size"))
         font_targets = (
-            ("navigation", "Navigation"),
-            ("edit", "Edit editor"),
-            ("debug", "Debug editor"),
-            ("log", "Log"),
-            ("statistic", "Statistic"),
+            ("navigation", tr("font.navigation")),
+            ("edit", tr("font.edit")),
+            ("debug", tr("font.debug")),
+            ("log", tr("font.log")),
+            ("statistic", tr("font.statistic")),
         )
         for key, label_text in font_targets:
             row = QWidget(font_size_menu)
@@ -451,15 +482,72 @@ class MainWindow(QMainWindow):
             font_size_menu.addAction(widget_action)
             self.font_scale_spins[key] = spin
 
-        help_menu = menubar.addMenu("About")
-        about_action = QAction("About MInDes", self)
+        language_menu = view_menu.addMenu(tr("menu.view.language"))
+        self.language_action_group = QActionGroup(self)
+        self.language_action_group.setExclusive(True)
+        pending_language = preferred_language()
+        for spec in LANGUAGE_SPECS:
+            language = spec.code
+            action = QAction(spec.native_name, self)
+            action.setCheckable(True)
+            action.setData(language)
+            action.setChecked(language == pending_language)
+            action.triggered.connect(
+                lambda _checked=False, code=language: self.request_language(code)
+            )
+            self.language_action_group.addAction(action)
+            language_menu.addAction(action)
+
+        help_menu = menubar.addMenu(tr("menu.about"))
+        about_action = QAction(tr("menu.about.app"), self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
-        self.license_menu = help_menu.addMenu("License")
+        self.license_menu = help_menu.addMenu(tr("menu.about.license"))
         help_menu.aboutToShow.connect(self.refresh_license_menu)
-        custom_solver_action = QAction("How to add custom solvers", self)
+        custom_solver_action = QAction(tr("menu.about.custom_solver"), self)
         custom_solver_action.triggered.connect(self.show_custom_solver_help)
         help_menu.addAction(custom_solver_action)
+
+    def request_language(self, language: str) -> None:
+        set_preferred_language(language)
+        if language == active_language():
+            return
+
+        reply = QMessageBox.question(
+            self,
+            tr("language.restart.title"),
+            tr("language.restart.question"),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            if self.build_widget is not None:
+                self.build_widget.update_status(tr("language.restart.later"), info=True)
+            return
+
+        reasons: list[str] = []
+        if self.build_widget is not None:
+            if self.build_widget.is_running:
+                reasons.append(tr("language.blocker.solver"))
+            if self.build_widget.has_unsaved_changes():
+                reasons.append(tr("language.blocker.unsaved"))
+        if getattr(self, "_tool_windows", []):
+            reasons.append(tr("language.blocker.tools"))
+        if reasons:
+            QMessageBox.warning(
+                self,
+                tr("language.restart.blocked.title"),
+                tr("language.restart.blocked", reasons="\n".join(reasons)),
+            )
+            return
+
+        self._restart_requested = True
+        if not self.close():
+            self._restart_requested = False
+
+    @property
+    def restart_requested(self) -> bool:
+        return self._restart_requested
 
     def show_about(self) -> None:
         """当用户选择 "About MInDes" 菜单项时调用"""
@@ -481,7 +569,9 @@ class MainWindow(QMainWindow):
             dialog.destroyed.connect(partial(self._remove_tool_window, dialog))
         except Exception as exc:
             QMessageBox.critical(
-                self, "Launch Error", f"Failed to open CSV Plotter:\n{exc}"
+                self,
+                tr("dialog.launch_error.title"),
+                tr("status.launch_tool_failed", tool="CSV Plotter", error=exc),
             )
 
     def open_vts_plotter(self) -> None:
@@ -499,7 +589,9 @@ class MainWindow(QMainWindow):
             dialog.destroyed.connect(partial(self._remove_tool_window, dialog))
         except Exception as exc:
             QMessageBox.critical(
-                self, "Launch Error", f"Failed to open VTS Plotter:\n{exc}"
+                self,
+                tr("dialog.launch_error.title"),
+                tr("status.launch_tool_failed", tool="VTS Plotter", error=exc),
             )
 
     def open_common_tangent_phase2_comp3(self) -> None:
@@ -513,8 +605,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Import Error",
-                f"Failed to import CommonTangent tool:\n{e}",
+                tr("dialog.import_error.title"),
+                tr("status.import_tool_failed", tool="Common Tangent", error=e),
             )
             return
         try:
@@ -529,8 +621,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Launch Error",
-                f"Failed to open CommonTangent Phase2Comp3:\n{e}",
+                tr("dialog.launch_error.title"),
+                tr("status.launch_tool_failed", tool="Common Tangent", error=e),
             )
 
     def open_fitting_comp3(self) -> None:
@@ -540,8 +632,8 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Import Error",
-                f"Failed to import Fitting tool:\n{e}",
+                tr("dialog.import_error.title"),
+                tr("status.import_tool_failed", tool="Fitting", error=e),
             )
             return
         try:
@@ -556,22 +648,22 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(
                 self,
-                "Launch Error",
-                f"Failed to open Fitting Comp3:\n{e}",
+                tr("dialog.launch_error.title"),
+                tr("status.launch_tool_failed", tool="Fitting", error=e),
             )
 
     def refresh_license_menu(self) -> None:
         self.license_menu.clear()
 
         if not self.build_widget:
-            action = QAction("Build widget not ready", self)
+            action = QAction(tr("license.build_not_ready"), self)
             action.setEnabled(False)
             self.license_menu.addAction(action)
             return
 
         combo = self.build_widget.solver_combo
         if combo.count() == 0:
-            action = QAction("No solver available", self)
+            action = QAction(tr("license.no_solver"), self)
             action.setEnabled(False)
             self.license_menu.addAction(action)
             return
@@ -594,7 +686,9 @@ class MainWindow(QMainWindow):
     def launch_solver_console(self, solver_path: str, solver_name: str) -> None:
         if not solver_path or not os.path.exists(solver_path):
             QMessageBox.warning(
-                self, "Solver Not Found", f"Solver executable not found:\n{solver_path}"
+                self,
+                tr("dialog.solver_not_found.title"),
+                tr("dialog.solver_not_found.body", path=solver_path),
             )
             return
 
@@ -610,41 +704,41 @@ class MainWindow(QMainWindow):
 
             if self.build_widget:
                 self.build_widget.update_status(
-                    f"Opened solver console: {solver_name}", success=True
+                    tr("status.solver_console_opened", name=solver_name), success=True
                 )
 
         except Exception as e:
             QMessageBox.critical(
-                self, "Launch Error", f"Failed to launch solver console:\n{e}"
+                self,
+                tr("dialog.launch_error.title"),
+                tr("status.launch_tool_failed", tool="solver console", error=e),
             )
 
     def create_tabs(self) -> None:
-        self.report_startup_progress(2, 8, "Loading Build Simulation...")
+        self.report_startup_progress(2, 5, tr("startup.build"))
         from .build_simulation_widget import BuildSimulationWidget
 
         self.build_widget = BuildSimulationWidget()
         self.build_widget.outputProjectPathPrepared.connect(self.prepare_output_targets)
         self.build_widget.simulationFinished.connect(self.prepare_output_targets)
-        self.tab_widget.addTab(self.build_widget, "Build Simulation")
+        self.tab_widget.addTab(self.build_widget, tr("tab.build"))
 
-        self.report_startup_progress(3, 8, "Loading Log && Statistic...")
+        self.report_startup_progress(3, 5, tr("startup.log"))
         from .log_statistics_widget import LogStatisticsWidget
 
-        self.log_stat_widget = LogStatisticsWidget(
-            progress_callback=lambda detail: self.report_startup_progress(4, 8, detail)
-        )
+        self.log_stat_widget = LogStatisticsWidget()
         self.log_stat_widget.statusMessage.connect(self.route_log_stat_status)
         self.log_tab_index = self.tab_widget.addTab(
-            self.log_stat_widget, "Log && Statistic"
+            self.log_stat_widget, tr("tab.log_stat")
         )
 
-        self.report_startup_progress(5, 8, "Loading VTS Data Viewer...")
+        self.report_startup_progress(4, 5, tr("startup.vts"))
         from .vts_viewer_widget import VTSViewerWidget
 
-        self.vts_viewer = VTSViewerWidget(
-            progress_callback=lambda detail: self.report_startup_progress(6, 8, detail)
+        self.vts_viewer = VTSViewerWidget()
+        self.vts_tab_index = self.tab_widget.addTab(
+            self.vts_viewer, tr("tab.vts_viewer")
         )
-        self.vts_tab_index = self.tab_widget.addTab(self.vts_viewer, "VTS Data Viewer")
         self.apply_font_scales()
 
     def set_font_scale(self, target: str, percent: int):
@@ -685,23 +779,9 @@ class MainWindow(QMainWindow):
 
     def show_custom_solver_help(self) -> None:
         """显示自定义求解器帮助信息"""
-        help_text = (
-            "How to add custom solvers:\n\n"
-            "├── solver/\n"
-            "│   ├── Solver_v1.0/\n"
-            "│   │   └── MInDes.exe\n"
-            "│   │   └── ...\n"
-            "│   └── Solver_v2.0/\n"
-            "│   │   └── MInDes.exe\n"
-            "│   │   └── ...\n"
-            "│   └── Custom Solver/\n"
-            "│   │   └── MInDes.exe\n"
-            "│   │   └── ...\n"
-            "│   └── .../\n"
-            "└── MInDes-UI.exe\n"
-            "└── ..."
+        QMessageBox.information(
+            self, tr("solver_guide.title"), tr("solver_guide.body")
         )
-        QMessageBox.information(self, "Custom Solver Guide", help_text)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.settings.setValue("last_directory", self.file_browser.current_path)
@@ -709,8 +789,8 @@ class MainWindow(QMainWindow):
         if self.build_widget and self.build_widget.is_running:
             reply = QMessageBox.question(
                 self,
-                "Solver Running",
-                "A solver is still running. Stop it and exit?",
+                tr("dialog.solver_running.title"),
+                tr("dialog.solver_running.body"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
@@ -722,8 +802,8 @@ class MainWindow(QMainWindow):
             if not stopped_cleanly:
                 QMessageBox.warning(
                     self,
-                    "Exit Warning",
-                    "Solver did not stop cleanly. The application will still close.",
+                    tr("dialog.exit_warning.title"),
+                    tr("dialog.exit_warning.body"),
                 )
 
         return super().closeEvent(event)
@@ -733,7 +813,9 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv
 
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     app = QApplication(argv)
+    initialize_i18n(app)
 
     splash = make_splash()
     splash.show()
@@ -742,10 +824,10 @@ def main(argv: list[str] | None = None) -> int:
     def startup_progress(current: int, total: int, text: str) -> None:
         update_splash_progress(splash, current, total, text)
 
-    startup_progress(1, 8, "Loading main window shell...")
+    startup_progress(1, 5, tr("startup.main_window"))
     window = MainWindow(startup_progress=startup_progress)
 
-    startup_progress(8, 8, "Startup complete.")
+    startup_progress(5, 5, tr("startup.complete"))
     window.show()
 
     # 启动后自动打开命令行传入的 .mindes / 文件夹
@@ -763,7 +845,17 @@ def main(argv: list[str] | None = None) -> int:
 
     QTimer.singleShot(0, open_startup_target)
     QTimer.singleShot(500, finish_startup)
-    return app.exec()
+    exit_code = app.exec()
+    if window.restart_requested:
+        if getattr(sys, "frozen", False):
+            QProcess.startDetached(
+                sys.executable, argv[1:], os.getcwd()
+            )
+        else:
+            QProcess.startDetached(
+                sys.executable, ["-m", "mindes_ui", *argv[1:]], os.getcwd()
+            )
+    return exit_code
 
 
 if __name__ == "__main__":

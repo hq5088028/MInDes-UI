@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
 )
 
 from PySide6.QtGui import QAction, QKeySequence
+
+from .i18n import tr
 from PySide6.QtCore import Qt, Signal, QDir, QFileSystemWatcher
 import os
 import shutil
@@ -56,7 +58,11 @@ class FileBrowserWidget(QWidget):
             self.current_path = os.path.normpath(path)
             self.refresh_view()
         else:
-            QMessageBox.warning(self, "Invalid path", f"Path does not exist: \n{path}")
+            QMessageBox.warning(
+                self,
+                tr("browser.invalid_path.title"),
+                tr("browser.invalid_path.body", path=path),
+            )
 
     def on_directory_changed(self) -> None:
         """当目录被外部修改时自动刷新"""
@@ -94,7 +100,7 @@ class FileBrowserWidget(QWidget):
         self.list_widget.itemChanged.connect(self.on_item_renamed)
 
         # 让快捷键在文件列表获得焦点时也能生效
-        self.duplicate_action = QAction("Duplicate", self)
+        self.duplicate_action = QAction(tr("common.duplicate"), self)
         self.duplicate_action.setShortcut(QKeySequence("Ctrl+C"))
         self.duplicate_action.setShortcutContext(
             Qt.ShortcutContext.WidgetWithChildrenShortcut
@@ -102,7 +108,7 @@ class FileBrowserWidget(QWidget):
         self.duplicate_action.triggered.connect(self.duplicate_selected_items)
         self.list_widget.addAction(self.duplicate_action)
 
-        self.rename_action = QAction("Rename", self)
+        self.rename_action = QAction(tr("common.rename"), self)
         self.rename_action.setShortcut(QKeySequence("F2"))
         self.rename_action.setShortcutContext(
             Qt.ShortcutContext.WidgetWithChildrenShortcut
@@ -110,7 +116,7 @@ class FileBrowserWidget(QWidget):
         self.rename_action.triggered.connect(self._rename_current_item)
         self.list_widget.addAction(self.rename_action)
 
-        self.delete_action = QAction("Delete", self)
+        self.delete_action = QAction(tr("common.delete"), self)
         self.delete_action.setShortcut(QKeySequence.StandardKey.Delete)
         self.delete_action.setShortcutContext(
             Qt.ShortcutContext.WidgetWithChildrenShortcut
@@ -183,7 +189,9 @@ class FileBrowserWidget(QWidget):
             self.pathEdited.emit(normalized)
         else:
             QMessageBox.warning(
-                self, "Invalid path", "Please enter a valid folder path."
+                self,
+                tr("browser.invalid_path.title"),
+                tr("browser.invalid_path.input"),
             )
             self.path_line_edit.setText(self.current_path)
 
@@ -210,10 +218,10 @@ class FileBrowserWidget(QWidget):
         clicked_item = self.list_widget.itemAt(pos)  # type: ignore[assignment]
         if clicked_item is None:
             # 空白处：只允许新建
-            new_folder_action = menu.addAction("New folder")
-            new_mindes_action = menu.addAction("New .mindes file")
+            new_folder_action = menu.addAction(tr("browser.menu.new_folder"))
+            new_mindes_action = menu.addAction(tr("browser.menu.new_mindes"))
             menu.addSeparator()
-            open_explorer_action = menu.addAction("Open File Explorer")
+            open_explorer_action = menu.addAction(tr("browser.menu.open_explorer"))
             action = menu.exec(global_pos)
             if action == new_folder_action:
                 self.create_new_folder()
@@ -230,13 +238,13 @@ class FileBrowserWidget(QWidget):
             load_action = None
             # 如果是 .mindes 文件，额外添加“加载”选项
             if item_type == "file" and name.lower().endswith(".mindes"):
-                load_action = menu.addAction("Build Simulation")
+                load_action = menu.addAction(tr("browser.menu.build"))
                 menu.addSeparator()
             load_vts_action = None
             load_log_statis_action = None
             if os.path.isdir(full_path) and not is_parent:
-                load_log_statis_action = menu.addAction("Load Log && Statistics Data")
-                load_vts_action = menu.addAction("Load VTS Data")
+                load_log_statis_action = menu.addAction(tr("browser.menu.load_log"))
+                load_vts_action = menu.addAction(tr("browser.menu.load_vts"))
                 menu.addSeparator()
 
             # 点击了某一项：重复 + 删除 + 重命名（.. 父目录项不可修改）
@@ -300,14 +308,20 @@ class FileBrowserWidget(QWidget):
             return
 
         if not new_name:
-            QMessageBox.warning(self, "Invalid name", "Name cannot be empty.")
+            QMessageBox.warning(
+                self,
+                tr("browser.invalid_name.title"),
+                tr("browser.invalid_name.empty"),
+            )
             item.setText(old_name)
             return
 
         invalid_chars = '<>:"/\\|?*'
         if any(c in new_name for c in invalid_chars):
             QMessageBox.critical(
-                self, "Invalid name", f"Name cannot contain: {invalid_chars}"
+                self,
+                tr("browser.invalid_name.title"),
+                tr("browser.invalid_name.characters", characters=invalid_chars),
             )
             item.setText(old_name)
             return
@@ -316,7 +330,11 @@ class FileBrowserWidget(QWidget):
         new_path = os.path.join(self.current_path, new_name)
 
         if os.path.exists(new_path):
-            QMessageBox.warning(self, "Already exists", f"'{new_name}' already exists.")
+            QMessageBox.warning(
+                self,
+                tr("browser.exists.title"),
+                tr("browser.exists.body", name=new_name),
+            )
             item.setText(old_name)
             return
 
@@ -324,7 +342,11 @@ class FileBrowserWidget(QWidget):
             os.rename(old_path, new_path)
             setattr(item, "_original_name", new_name)  # 更新原始名
         except Exception as e:
-            QMessageBox.critical(self, "Rename failed", f"Cannot rename:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("browser.rename_failed.title"),
+                tr("browser.rename_failed.body", error=e),
+            )
             item.setText(old_name)
 
     def duplicate_selected_items(self) -> None:
@@ -347,8 +369,8 @@ class FileBrowserWidget(QWidget):
             except Exception as e:
                 QMessageBox.critical(
                     self,
-                    "Duplicate failed",
-                    f"Failed to duplicate '{old_name}':\n{str(e)}",
+                    tr("browser.duplicate_failed.title"),
+                    tr("browser.duplicate_failed.body", name=old_name, error=e),
                 )
                 continue
         self.refresh_view()
@@ -379,7 +401,7 @@ class FileBrowserWidget(QWidget):
 
     def create_new_folder(self) -> None:
         """创建默认名为 'New_Folder' 的文件夹并进入重命名"""
-        base_name = "New_Folder"
+        base_name = tr("browser.default_folder_name")
         full_path = self._get_unique_name(os.path.join(self.current_path, base_name))
         try:
             os.makedirs(full_path)
@@ -389,7 +411,11 @@ class FileBrowserWidget(QWidget):
             if item:
                 self.start_rename_edit(item)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Unable to create folder:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("common.error"),
+                tr("browser.create_folder_failed", error=e),
+            )
 
     def open_in_explorer(self) -> None:
         """在 Windows 资源管理器中打开当前路径"""
@@ -402,11 +428,15 @@ class FileBrowserWidget(QWidget):
                 subprocess.Popen(["xdg-open", self.current_path])  # Linux
                 # subprocess.Popen(['open', self.current_path])   # macOS
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Unable to open File Explorer:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("common.error"),
+                tr("browser.open_explorer_failed", error=e),
+            )
 
     def create_new_mindes_file(self) -> None:
         """创建默认名为 'New_Simu.mindes' 的文件并进入重命名"""
-        base_name = "New_Simu.mindes"
+        base_name = tr("browser.default_file_name")
         full_path = self._get_unique_name(os.path.join(self.current_path, base_name))
         try:
             with open(full_path, "w", encoding="utf-8") as f:
@@ -416,7 +446,11 @@ class FileBrowserWidget(QWidget):
             if item:
                 self.start_rename_edit(item)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Unable to create file:\n{e}")
+            QMessageBox.critical(
+                self,
+                tr("common.error"),
+                tr("browser.create_file_failed", error=e),
+            )
 
     def _get_unique_name(self, path: str) -> str:
         """给定基础路径，返回不冲突的唯一路径（类似 New_Folder, New_Folder1, ...）"""
@@ -451,9 +485,8 @@ class FileBrowserWidget(QWidget):
         names = [item.text() for item in items]
         reply = QMessageBox.question(
             self,
-            "Confirm deletion",
-            f"Are you sure you want to delete the following {len(names)} items?\n"
-            + "\n".join(names),
+            tr("browser.delete.title"),
+            tr("browser.delete.body", count=len(names), names="\n".join(names)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
@@ -467,6 +500,8 @@ class FileBrowserWidget(QWidget):
                         os.remove(full_path)
                 except Exception as e:
                     QMessageBox.critical(
-                        self, "Deletion failed", f"Cannot delete {name}:\n{e}"
+                        self,
+                        tr("browser.delete_failed.title"),
+                        tr("browser.delete_failed.body", name=name, error=e),
                     )
             self.refresh_view()

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import add_combo_items, combo_value, set_combo_value, tr
 from .plot_config import FigureConfig, TextStyle, new_curve
 
 
@@ -63,24 +64,24 @@ class FontStyleEditor(QGroupBox):
         super().__init__(title, parent)
         form = QFormLayout(self)
         self.text_edit = QLineEdit()
-        self.visible_cb = QCheckBox("Show")
+        self.visible_cb = QCheckBox(tr("common.show"))
         self.font_combo = QFontComboBox()
         self.size_spin = QDoubleSpinBox()
         self.size_spin.setRange(4, 72)
         self.size_spin.setDecimals(1)
-        self.bold_cb = QCheckBox("Bold")
-        self.italic_cb = QCheckBox("Italic")
+        self.bold_cb = QCheckBox(tr("common.bold"))
+        self.italic_cb = QCheckBox(tr("common.italic"))
         self.color_btn = ColorButton()
         if include_text:
-            form.addRow("Text:", self.text_edit)
-            form.addRow("Visible:", self.visible_cb)
-        form.addRow("Font:", self.font_combo)
-        form.addRow("Size (pt):", self.size_spin)
+            form.addRow(tr("figure_property.text"), self.text_edit)
+            form.addRow(tr("common.visible"), self.visible_cb)
+        form.addRow(tr("property.font"), self.font_combo)
+        form.addRow(tr("figure_property.size_pt"), self.size_spin)
         flags = QHBoxLayout()
         flags.addWidget(self.bold_cb)
         flags.addWidget(self.italic_cb)
-        form.addRow("Style:", flags)
-        form.addRow("Color:", self.color_btn)
+        form.addRow(tr("common.style"), flags)
+        form.addRow(tr("common.color"), self.color_btn)
         for widget in (
             self.text_edit,
             self.visible_cb,
@@ -139,7 +140,7 @@ class PlotPropertyDialog(QDialog):
         format_templates=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("Figure Properties")
+        self.setWindowTitle(tr("figure_property.title"))
         self.resize(980, 720)
         self.config = config.copy()
         self.columns = list(columns)
@@ -160,9 +161,7 @@ class PlotPropertyDialog(QDialog):
         root.addLayout(body, 1)
         self.nav = QListWidget()
         self.nav.setFixedWidth(145)
-        self.nav.addItems(
-            ["Overall", "Text", "Axes", "Grid", "Curves", "Legend", "Export"]
-        )
+        self.nav.addItems([tr("figure_property.nav.overall"), tr("figure_property.nav.text"), tr("figure_property.nav.axes"), tr("figure_property.nav.grid"), tr("figure_property.nav.curves"), tr("figure_property.nav.legend"), tr("figure_property.nav.export")])
         self.stack = QStackedWidget()
         body.addWidget(self.nav)
         body.addWidget(self.stack, 1)
@@ -178,12 +177,12 @@ class PlotPropertyDialog(QDialog):
 
         buttons = QHBoxLayout()
         root.addLayout(buttons)
-        self.factory_btn = QPushButton("Restore Factory")
-        self.default_btn = QPushButton("Save Format...")
-        self.load_format_btn = QPushButton("Load Format...")
-        self.apply_btn = QPushButton("Apply")
-        self.ok_btn = QPushButton("OK")
-        self.cancel_btn = QPushButton("Cancel")
+        self.factory_btn = QPushButton(tr("figure_property.restore_factory"))
+        self.default_btn = QPushButton(tr("property.save_format"))
+        self.load_format_btn = QPushButton(tr("property.load_format"))
+        self.apply_btn = QPushButton(tr("common.apply"))
+        self.ok_btn = QPushButton(tr("common.ok"))
+        self.cancel_btn = QPushButton(tr("common.cancel"))
         buttons.addWidget(self.factory_btn)
         buttons.addWidget(self.default_btn)
         buttons.addWidget(self.load_format_btn)
@@ -230,38 +229,38 @@ class PlotPropertyDialog(QDialog):
         self.width_spin = self._double(1, 500, 3)
         self.height_spin = self._double(1, 500, 3)
         self.background_combo = QComboBox()
-        self.background_combo.addItems(["White", "Transparent"])
+        add_combo_items(self.background_combo, [("choice.white", "White"), ("choice.transparent", "Transparent")])
         self.margin_left = self._double(0, 100, 3)
         self.margin_right = self._double(0, 100, 3)
         self.margin_top = self._double(0, 100, 3)
         self.margin_bottom = self._double(0, 100, 3)
-        form.addRow("Unit:", self.unit_combo)
-        form.addRow("Width:", self.width_spin)
-        form.addRow("Height:", self.height_spin)
-        form.addRow("Background:", self.background_combo)
-        form.addRow("Left margin:", self.margin_left)
-        form.addRow("Right margin:", self.margin_right)
-        form.addRow("Top margin:", self.margin_top)
-        form.addRow("Bottom margin:", self.margin_bottom)
+        form.addRow(tr("figure_property.unit"), self.unit_combo)
+        form.addRow(tr("common.width"), self.width_spin)
+        form.addRow(tr("common.height"), self.height_spin)
+        form.addRow(tr("common.background"), self.background_combo)
+        form.addRow(tr("figure_property.margin_left"), self.margin_left)
+        form.addRow(tr("figure_property.margin_right"), self.margin_right)
+        form.addRow(tr("figure_property.margin_top"), self.margin_top)
+        form.addRow(tr("figure_property.margin_bottom"), self.margin_bottom)
         self.unit_combo.currentTextChanged.connect(self._unit_changed)
 
     def _build_text(self):
         lay = self._page()
-        self.title_editor = FontStyleEditor("Title")
-        self.xlabel_editor = FontStyleEditor("X axis label")
+        self.title_editor = FontStyleEditor(tr("figure_property.title_group"))
+        self.xlabel_editor = FontStyleEditor(tr("figure_property.x_label"))
         lay.addWidget(self.title_editor)
         lay.addWidget(self.xlabel_editor)
         self.text_curve_combo = QComboBox()
-        lay.addWidget(QLabel("Y curve:"))
+        lay.addWidget(QLabel(tr("figure_property.y_curve")))
         lay.addWidget(self.text_curve_combo)
-        self.ylabel_editor = FontStyleEditor("Selected Y axis label")
+        self.ylabel_editor = FontStyleEditor(tr("figure_property.y_label"))
         self.ytick_editor = FontStyleEditor(
-            "Selected Y tick numbers", include_text=False
+            tr("figure_property.y_ticks"), include_text=False
         )
         lay.addWidget(self.ylabel_editor)
         lay.addWidget(self.ytick_editor)
         self.latex_cb = QCheckBox(
-            "Use external LaTeX (fallback to MathText if unavailable)"
+            tr("figure_property.latex")
         )
         lay.addWidget(self.latex_cb)
         self.text_curve_combo.currentIndexChanged.connect(self._load_curve_text)
@@ -271,22 +270,22 @@ class PlotPropertyDialog(QDialog):
     def _build_axes(self):
         lay = self._page()
         self.axis_combo = QComboBox()
-        lay.addWidget(QLabel("Axis:"))
+        lay.addWidget(QLabel(tr("common.axis")))
         lay.addWidget(self.axis_combo)
         form = QFormLayout()
         lay.addLayout(form)
         self.scale_combo = QComboBox()
-        self.scale_combo.addItems(["Linear", "Log10", "SymLog"])
-        self.auto_range_cb = QCheckBox("Auto")
+        add_combo_items(self.scale_combo, [("choice.linear", "Linear"), ("choice.log10", "Log10"), ("choice.symlog", "SymLog")])
+        self.auto_range_cb = QCheckBox(tr("common.auto"))
         self.axis_min = self._double()
         self.axis_max = self._double()
-        self.invert_cb = QCheckBox("Reverse axis")
-        self.major_cb = QCheckBox("Show")
-        self.minor_cb = QCheckBox("Show")
-        self.tick_bottom_cb = QCheckBox("Bottom")
-        self.tick_top_cb = QCheckBox("Top")
-        self.tick_left_cb = QCheckBox("Left")
-        self.tick_right_cb = QCheckBox("Right")
+        self.invert_cb = QCheckBox(tr("figure_property.reverse_axis"))
+        self.major_cb = QCheckBox(tr("common.show"))
+        self.minor_cb = QCheckBox(tr("common.show"))
+        self.tick_bottom_cb = QCheckBox(tr("common.bottom"))
+        self.tick_top_cb = QCheckBox(tr("common.top"))
+        self.tick_left_cb = QCheckBox(tr("common.left"))
+        self.tick_right_cb = QCheckBox(tr("common.right"))
         tick_sides = QHBoxLayout()
         for widget in (
             self.tick_bottom_cb,
@@ -302,23 +301,23 @@ class PlotPropertyDialog(QDialog):
         self.tick_width = self._double(0.1, 10, 2)
         self.tick_color = ColorButton()
         self.format_combo = QComboBox()
-        self.format_combo.addItems(["Auto", "Fixed", "Scientific", "Percent"])
+        add_combo_items(self.format_combo, [("common.auto", "Auto"), ("choice.fixed", "Fixed"), ("choice.scientific", "Scientific"), ("choice.percent", "Percent")])
         self.decimals_spin = QSpinBox()
         self.decimals_spin.setRange(0, 12)
         self.manual_combo = QComboBox()
-        self.manual_combo.addItems(["Auto", "Positions", "Start/Stop/Step"])
+        add_combo_items(self.manual_combo, [("common.auto", "Auto"), ("choice.positions", "Positions"), ("choice.start_stop_step", "Start/Stop/Step")])
         self.positions_edit = QLineEdit()
         self.positions_edit.setPlaceholderText("0, 0.2, 0.5, 1.0")
         self.tick_start = self._double()
         self.tick_stop = self._double()
         self.tick_step = self._double(1e-12, 1e12)
-        self.spine_cb = QCheckBox("Show")
+        self.spine_cb = QCheckBox(tr("common.show"))
         self.spine_width = self._double(0.1, 10, 2)
         self.spine_color = ColorButton()
-        self.top_spine_cb = QCheckBox("Top")
-        self.bottom_spine_cb = QCheckBox("Bottom")
-        self.left_spine_cb = QCheckBox("Left")
-        self.right_spine_cb = QCheckBox("Right")
+        self.top_spine_cb = QCheckBox(tr("common.top"))
+        self.bottom_spine_cb = QCheckBox(tr("common.bottom"))
+        self.left_spine_cb = QCheckBox(tr("common.left"))
+        self.right_spine_cb = QCheckBox(tr("common.right"))
         global_spines = QHBoxLayout()
         for widget in (
             self.top_spine_cb,
@@ -327,34 +326,34 @@ class PlotPropertyDialog(QDialog):
             self.right_spine_cb,
         ):
             global_spines.addWidget(widget)
-        self.xtick_editor = FontStyleEditor("Tick number font", include_text=False)
+        self.xtick_editor = FontStyleEditor(tr("figure_property.tick_font"), include_text=False)
         for label, widget in [
-            ("Scale:", self.scale_combo),
-            ("Range:", self.auto_range_cb),
-            ("Minimum:", self.axis_min),
-            ("Maximum:", self.axis_max),
-            ("Direction:", self.invert_cb),
-            ("Major ticks:", self.major_cb),
-            ("Minor ticks:", self.minor_cb),
-            ("Tick direction:", self.tick_direction),
-            ("Major length:", self.major_length),
-            ("Minor length:", self.minor_length),
-            ("Tick width:", self.tick_width),
-            ("Tick color:", self.tick_color),
-            ("Number format:", self.format_combo),
-            ("Decimals:", self.decimals_spin),
-            ("Tick positions:", self.manual_combo),
-            ("Position list:", self.positions_edit),
-            ("Start:", self.tick_start),
-            ("Stop:", self.tick_stop),
-            ("Step:", self.tick_step),
-            ("Spine:", self.spine_cb),
-            ("Spine width:", self.spine_width),
-            ("Spine color:", self.spine_color),
+            (tr("figure_property.scale"), self.scale_combo),
+            (tr("figure_property.range"), self.auto_range_cb),
+            (tr("common.minimum"), self.axis_min),
+            (tr("common.maximum"), self.axis_max),
+            (tr("figure_property.direction"), self.invert_cb),
+            (tr("property.axes.major"), self.major_cb),
+            (tr("property.axes.minor"), self.minor_cb),
+            (tr("figure_property.tick_direction"), self.tick_direction),
+            (tr("figure_property.major_length"), self.major_length),
+            (tr("figure_property.minor_length"), self.minor_length),
+            (tr("figure_property.tick_width"), self.tick_width),
+            (tr("figure_property.tick_color"), self.tick_color),
+            (tr("property.axes.format"), self.format_combo),
+            (tr("property.axes.decimals"), self.decimals_spin),
+            (tr("figure_property.tick_positions"), self.manual_combo),
+            (tr("figure_property.position_list"), self.positions_edit),
+            (tr("figure_property.start"), self.tick_start),
+            (tr("figure_property.stop"), self.tick_stop),
+            (tr("figure_property.step"), self.tick_step),
+            (tr("figure_property.spine"), self.spine_cb),
+            (tr("figure_property.spine_width"), self.spine_width),
+            (tr("figure_property.spine_color"), self.spine_color),
         ]:
             form.addRow(label, widget)
-        form.insertRow(8, "Tick sides:", tick_sides)
-        form.addRow("Main frame sides:", global_spines)
+        form.insertRow(8, tr("figure_property.tick_sides"), tick_sides)
+        form.addRow(tr("figure_property.frame_sides"), global_spines)
         lay.addWidget(self.xtick_editor)
         self.axis_combo.currentIndexChanged.connect(self._load_axis)
         for widget in (
@@ -397,21 +396,21 @@ class PlotPropertyDialog(QDialog):
     def _build_grid(self):
         lay = self._page()
         self.grid_axis_combo = QComboBox()
-        lay.addWidget(QLabel("Axis:"))
+        lay.addWidget(QLabel(tr("common.axis")))
         lay.addWidget(self.grid_axis_combo)
         form = QFormLayout()
         lay.addLayout(form)
-        self.grid_cb = QCheckBox("Show major grid")
+        self.grid_cb = QCheckBox(tr("figure_property.show_major_grid"))
         self.grid_color = ColorButton("#b0b0b0")
         self.grid_line = QComboBox()
         self.grid_line.addItems(["-", "--", "-.", ":"])
         self.grid_width = self._double(0.1, 10, 2)
         self.grid_alpha = self._double(0, 1, 2)
-        form.addRow("Visible:", self.grid_cb)
-        form.addRow("Color:", self.grid_color)
-        form.addRow("Line style:", self.grid_line)
-        form.addRow("Line width:", self.grid_width)
-        form.addRow("Alpha:", self.grid_alpha)
+        form.addRow(tr("common.visible"), self.grid_cb)
+        form.addRow(tr("common.color"), self.grid_color)
+        form.addRow(tr("figure_property.line_style"), self.grid_line)
+        form.addRow(tr("figure_property.line_width"), self.grid_width)
+        form.addRow(tr("figure_property.alpha"), self.grid_alpha)
         self.grid_axis_combo.currentIndexChanged.connect(self._load_grid)
         self.grid_cb.toggled.connect(self._save_grid)
         self.grid_color.colorChanged.connect(self._save_grid)
@@ -424,24 +423,28 @@ class PlotPropertyDialog(QDialog):
         top = QHBoxLayout()
         lay.addLayout(top)
         self.curve_combo = QComboBox()
-        self.up_btn = QPushButton("Move Up")
-        self.down_btn = QPushButton("Move Down")
+        self.up_btn = QPushButton(tr("dataset.move_up"))
+        self.down_btn = QPushButton(tr("dataset.move_down"))
         self.curve_position_label = QLabel()
-        top.addWidget(QLabel("Active dataset:"))
+        top.addWidget(QLabel(tr("property.active_dataset")))
         top.addWidget(self.curve_combo, 1)
         top.addWidget(self.curve_position_label)
         top.addWidget(self.up_btn)
         top.addWidget(self.down_btn)
         form = QFormLayout()
         lay.addLayout(form)
-        self.curve_visible = QCheckBox("Show")
+        self.curve_visible = QCheckBox(tr("common.show"))
         self.legend_edit = QLineEdit()
         self.line_color = ColorButton()
         self.line_width = self._double(0.1, 20, 2)
         self.line_style = QComboBox()
-        self.line_style.addItems(["-", "--", "-.", ":", "None"])
+        for value in ("-", "--", "-.", ":"):
+            self.line_style.addItem(value, value)
+        self.line_style.addItem(tr("common.none"), "None")
         self.marker_combo = QComboBox()
-        self.marker_combo.addItems(["None", "o", "s", "^", "v", "D", "+", "x", "*"])
+        self.marker_combo.addItem(tr("common.none"), "None")
+        for value in ("o", "s", "^", "v", "D", "+", "x", "*"):
+            self.marker_combo.addItem(value, value)
         self.marker_size = self._double(0.1, 30, 2)
         self.marker_face = ColorButton("#ffffff")
         self.marker_edge = ColorButton()
@@ -449,9 +452,9 @@ class PlotPropertyDialog(QDialog):
         self.mark_every = QSpinBox()
         self.mark_every.setRange(1, 100000)
         self.error_mode = QComboBox()
-        self.error_mode.addItems(["None", "Bars", "Band", "Bars + Band"])
+        add_combo_items(self.error_mode, [("common.none", "None"), ("choice.bars", "Bars"), ("choice.band", "Band"), ("choice.bars_band", "Bars + Band")])
         self.error_source = QComboBox()
-        self.error_source.addItems(["Constant", "Column"])
+        add_combo_items(self.error_source, [("choice.constant", "Constant"), ("choice.column", "Column")])
         self.error_column = QComboBox()
         self.error_constant = self._double(0, 1e12)
         self.error_every = QSpinBox()
@@ -463,28 +466,28 @@ class PlotPropertyDialog(QDialog):
         self.band_color = ColorButton()
         self.band_alpha = self._double(0, 1, 2)
         fields: list[tuple[str, QWidget]] = [
-            ("Visible:", self.curve_visible),
-            ("Legend text:", self.legend_edit),
-            ("Line color:", self.line_color),
-            ("Line width:", self.line_width),
-            ("Line style:", self.line_style),
-            ("Marker:", self.marker_combo),
-            ("Marker size:", self.marker_size),
-            ("Marker face:", self.marker_face),
-            ("Marker edge:", self.marker_edge),
-            ("Marker edge width:", self.marker_edge_width),
-            ("Marker every N:", self.mark_every),
-            ("Error display:", self.error_mode),
-            ("Error source:", self.error_source),
-            ("Error column:", self.error_column),
-            ("Constant error:", self.error_constant),
-            ("Error every N:", self.error_every),
-            ("Cap length:", self.capsize),
-            ("Cap width:", self.capthick),
-            ("Error line width:", self.error_width),
-            ("Error color:", self.error_color),
-            ("Band color:", self.band_color),
-            ("Band alpha:", self.band_alpha),
+            (tr("common.visible"), self.curve_visible),
+            (tr("figure_property.legend_text"), self.legend_edit),
+            (tr("figure_property.line_color"), self.line_color),
+            (tr("figure_property.line_width"), self.line_width),
+            (tr("figure_property.line_style"), self.line_style),
+            (tr("figure_property.marker"), self.marker_combo),
+            (tr("figure_property.marker_size"), self.marker_size),
+            (tr("figure_property.marker_face"), self.marker_face),
+            (tr("figure_property.marker_edge"), self.marker_edge),
+            (tr("figure_property.marker_edge_width"), self.marker_edge_width),
+            (tr("figure_property.marker_every"), self.mark_every),
+            (tr("figure_property.error_display"), self.error_mode),
+            (tr("figure_property.error_source"), self.error_source),
+            (tr("figure_property.error_column"), self.error_column),
+            (tr("figure_property.constant_error"), self.error_constant),
+            (tr("figure_property.error_every"), self.error_every),
+            (tr("figure_property.cap_length"), self.capsize),
+            (tr("figure_property.cap_width"), self.capthick),
+            (tr("figure_property.error_width"), self.error_width),
+            (tr("figure_property.error_color"), self.error_color),
+            (tr("figure_property.band_color"), self.band_color),
+            (tr("figure_property.band_alpha"), self.band_alpha),
         ]
         for label, widget in fields:
             form.addRow(label, widget)
@@ -530,42 +533,29 @@ class PlotPropertyDialog(QDialog):
         lay = self._page()
         form = QFormLayout()
         lay.addLayout(form)
-        self.legend_cb = QCheckBox("Show")
+        self.legend_cb = QCheckBox(tr("common.show"))
         self.legend_loc = QComboBox()
-        self.legend_loc.addItems(
-            [
-                "best",
-                "upper left",
-                "upper right",
-                "lower left",
-                "lower right",
-                "center left",
-                "center right",
-                "lower center",
-                "upper center",
-                "center",
-            ]
-        )
-        self.anchor_cb = QCheckBox("Use custom anchor")
+        add_combo_items(self.legend_loc, [("choice.best", "best"), ("choice.upper_left", "upper left"), ("choice.upper_right", "upper right"), ("choice.lower_left", "lower left"), ("choice.lower_right", "lower right"), ("choice.center_left", "center left"), ("choice.center_right", "center right"), ("choice.lower_center", "lower center"), ("choice.upper_center", "upper center"), ("choice.center", "center")])
+        self.anchor_cb = QCheckBox(tr("figure_property.custom_anchor"))
         self.anchor_x = self._double(-10, 10, 3)
         self.anchor_y = self._double(-10, 10, 3)
         self.legend_cols = QSpinBox()
         self.legend_cols.setRange(1, 20)
-        self.frame_cb = QCheckBox("Show frame")
+        self.frame_cb = QCheckBox(tr("figure_property.show_frame"))
         self.frame_edge = ColorButton()
         self.frame_face = ColorButton("#ffffff")
         self.frame_alpha = self._double(0, 1, 2)
-        form.addRow("Visible:", self.legend_cb)
-        form.addRow("Location:", self.legend_loc)
-        form.addRow("Anchor:", self.anchor_cb)
-        form.addRow("Anchor X:", self.anchor_x)
-        form.addRow("Anchor Y:", self.anchor_y)
-        form.addRow("Columns:", self.legend_cols)
-        form.addRow("Frame:", self.frame_cb)
-        form.addRow("Frame edge:", self.frame_edge)
-        form.addRow("Frame face:", self.frame_face)
-        form.addRow("Frame alpha:", self.frame_alpha)
-        self.legend_font = FontStyleEditor("Legend font", include_text=False)
+        form.addRow(tr("common.visible"), self.legend_cb)
+        form.addRow(tr("figure_property.location"), self.legend_loc)
+        form.addRow(tr("figure_property.anchor"), self.anchor_cb)
+        form.addRow(tr("figure_property.anchor_x"), self.anchor_x)
+        form.addRow(tr("figure_property.anchor_y"), self.anchor_y)
+        form.addRow(tr("figure_property.columns"), self.legend_cols)
+        form.addRow(tr("figure_property.frame"), self.frame_cb)
+        form.addRow(tr("figure_property.frame_edge"), self.frame_edge)
+        form.addRow(tr("figure_property.frame_face"), self.frame_face)
+        form.addRow(tr("figure_property.frame_alpha"), self.frame_alpha)
+        self.legend_font = FontStyleEditor(tr("figure_property.legend_font"), include_text=False)
         lay.addWidget(self.legend_font)
 
     def _build_export(self):
@@ -575,10 +565,10 @@ class PlotPropertyDialog(QDialog):
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(72, 2400)
         self.dpi_spin.setSuffix(" dpi")
-        form.addRow("Raster resolution:", self.dpi_spin)
+        form.addRow(tr("figure_property.raster_resolution"), self.dpi_spin)
         lay.addWidget(
             QLabel(
-                "PNG, JPEG and TIFF use this DPI. PDF and SVG remain vector outputs."
+                tr("figure_property.export_hint")
             )
         )
 
@@ -609,7 +599,7 @@ class PlotPropertyDialog(QDialog):
         self._last_unit = unit
         self.width_spin.setValue(convert_length(c.width_cm, "cm", unit))
         self.height_spin.setValue(convert_length(c.height_cm, "cm", unit))
-        self.background_combo.setCurrentText(c.background)
+        set_combo_value(self.background_combo, c.background)
         for widget, value in (
             (self.margin_left, c.margin_left_cm),
             (self.margin_right, c.margin_right_cm),
@@ -643,13 +633,13 @@ class PlotPropertyDialog(QDialog):
             self._initial_curve_applied = True
         for combo in (self.axis_combo, self.grid_axis_combo):
             combo.clear()
-            combo.addItem("X Axis")
-            combo.addItems(["Y Axis"] if self.shared_y_axis else names)
+            combo.addItem(tr("property.axes.x"))
+            combo.addItems([tr("property.axes.y")] if self.shared_y_axis else names)
         self.error_column.clear()
         self.error_column.addItems(self.columns)
         legend = c.legend
         self.legend_cb.setChecked(legend.visible)
-        self.legend_loc.setCurrentText(legend.location)
+        set_combo_value(self.legend_loc, legend.location)
         self.anchor_cb.setChecked(legend.custom_anchor)
         self.anchor_x.setValue(legend.anchor_x)
         self.anchor_y.setValue(legend.anchor_y)
@@ -690,7 +680,7 @@ class PlotPropertyDialog(QDialog):
         c.unit = unit
         c.width_cm = convert_length(self.width_spin.value(), unit, "cm")
         c.height_cm = convert_length(self.height_spin.value(), unit, "cm")
-        c.background = self.background_combo.currentText()
+        c.background = combo_value(self.background_combo)
         c.show_top_spine = self.top_spine_cb.isChecked()
         c.show_bottom_spine = self.bottom_spine_cb.isChecked()
         c.show_left_spine = self.left_spine_cb.isChecked()
@@ -704,7 +694,7 @@ class PlotPropertyDialog(QDialog):
         c.use_latex = self.latex_cb.isChecked()
         legend = c.legend
         legend.visible = self.legend_cb.isChecked()
-        legend.location = self.legend_loc.currentText()
+        legend.location = combo_value(self.legend_loc)
         legend.custom_anchor = self.anchor_cb.isChecked()
         legend.anchor_x = self.anchor_x.value()
         legend.anchor_y = self.anchor_y.value()
@@ -753,7 +743,7 @@ class PlotPropertyDialog(QDialog):
         self._loading = True
         a = self._axis_style(self.axis_combo)
         t = a.tick
-        self.scale_combo.setCurrentText(a.scale)
+        set_combo_value(self.scale_combo, a.scale)
         self.auto_range_cb.setChecked(a.auto_range)
         self.axis_min.setValue(a.minimum)
         self.axis_max.setValue(a.maximum)
@@ -769,9 +759,9 @@ class PlotPropertyDialog(QDialog):
         self.minor_length.setValue(t.minor_length)
         self.tick_width.setValue(t.width)
         self.tick_color.set_color(t.color)
-        self.format_combo.setCurrentText(t.format_mode)
+        set_combo_value(self.format_combo, t.format_mode)
         self.decimals_spin.setValue(t.decimals)
-        self.manual_combo.setCurrentText(t.manual_mode)
+        set_combo_value(self.manual_combo, t.manual_mode)
         self.positions_edit.setText(t.positions)
         self.tick_start.setValue(t.start)
         self.tick_stop.setValue(t.stop)
@@ -787,7 +777,7 @@ class PlotPropertyDialog(QDialog):
             return
         a = self._axis_style(self.axis_combo)
         t = a.tick
-        a.scale = self.scale_combo.currentText()
+        a.scale = combo_value(self.scale_combo)
         a.auto_range = self.auto_range_cb.isChecked()
         a.minimum = self.axis_min.value()
         a.maximum = self.axis_max.value()
@@ -803,9 +793,9 @@ class PlotPropertyDialog(QDialog):
         t.show_top = self.tick_top_cb.isChecked()
         t.show_left = self.tick_left_cb.isChecked()
         t.show_right = self.tick_right_cb.isChecked()
-        t.format_mode = self.format_combo.currentText()
+        t.format_mode = combo_value(self.format_combo)
         t.decimals = self.decimals_spin.value()
-        t.manual_mode = self.manual_combo.currentText()
+        t.manual_mode = combo_value(self.manual_combo)
         t.positions = self.positions_edit.text()
         t.start = self.tick_start.value()
         t.stop = self.tick_stop.value()
@@ -844,7 +834,11 @@ class PlotPropertyDialog(QDialog):
         c = self.config.curves[self.curve_combo.currentIndex()]
         e = c.error
         self.curve_position_label.setText(
-            f"{self.curve_combo.currentIndex() + 1}/{len(self.config.curves)} (top first)"
+            tr(
+                "figure_property.position_top_first",
+                current=self.curve_combo.currentIndex() + 1,
+                total=len(self.config.curves),
+            )
         )
         available = self.curve_columns.get(c.column, self.columns)
         self.error_column.clear()
@@ -853,15 +847,15 @@ class PlotPropertyDialog(QDialog):
         self.legend_edit.setText(c.legend_text)
         self.line_color.set_color(c.color)
         self.line_width.setValue(c.linewidth)
-        self.line_style.setCurrentText(c.linestyle)
-        self.marker_combo.setCurrentText(c.marker)
+        set_combo_value(self.line_style, c.linestyle)
+        set_combo_value(self.marker_combo, c.marker)
         self.marker_size.setValue(c.markersize)
         self.marker_face.set_color(c.marker_face_color)
         self.marker_edge.set_color(c.marker_edge_color)
         self.marker_edge_width.setValue(c.marker_edge_width)
         self.mark_every.setValue(c.markevery)
-        self.error_mode.setCurrentText(e.mode)
-        self.error_source.setCurrentText(e.source)
+        set_combo_value(self.error_mode, e.mode)
+        set_combo_value(self.error_source, e.source)
         self.error_column.setCurrentText(e.column)
         self.error_constant.setValue(e.constant)
         self.error_every.setValue(e.every)
@@ -882,15 +876,15 @@ class PlotPropertyDialog(QDialog):
         c.legend_text = self.legend_edit.text()
         c.color = self.line_color.color()
         c.linewidth = self.line_width.value()
-        c.linestyle = self.line_style.currentText()
-        c.marker = self.marker_combo.currentText()
+        c.linestyle = combo_value(self.line_style)
+        c.marker = combo_value(self.marker_combo)
         c.markersize = self.marker_size.value()
         c.marker_face_color = self.marker_face.color()
         c.marker_edge_color = self.marker_edge.color()
         c.marker_edge_width = self.marker_edge_width.value()
         c.markevery = self.mark_every.value()
-        e.mode = self.error_mode.currentText()
-        e.source = self.error_source.currentText()
+        e.mode = combo_value(self.error_mode)
+        e.source = combo_value(self.error_source)
         e.column = self.error_column.currentText()
         e.constant = self.error_constant.value()
         e.every = self.error_every.value()
@@ -928,7 +922,7 @@ class PlotPropertyDialog(QDialog):
             or c.height_cm <= c.margin_top_cm + c.margin_bottom_cm
         ):
             QMessageBox.warning(
-                self, "Invalid Figure", "Margins must leave a positive plotting area."
+                self, tr("validation.invalid_figure"), tr("validation.margins")
             )
             return False
         if self.shared_y_axis:
@@ -936,13 +930,13 @@ class PlotPropertyDialog(QDialog):
             if not a.auto_range and a.minimum >= a.maximum:
                 QMessageBox.warning(
                     self,
-                    "Invalid Range",
-                    "Y Axis: minimum must be smaller than maximum.",
+                    tr("validation.invalid_range"),
+                    tr("validation.axis_range", name=tr("property.axes.y")),
                 )
                 return False
             if a.tick.manual_mode == "Start/Stop/Step" and a.tick.step <= 0:
                 QMessageBox.warning(
-                    self, "Invalid Ticks", "Y Axis: tick step must be positive."
+                    self, tr("validation.invalid_ticks"), tr("validation.tick_step", name=tr("property.axes.y"))
                 )
                 return False
         for curve in c.curves:
@@ -952,15 +946,15 @@ class PlotPropertyDialog(QDialog):
             if not a.auto_range and a.minimum >= a.maximum:
                 QMessageBox.warning(
                     self,
-                    "Invalid Range",
-                    f"{curve.column}: minimum must be smaller than maximum.",
+                    tr("validation.invalid_range"),
+                    tr("validation.axis_range", name=curve.column),
                 )
                 return False
             if a.tick.manual_mode == "Start/Stop/Step" and a.tick.step <= 0:
                 QMessageBox.warning(
                     self,
-                    "Invalid Ticks",
-                    f"{curve.column}: tick step must be positive.",
+                    tr("validation.invalid_ticks"),
+                    tr("validation.tick_step", name=curve.column),
                 )
                 return False
         return True

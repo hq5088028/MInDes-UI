@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import pandas as pd
 from PySide6.QtWidgets import (
@@ -25,6 +25,8 @@ from PySide6.QtCore import Qt, Signal, QFileSystemWatcher, QTimer
 from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+
+from .i18n import tr
 
 # === 定义候选文件名（按优先级排序，高 → 低）===
 LOG_CANDIDATES = ["Log.txt", "log.txt"]
@@ -78,13 +80,8 @@ class LogStatisticsWidget(QWidget):
     # 状态信号：(message, level) 其中 level in {"info", "warning", "error"}
     statusMessage = Signal(str, str)
 
-    def __init__(
-        self,
-        parent: QWidget | None = None,
-        progress_callback: Callable[[str], None] | None = None,
-    ) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.progress_callback = progress_callback
         self._project_path: Optional[Path] = None  # .mindes 同名结果目录
         self.data_df: Optional[pd.DataFrame] = None
         self._current_schema: tuple[str, ...] = ()
@@ -108,28 +105,22 @@ class LogStatisticsWidget(QWidget):
         self._refresh_timer.timeout.connect(self._process_scheduled_refresh)
 
         # 文件监听器
-        self._report_progress("   Creating Log widget watcher...")
         self.watcher = QFileSystemWatcher(self)
         self.watcher.fileChanged.connect(self._on_file_changed)
         self.watcher.directoryChanged.connect(self._on_file_changed)
 
         self.setup_ui()
 
-        self._report_progress("Binding shortcuts...")
         self.setup_shortcuts()
-
-    def _report_progress(self, detail: str):
-        if self.progress_callback:
-            self.progress_callback(detail)
 
     def set_project_path(self, project_folder: str):
         """由主窗口调用：设置当前 .mindes 文件路径，自动推导结果目录"""
         if not project_folder:
             self._project_path = None
-            self.statusMessage.emit("Project path cleared.", "info")
+            self.statusMessage.emit(tr("log.status.project_cleared"), "info")
             # 可选：清空 UI
-            self.log_edit.setPlainText("(No valid project path)")
-            self.stat_edit.setPlainText("(No valid project path)")
+            self.log_edit.setPlainText(tr("log.empty.no_project"))
+            self.stat_edit.setPlainText(tr("log.empty.no_project"))
             self.data_df = None
             self.update_combo_boxes()
             return
@@ -140,12 +131,12 @@ class LogStatisticsWidget(QWidget):
 
         # 如果目录不存在，不报错，等运行后生成
         if not self._project_path.exists():
-            self.log_edit.setPlainText("(Result directory not created yet)")
-            self.stat_edit.setPlainText("(Result directory not created yet)")
+            self.log_edit.setPlainText(tr("log.empty.result_pending"))
+            self.stat_edit.setPlainText(tr("log.empty.result_pending"))
             self.data_df = None
             self.update_combo_boxes()
             self.statusMessage.emit(
-                f"Waiting for result dir: {self._project_path.name}", "info"
+                tr("log.status.waiting", name=self._project_path.name), "info"
             )
             return
         # 尝试加载
@@ -161,7 +152,6 @@ class LogStatisticsWidget(QWidget):
         main_layout.setSpacing(5)
 
         # === 使用 QTabWidget 管理三个页面 ===
-        self._report_progress("   Creating Log/Statistic tabs...")
         self.tab_widget = QTabWidget()
         main_layout.addWidget(self.tab_widget)
 
@@ -176,7 +166,7 @@ class LogStatisticsWidget(QWidget):
         self.log_edit.setStyleSheet("background-color: #f0f0f0; color: black;")
         self.log_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         log_layout.addWidget(self.log_edit)
-        self.tab_widget.addTab(log_container, "Log")
+        self.tab_widget.addTab(log_container, tr("log.tab.log"))
 
         # --- Tab 2: Statistic ---
         stat_container = QWidget()
@@ -189,10 +179,9 @@ class LogStatisticsWidget(QWidget):
         self.stat_edit.setStyleSheet("background-color: #f0f0f0; color: black;")
         self.stat_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         stat_layout.addWidget(self.stat_edit)
-        self.tab_widget.addTab(stat_container, "Statistic")
+        self.tab_widget.addTab(stat_container, tr("log.tab.statistic"))
 
         # --- Tab 3: Plot ---
-        self._report_progress("   Creating Figure tab controls...")
         plot_page = QWidget()
         plot_layout = QVBoxLayout(plot_page)
         plot_layout.setContentsMargins(10, 5, 10, 5)
@@ -217,7 +206,7 @@ class LogStatisticsWidget(QWidget):
         control_content_layout.setSpacing(8)
 
         # X Axis
-        x_label = QLabel("X Axis:")
+        x_label = QLabel(tr("log.axis.x"))
         self.x_combo = PopupComboBox()
         self.x_combo.setFixedWidth(120)  # ← 改为 120px
         self.x_combo.popupShown.connect(self._lock_figure_updates)
@@ -226,7 +215,7 @@ class LogStatisticsWidget(QWidget):
         control_content_layout.addWidget(self.x_combo)
 
         # Left Y Axis
-        y1_label = QLabel("Left Y:")
+        y1_label = QLabel(tr("log.axis.left_y"))
         self.y1_combo = PopupComboBox()
         self.y1_combo.setFixedWidth(120)
         self.y1_combo.popupShown.connect(self._lock_figure_updates)
@@ -235,7 +224,7 @@ class LogStatisticsWidget(QWidget):
         control_content_layout.addWidget(self.y1_combo)
 
         # Right Y Axis
-        y2_label = QLabel("Right Y:")
+        y2_label = QLabel(tr("log.axis.right_y"))
         self.y2_combo = PopupComboBox()
         self.y2_combo.setFixedWidth(120)
         self.y2_combo.popupShown.connect(self._lock_figure_updates)
@@ -260,7 +249,6 @@ class LogStatisticsWidget(QWidget):
         plot_layout.addWidget(top_line)
 
         # Matplotlib 画布
-        self._report_progress("   Creating plot canvas...")
         self.plot_figure = Figure(figsize=(6, 4), dpi=100)
         self.plot_canvas = FigureCanvas(self.plot_figure)
         self.plot_canvas.setSizePolicy(
@@ -276,7 +264,6 @@ class LogStatisticsWidget(QWidget):
         plot_layout.addWidget(bottom_line)
 
         # === 操作按钮：Draw / Export / Save ===
-        self._report_progress("   Creating plot actions...")
         self.figure_button_panel = QWidget()
         self.figure_button_panel.setFixedHeight(44)
         self.figure_button_panel.setSizePolicy(
@@ -286,24 +273,24 @@ class LogStatisticsWidget(QWidget):
         button_hbox.setContentsMargins(0, 4, 0, 0)
         button_hbox.setSpacing(8)
 
-        self.plot_btn = QPushButton("📊 Draw")
+        self.plot_btn = QPushButton(tr("log.draw"))
         self.plot_btn.setShortcut(QKeySequence("Ctrl+D"))
         self.plot_btn.clicked.connect(self.update_plot)
         button_hbox.addWidget(self.plot_btn)
 
-        self.export_btn = QPushButton("📤 Export")
+        self.export_btn = QPushButton(tr("log.export"))
         self.export_btn.setShortcut(QKeySequence("Ctrl+E"))
         self.export_btn.clicked.connect(self.export_to_excel)
         button_hbox.addWidget(self.export_btn)
 
-        self.save_btn = QPushButton("💾 Save")
+        self.save_btn = QPushButton(tr("log.save"))
         self.save_btn.setShortcut(QKeySequence("Ctrl+S"))
         self.save_btn.clicked.connect(self.save_plot)
         button_hbox.addWidget(self.save_btn)
 
         plot_layout.addWidget(self.figure_button_panel, 0)
 
-        self.tab_widget.addTab(plot_page, "Figure")
+        self.tab_widget.addTab(plot_page, tr("log.tab.figure"))
 
         # 初始化空图
         self.plot_figure.clear()
@@ -316,15 +303,17 @@ class LogStatisticsWidget(QWidget):
     def export_to_excel(self):
         """将当前 data_df 导出为 Excel 文件"""
         if self.data_df is None or self.data_df.empty:
-            self.statusMessage.emit("No data to export.", "warning")
-            QMessageBox.warning(self, "Export Error", "No data available to export.")
+            self.statusMessage.emit(tr("log.status.no_export_data"), "warning")
+            QMessageBox.warning(
+                self, tr("log.dialog.export_error"), tr("log.dialog.no_data")
+            )
             return
 
         file_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export Data to Excel",
+            tr("log.dialog.export_title"),
             "",
-            "CSV Files (*.csv);;Excel Files (*.xlsx);;All Files (*)",
+            tr("filter.csv_excel"),
         )
         if not file_path:
             return
@@ -338,11 +327,15 @@ class LogStatisticsWidget(QWidget):
                     file_path += ".csv"
                 self.data_df.to_csv(file_path, index=False)
             self.statusMessage.emit(
-                f"Data exported: {os.path.basename(file_path)}", "info"
+                tr("log.status.exported", name=os.path.basename(file_path)), "info"
             )
         except Exception as e:
-            self.statusMessage.emit(f"Export failed: {e}", "error")
-            QMessageBox.critical(self, "Export Error", f"Failed to export data:\n{e}")
+            self.statusMessage.emit(tr("log.status.export_failed", error=e), "error")
+            QMessageBox.critical(
+                self,
+                tr("log.dialog.export_error"),
+                tr("log.dialog.export_failed", error=e),
+            )
 
     def _get_monospace_font(self):
         font = QFont()
@@ -386,8 +379,8 @@ class LogStatisticsWidget(QWidget):
     def load_log_and_statistics(self):
         """从 self._project_path 加载日志和统计文件（支持多版本命名）"""
         if not self._project_path or not self._project_path.exists():
-            self.log_edit.setPlainText("(No valid project path)")
-            self.stat_edit.setPlainText("(No valid project path)")
+            self.log_edit.setPlainText(tr("log.empty.no_project"))
+            self.stat_edit.setPlainText(tr("log.empty.no_project"))
             if self.data_df is None:
                 self.update_combo_boxes()
             return
@@ -395,7 +388,7 @@ class LogStatisticsWidget(QWidget):
         self._clear_watcher()
         self.watcher.addPath(str(self._project_path))
         # --- 加载 Log 文件 ---
-        log_content = "(Log file not found)"
+        log_content = tr("log.empty.log_missing")
         loaded_log_path = None
         log_candidates = get_existing_candidates_by_mtime(
             self._project_path, LOG_CANDIDATES
@@ -407,7 +400,9 @@ class LogStatisticsWidget(QWidget):
                 loaded_log_path = path
                 break
             except Exception as e:
-                self.statusMessage.emit(f"Failed to read {path.name}: {e}", "error")
+                self.statusMessage.emit(
+                    tr("log.status.read_failed", name=path.name, error=e), "error"
+                )
                 continue
 
         self.log_edit.setPlainText(log_content)
@@ -418,7 +413,7 @@ class LogStatisticsWidget(QWidget):
         for path in log_candidates:
             self.watcher.addPath(str(path))
         # --- 加载 Statistics 文件 ---
-        stat_content = "(Statistics file not found)"
+        stat_content = tr("log.empty.statistics_missing")
         loaded_stat_path = None
         parsed_df = None
         stat_candidates = get_existing_candidates_by_mtime(
@@ -435,7 +430,7 @@ class LogStatisticsWidget(QWidget):
                     break
             except Exception as e:
                 self.statusMessage.emit(
-                    f"Failed to read or parse {path.name}: {e}", "error"
+                    tr("log.status.parse_failed", name=path.name, error=e), "error"
                 )
                 continue
 
@@ -458,18 +453,20 @@ class LogStatisticsWidget(QWidget):
         msg_parts: list[str] = []
         if loaded_log_path:
             if loaded_log_path.name != "Log.txt":
-                msg_parts.append(f"legacy log: {loaded_log_path.name}")
+                msg_parts.append(tr("log.status.legacy_log", name=loaded_log_path.name))
         if loaded_stat_path:
             if loaded_stat_path.name != "Statistics.txt":
-                msg_parts.append(f"legacy stats: {loaded_stat_path.name}")
+                msg_parts.append(
+                    tr("log.status.legacy_statistics", name=loaded_stat_path.name)
+                )
         if loaded_log_path or loaded_stat_path:
-            base_msg = f"Data loaded from: {self._project_path.name}"
+            base_msg = tr("log.status.loaded_from", name=self._project_path.name)
             if msg_parts:
                 base_msg += " (" + ", ".join(msg_parts) + ")"
             self.statusMessage.emit(base_msg, "info")
         else:
             self.statusMessage.emit(
-                f"No output files found in: {self._project_path.name}", "warning"
+                tr("log.status.no_output", name=self._project_path.name), "warning"
             )
 
     def _on_file_changed(self, path: str):
@@ -478,7 +475,7 @@ class LogStatisticsWidget(QWidget):
 
         file_name = Path(path).name
         self.statusMessage.emit(
-            f"Detected change in {file_name}, update queued...", "info"
+            tr("log.status.change", name=file_name), "info"
         )
         self._refresh_dirty = True
         if not self._refresh_timer.isActive():
@@ -511,14 +508,16 @@ class LogStatisticsWidget(QWidget):
             if not df.empty and len(df.columns) >= 1:
                 return df
         except Exception as e:
-            self.statusMessage.emit(f"Primary parsing failed: {e}", "warning")
+            self.statusMessage.emit(
+                tr("log.status.primary_parse_failed", error=e), "warning"
+            )
 
         # === Fallback: only if main fails ===
         return None
 
     def load_from_excel(self):
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open Excel File", "", "Excel Files (*.xlsx *.xls);;All Files (*)"
+            self, tr("log.dialog.open_excel"), "", tr("filter.excel")
         )
         if not file_path:
             return
@@ -526,16 +525,20 @@ class LogStatisticsWidget(QWidget):
         try:
             loaded_df = pd.read_excel(file_path)
             self.log_edit.setPlainText(
-                f"(Data loaded from: {os.path.basename(file_path)})"
+                tr("log.empty.excel_loaded", name=os.path.basename(file_path))
             )
-            self.stat_edit.setPlainText("(Excel mode – no text display)")
+            self.stat_edit.setPlainText(tr("log.empty.excel_mode"))
             self._stage_figure_dataframe(loaded_df, force=True)
             self.statusMessage.emit(
-                f"Loaded Excel: {os.path.basename(file_path)}", "info"
+                tr("log.status.excel_loaded", name=os.path.basename(file_path)), "info"
             )
         except Exception as e:
-            self.statusMessage.emit(f"Failed to load Excel: {e}", "error")
-            QMessageBox.critical(self, "Load Error", f"Failed to load Excel:\n{e}")
+            self.statusMessage.emit(tr("log.status.excel_failed", error=e), "error")
+            QMessageBox.critical(
+                self,
+                tr("log.dialog.load_error"),
+                tr("log.dialog.load_excel_failed", error=e),
+            )
 
     def update_combo_boxes(self):
         """Rebuild selectors only when the schema actually changes."""
@@ -574,7 +577,7 @@ class LogStatisticsWidget(QWidget):
     def _stage_figure_dataframe(self, df: pd.DataFrame, force: bool = False) -> None:
         if self._figure_lock_count and not force:
             self._pending_figure_df = df.copy()
-            self.figure_update_label.setText("Figure update queued")
+            self.figure_update_label.setText(tr("log.status.figure_queued"))
             return
         self._commit_figure_dataframe(df)
 
@@ -628,23 +631,23 @@ class LogStatisticsWidget(QWidget):
 
     def save_plot(self):
         if not hasattr(self, "plot_figure") or not self.plot_figure.axes:
-            self.statusMessage.emit("No figure to save.", "warning")
+            self.statusMessage.emit(tr("log.status.no_figure"), "warning")
             return
 
         file_path, selected_filter = QFileDialog.getSaveFileName(
             self,
-            "Save Figure",
+            tr("log.dialog.save_figure"),
             "",
-            "PNG (*.png);;JPEG (*.jpg);;PDF (*.pdf);;SVG (*.svg);;All Files (*)",
+            tr("filter.figures"),
         )
         if not file_path:
             return
 
         ext_map = {
-            "PNG (*.png)": ".png",
-            "JPEG (*.jpg)": ".jpg",
-            "PDF (*.pdf)": ".pdf",
-            "SVG (*.svg)": ".svg",
+            tr("filter.png"): ".png",
+            tr("filter.jpeg"): ".jpg",
+            tr("filter.pdf"): ".pdf",
+            tr("filter.svg"): ".svg",
         }
         lower_path = file_path.lower()
         valid_exts = [".png", ".jpg", ".jpeg", ".pdf", ".svg"]
@@ -655,16 +658,20 @@ class LogStatisticsWidget(QWidget):
         try:
             self.plot_figure.savefig(file_path, dpi=300, bbox_inches="tight")
             self.statusMessage.emit(
-                f"Figure saved: {os.path.basename(file_path)}", "info"
+                tr("log.status.figure_saved", name=os.path.basename(file_path)), "info"
             )
         except Exception as e:
-            self.statusMessage.emit(f"Failed to save figure: {e}", "error")
-            QMessageBox.critical(self, "Save Error", f"Failed to save figure:\n{e}")
+            self.statusMessage.emit(tr("log.status.figure_failed", error=e), "error")
+            QMessageBox.critical(
+                self,
+                tr("log.dialog.save_error"),
+                tr("log.dialog.save_figure_failed", error=e),
+            )
 
     def show_plot_context_menu(self, pos: Any) -> None:
         menu = QMenu(self)
-        draw_action = menu.addAction("Draw (Ctrl+D)")
-        save_action = menu.addAction("Save (Ctrl+S)")
+        draw_action = menu.addAction(tr("log.menu.draw"))
+        save_action = menu.addAction(tr("log.menu.save"))
         action = menu.exec(self.plot_canvas.mapToGlobal(pos))
         if action == draw_action:
             self.update_plot()

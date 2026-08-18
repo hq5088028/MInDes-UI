@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import math
 import vtk
+
+from ..i18n import combo_value, tr
 from PySide6.QtCore import Qt
 
 if TYPE_CHECKING:
@@ -55,12 +57,12 @@ class VisualizationMixin(_Base):
             self._boundary_extract_filter = None
         # 确保有数据
         if grid_to_render.GetNumberOfPoints() == 0:
-            self.playback_status_label.setText("⚠️ No valid data points")
+            self.playback_status_label.setText(tr("vts.status.no_valid_points"))
             return
 
         # === 后续使用 grid_to_render 进行可视化 ===
         display_text = self.field_combo.currentText()
-        if "(No fields)" in display_text:
+        if self.field_combo.currentData() == "__NO_FIELDS__":
             return
         is_vector = display_text.startswith("[V]")
         field_name = display_text[4:]
@@ -104,7 +106,7 @@ class VisualizationMixin(_Base):
                 rmin, rmax = scalar_arr.GetRange()
 
         # prepare lut
-        self._create_lookup_table(self.colormap_combo.currentText(), (rmin, rmax))
+        self._create_lookup_table(combo_value(self.colormap_combo), (rmin, rmax))
 
         mode = self.current_vis_mode
 
@@ -123,8 +125,8 @@ class VisualizationMixin(_Base):
             self._render_glyph_actor(
                 grid_to_render,
                 field_name,
-                color_mode=self.glyph_color_mode_combo.currentText(),
-                size_mode=self.glyph_size_mode_combo.currentText(),
+                color_mode=combo_value(self.glyph_color_mode_combo),
+                size_mode=combo_value(self.glyph_size_mode_combo),
                 scale_factor=float(self.glyph_scale_edit.text()),
             )
         else:
@@ -336,7 +338,7 @@ class VisualizationMixin(_Base):
         """
         vectors = grid.GetPointData().GetArray(vector_field_name)
         if not vectors or vectors.GetNumberOfComponents() != 3:
-            self.playback_status_label.setText("❌ Invalid vector data for glyph.")
+            self.playback_status_label.setText(tr("vts.status.invalid_vector"))
             self.glyph_actor.VisibilityOff()
             return
         grid.GetPointData().SetActiveVectors(vector_field_name)
@@ -429,7 +431,7 @@ class VisualizationMixin(_Base):
     def update_background_color(self):
         """根据下拉栏选择更新背景颜色"""
         # 从下拉栏获取颜色
-        color_name = self.bg_color_combo.currentText()
+        color_name = combo_value(self.bg_color_combo)
         color_map = {
             "White": (1.0, 1.0, 1.0),
             "Light Gray": (0.9, 0.9, 0.9),

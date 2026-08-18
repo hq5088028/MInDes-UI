@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 )
 from vtkmodules.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
+from ...i18n import tr
 from .models import (
     VtsDatasetConfig,
     VtsPlotterState,
@@ -60,7 +61,7 @@ STATE_KEY = "vts_plotter/state_v1"
 class VTSPlotterDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("VTS Plotter")
+        self.setWindowTitle(tr("plotter.vts.title"))
         self.setWindowFlag(Qt.WindowType.Window, True)
         self._set_size(parent)
         self.settings = QSettings("MInDes", "MInDes-UI")
@@ -167,7 +168,7 @@ class VTSPlotterDialog(QDialog):
         left_layout.setContentsMargins(0, 0, 0, 0)
         controls = QHBoxLayout()
         left_layout.addLayout(controls)
-        self.select_all = QCheckBox("Select All")
+        self.select_all = QCheckBox(tr("common.select_all"))
         self.select_all.setTristate(True)
         self.select_all.clicked.connect(self._toggle_select_all)
         controls.addWidget(self.select_all)
@@ -188,9 +189,9 @@ class VTSPlotterDialog(QDialog):
         left_layout.addLayout(data_buttons)
         self.data_action_buttons = []
         for text, slot in [
-            ("Add", self.add_vts),
-            ("Remove", self.remove_selected),
-            ("Reload", self.reload_selected),
+            (tr("common.add"), self.add_vts),
+            (tr("common.remove"), self.remove_selected),
+            (tr("common.reload"), self.reload_selected),
         ]:
             btn = QPushButton(text)
             btn.clicked.connect(slot)
@@ -223,7 +224,7 @@ class VTSPlotterDialog(QDialog):
         self.splitter.setSizes(self.state.splitter_sizes or [400, 800])
         self.splitter.splitterMoved.connect(lambda *_: self._save_state())
 
-        self.status = QLabel("Add one or more .vts files to begin.")
+        self.status = QLabel(tr("plotter.status.vts_begin"))
         self.status.setStyleSheet(
             "background:#f0f0f0;padding:4px;border-top:1px solid #bbb;"
         )
@@ -234,13 +235,13 @@ class VTSPlotterDialog(QDialog):
         buttons.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(buttons)
         actions = [
-            ("Draw 3D", self.draw_3d, 0, 0),
-            ("Property", self.open_3d_property, 0, 1),
-            ("Screenshot", self.save_screenshot, 0, 3),
-            ("Reset", self.reset_view, 1, 0),
-            ("View X", lambda: self._view_axis("X"), 1, 1),
-            ("View Y", lambda: self._view_axis("Y"), 1, 2),
-            ("View Z", lambda: self._view_axis("Z"), 1, 3),
+            (tr("plotter.draw_3d"), self.draw_3d, 0, 0),
+            (tr("common.property"), self.open_3d_property, 0, 1),
+            (tr("common.screenshot"), self.save_screenshot, 0, 3),
+            (tr("common.reset"), self.reset_view, 1, 0),
+            (tr("plotter.view_x"), lambda: self._view_axis("X"), 1, 1),
+            (tr("plotter.view_y"), lambda: self._view_axis("Y"), 1, 2),
+            (tr("plotter.view_z"), lambda: self._view_axis("Z"), 1, 3),
         ]
         self.view_action_buttons = []
         for text, slot, row, col in actions:
@@ -263,7 +264,7 @@ class VTSPlotterDialog(QDialog):
                     if grid:
                         self.frames[dataset.dataset_id] = grid
                 except Exception as exc:
-                    self.status.setText(f"Failed to restore {dataset.path}: {exc}")
+                    self.status.setText(tr("plotter.status.restore_failed", path=dataset.path, error=exc))
             self._append_card(dataset)
         valid = {d.dataset_id for d in self.state.datasets}
         if self.state.active_dataset_id not in valid and self.state.datasets:
@@ -272,19 +273,19 @@ class VTSPlotterDialog(QDialog):
 
     def add_vts(self):
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Add VTS files", "", "VTS files (*.vts);;All files (*)"
+            self, tr("plotter.add_vts"), "", tr("filter.vts_files")
         )
         for path in paths:
             try:
                 grid = load_vts_file(path)
             except Exception as exc:
                 QMessageBox.warning(
-                    self, "VTS Error", f"Failed to read {path}:\\n{exc}"
+                    self, tr("plotter.vts_error"), tr("plotter.read_failed", path=path, error=exc)
                 )
                 continue
             if grid is None:
                 QMessageBox.warning(
-                    self, "VTS Error", f"{path} contains no valid data."
+                    self, tr("plotter.vts_error"), tr("plotter.no_valid_data", path=path)
                 )
                 continue
             absolute_path = os.path.abspath(path)
@@ -301,7 +302,7 @@ class VTSPlotterDialog(QDialog):
             self.state.render_order.append(dataset.dataset_id)
             self._append_card(dataset)
             self._activate_dataset(dataset.dataset_id)
-            self.status.setText(f"Loaded: {Path(path).name}")
+            self.status.setText(tr("plotter.status.loaded", name=Path(path).name))
         if paths:
             self._refresh_cards()
             self._save_state()
@@ -417,12 +418,12 @@ class VTSPlotterDialog(QDialog):
             d for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
         ]
         if not selected:
-            self.status.setText("No On dataset is selected for removal.")
+            self.status.setText(tr("plotter.status.no_remove"))
             return
         reply = QMessageBox.question(
             self,
-            "Remove Datasets",
-            f"Remove {len(selected)} On dataset(s)?",
+            tr("plotter.remove_datasets.title"),
+            tr("plotter.remove_datasets.body", count=len(selected)),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
@@ -431,14 +432,14 @@ class VTSPlotterDialog(QDialog):
             self.remove_dataset(dataset.dataset_id, False)
         self._refresh_cards()
         self._save_state()
-        self.status.setText(f"Removed {len(selected)} dataset(s).")
+        self.status.setText(tr("plotter.status.removed", count=len(selected)))
 
     def remove_dataset(self, dataset_id, confirm):
         if confirm:
             reply = QMessageBox.question(
                 self,
-                "Remove Dataset",
-                "Remove this dataset?",
+                tr("plotter.remove_dataset.title"),
+                tr("plotter.remove_dataset.body"),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
@@ -487,16 +488,16 @@ class VTSPlotterDialog(QDialog):
         try:
             grid = load_vts_file(dataset.path)
             if grid is None:
-                self.status.setText(f"Failed to reload {dataset.path}: no data")
+                self.status.setText(tr("plotter.status.reload_no_data", path=dataset.path))
                 return
             self.frames[dataset.dataset_id] = grid
             card = next((c for c in self.cards if c.dataset_id == dataset_id), None)
             if card:
                 fields = get_vts_field_names(grid)
                 card.update_fields(fields)
-            self.status.setText(f"Reloaded: {Path(dataset.path).name}")
+            self.status.setText(tr("plotter.status.reloaded", name=Path(dataset.path).name))
         except Exception as exc:
-            QMessageBox.warning(self, "Reload Error", str(exc))
+            QMessageBox.warning(self, tr("plotter.reload_error"), str(exc))
 
     def duplicate_dataset(self, dataset_id):
         source = self._dataset_by_id(dataset_id)
@@ -516,9 +517,7 @@ class VTSPlotterDialog(QDialog):
         self.state.active_dataset_id = duplicate.dataset_id
         self._refresh_cards()
         self._save_state()
-        self.status.setText(
-            f"Duplicated {dataset_display_name(source)} as {dataset_display_name(duplicate)}."
-        )
+        self.status.setText(tr("plotter.status.duplicated", source=dataset_display_name(source), target=dataset_display_name(duplicate)))
 
     @staticmethod
     def _insert_above(order, source_id, new_id):
@@ -583,7 +582,7 @@ class VTSPlotterDialog(QDialog):
                 if render_fn:
                     render_fn(self.renderer, processed, cfg, lut)
             except Exception as exc:
-                self.status.setText(f"Error rendering {dataset.label}: {exc}")
+                self.status.setText(tr("plotter.status.render_error", name=dataset.label, error=exc))
                 continue
 
         # Post-processing: axes, colorbar, legend
@@ -600,7 +599,7 @@ class VTSPlotterDialog(QDialog):
         enabled = sum(
             1 for d in self.state.datasets if d.enabled and d.dataset_id in self.frames
         )
-        self.status.setText(f"3D: rendered {enabled} dataset(s).")
+        self.status.setText(tr("plotter.status.rendered", count=enabled))
 
     def _add_axes(self):
         bounds = self.renderer.ComputeVisiblePropBounds()
@@ -737,7 +736,7 @@ class VTSPlotterDialog(QDialog):
 
     def _save_3d_format_file(self, config, datasets, order, format_templates):
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save 3D Plot Format", "", "MInDes 3D style (*.mindes3dstyle.json)"
+            self, tr("plotter.save_3d_format"), "", tr("filter.style_3d")
         )
         if not path:
             return
@@ -753,16 +752,16 @@ class VTSPlotterDialog(QDialog):
                 json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
             )
         except OSError as exc:
-            QMessageBox.warning(self, "Save Format", str(exc))
+            QMessageBox.warning(self, tr("plotter.save_format"), str(exc))
             return
-        self.status.setText(f"Saved 3D plot format: {Path(path).name}")
+        self.status.setText(tr("plotter.status.saved_3d_format", name=Path(path).name))
 
     def _load_3d_format_file(self, current, datasets, order, _format_templates):
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Load 3D Plot Format",
+            tr("plotter.load_3d_format"),
             "",
-            "MInDes 3D style (*.mindes3dstyle.json);;JSON files (*.json)",
+            tr("filter.style_3d_json"),
         )
         if not path:
             return None
@@ -771,7 +770,7 @@ class VTSPlotterDialog(QDialog):
                 json.loads(Path(path).read_text(encoding="utf-8"))
             )
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            QMessageBox.warning(self, "Load Format", str(exc))
+            QMessageBox.warning(self, tr("plotter.load_format"), str(exc))
             return None
         by_id = {d.dataset_id: d for d in datasets}
         for idx, dataset_id in enumerate(v for v in order if v in by_id):
@@ -817,16 +816,16 @@ class VTSPlotterDialog(QDialog):
     def save_screenshot(self):
         path, selected = QFileDialog.getSaveFileName(
             self,
-            "Save 3D Screenshot",
+            tr("plotter.save_3d_screenshot"),
             "",
-            "PNG (*.png);;JPEG (*.jpg);;TIFF (*.tif *.tiff)",
+            tr("filter.screenshot_3d"),
         )
         if not path:
             return
         ext_map = {
-            "PNG (*.png)": ".png",
-            "JPEG (*.jpg)": ".jpg",
-            "TIFF (*.tif *.tiff)": ".tif",
+            tr("filter.png"): ".png",
+            tr("filter.jpeg"): ".jpg",
+            tr("filter.tiff"): ".tif",
         }
         ext = ext_map.get(selected, ".png")
         if not Path(path).suffix:
@@ -846,7 +845,7 @@ class VTSPlotterDialog(QDialog):
         writer.SetFileName(path)
         writer.SetInputConnection(capture.GetOutputPort())
         writer.Write()
-        self.status.setText(f"Saved: {Path(path).name}")
+        self.status.setText(tr("plotter.status.saved", name=Path(path).name))
 
     # ── State persistence ──────────────────────────────────
 

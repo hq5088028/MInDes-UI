@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ...i18n import add_combo_items, combo_value, set_combo_value, tr
 from ...plot_property_dialog import ColorButton
 from .models import dataset_display_name
 
@@ -36,17 +37,17 @@ class VtkFontStyleEditor(QGroupBox):
         self.font_size = QSpinBox()
         self.font_size.setRange(6, 96)
         self.font_size.setSuffix(" px")
-        self.bold = QCheckBox("Bold")
-        self.italic = QCheckBox("Italic")
+        self.bold = QCheckBox(tr("common.bold"))
+        self.italic = QCheckBox(tr("common.italic"))
         self.color = ColorButton("#000000")
         flags = QHBoxLayout()
         flags.addWidget(self.bold)
         flags.addWidget(self.italic)
         flags.addStretch()
-        form.addRow("Font:", self.family)
-        form.addRow("Size:", self.font_size)
-        form.addRow("Style:", flags)
-        form.addRow("Color:", self.color)
+        form.addRow(tr("property.font"), self.family)
+        form.addRow(tr("common.size"), self.font_size)
+        form.addRow(tr("common.style"), flags)
+        form.addRow(tr("common.color"), self.color)
 
     def load(self, style):
         self.family.setCurrentText(style.font)
@@ -78,7 +79,7 @@ class VtkPropertyDialog(QDialog):
         style_templates=None,
     ):
         super().__init__(parent)
-        self.setWindowTitle("3D Properties")
+        self.setWindowTitle(tr("property.3d.title"))
         self.resize(780, 780)
         self.config = deepcopy(vtk_config)
         self.config.migrate_legacy_axes()
@@ -101,19 +102,19 @@ class VtkPropertyDialog(QDialog):
         root = QVBoxLayout(self)
         tabs = QTabWidget()
         root.addWidget(tabs, 1)
-        tabs.addTab(self._build_dataset_page(), "Dataset")
-        tabs.addTab(self._build_scene_page(), "Scene")
-        tabs.addTab(self._build_axes_page(), "Axes")
+        tabs.addTab(self._build_dataset_page(), tr("property.tab.dataset"))
+        tabs.addTab(self._build_scene_page(), tr("property.tab.scene"))
+        tabs.addTab(self._build_axes_page(), tr("property.tab.axes"))
         buttons = QHBoxLayout()
         root.addLayout(buttons)
-        save_btn = QPushButton("Save Format...")
-        load_btn = QPushButton("Load Format...")
+        save_btn = QPushButton(tr("property.save_format"))
+        load_btn = QPushButton(tr("property.load_format"))
         buttons.addWidget(save_btn)
         buttons.addWidget(load_btn)
         buttons.addStretch()
-        apply_btn = QPushButton("Apply")
-        ok_btn = QPushButton("OK")
-        cancel_btn = QPushButton("Cancel")
+        apply_btn = QPushButton(tr("common.apply"))
+        ok_btn = QPushButton(tr("common.ok"))
+        cancel_btn = QPushButton(tr("common.cancel"))
         buttons.addWidget(apply_btn)
         buttons.addWidget(ok_btn)
         buttons.addWidget(cancel_btn)
@@ -142,9 +143,9 @@ class VtkPropertyDialog(QDialog):
         outer.addLayout(top)
         self.dataset_combo = QComboBox()
         self.position_label = QLabel()
-        self.up_btn = QPushButton("Move Up")
-        self.down_btn = QPushButton("Move Down")
-        top.addWidget(QLabel("Active dataset:"))
+        self.up_btn = QPushButton(tr("dataset.move_up"))
+        self.down_btn = QPushButton(tr("dataset.move_down"))
+        top.addWidget(QLabel(tr("property.active_dataset")))
         top.addWidget(self.dataset_combo, 1)
         top.addWidget(self.position_label)
         top.addWidget(self.up_btn)
@@ -152,13 +153,13 @@ class VtkPropertyDialog(QDialog):
         form = QFormLayout()
         outer.addLayout(form)
         self.mode = QComboBox()
-        self.mode.addItems(["Surface", "Mesh", "Scatter"])
+        add_combo_items(self.mode, [("choice.surface", "Surface"), ("choice.mesh", "Mesh"), ("choice.scatter", "Scatter")])
         self.color_mode = QComboBox()
-        self.color_mode.addItems(["Fixed Color", "Z Colormap"])
+        add_combo_items(self.color_mode, [("choice.fixed_color", "Fixed Color"), ("choice.z_colormap", "Z Colormap")])
         self.color = ColorButton("#1f77b4")
         self.cmap = QComboBox()
-        self.cmap.addItems(["Viridis", "Plasma", "Coolwarm", "Rainbow", "Grayscale"])
-        self.auto_range = QCheckBox("Auto")
+        add_combo_items(self.cmap, [("choice.viridis", "Viridis"), ("choice.plasma", "Plasma"), ("choice.coolwarm", "Coolwarm"), ("choice.rainbow", "Rainbow"), ("choice.grayscale", "Grayscale")])
+        self.auto_range = QCheckBox(tr("common.auto"))
         self.range_min = self._double()
         self.range_max = self._double()
         self.opacity = self._double(0, 1, 2)
@@ -166,17 +167,17 @@ class VtkPropertyDialog(QDialog):
         self.mesh_color = ColorButton("#202020")
         self.mesh_width = self._double(0.1, 10, 2)
         for label, widget in (
-            ("Mode:", self.mode),
-            ("Color mode:", self.color_mode),
-            ("Fixed color:", self.color),
-            ("Colormap:", self.cmap),
-            ("Color range:", self.auto_range),
-            ("Range minimum:", self.range_min),
-            ("Range maximum:", self.range_max),
-            ("Opacity:", self.opacity),
-            ("Point size:", self.point_size),
-            ("Mesh color:", self.mesh_color),
-            ("Mesh width:", self.mesh_width),
+            (tr("property.dataset.mode"), self.mode),
+            (tr("property.dataset.color_mode"), self.color_mode),
+            (tr("property.dataset.fixed_color"), self.color),
+            (tr("property.dataset.colormap"), self.cmap),
+            (tr("property.dataset.color_range"), self.auto_range),
+            (tr("property.dataset.range_min"), self.range_min),
+            (tr("property.dataset.range_max"), self.range_max),
+            (tr("common.opacity"), self.opacity),
+            (tr("property.dataset.point_size"), self.point_size),
+            (tr("property.dataset.mesh_color"), self.mesh_color),
+            (tr("property.dataset.mesh_width"), self.mesh_width),
         ):
             form.addRow(label, widget)
         self.dataset_controls = [
@@ -201,24 +202,24 @@ class VtkPropertyDialog(QDialog):
         page = QWidget()
         form = QFormLayout(page)
         self.background = QComboBox()
-        self.background.addItems(["White", "Light Gray", "Gray", "Dark Gray", "Black"])
-        self.show_colorbar = QCheckBox("Show active colorbar")
-        self.show_legend = QCheckBox("Show dataset legend")
-        self.auto_normalize = QCheckBox("Normalize union ranges")
+        add_combo_items(self.background, [("choice.white", "White"), ("choice.light_gray", "Light Gray"), ("choice.gray", "Gray"), ("choice.dark_gray", "Dark Gray"), ("choice.black", "Black")])
+        self.show_colorbar = QCheckBox(tr("property.show_colorbar"))
+        self.show_legend = QCheckBox(tr("property.show_legend"))
+        self.auto_normalize = QCheckBox(tr("property.normalize_union"))
         self.x_scale = self._double(0.001, 1000, 3)
         self.y_scale = self._double(0.001, 1000, 3)
         self.z_scale = self._double(0.001, 1000, 3)
         self.screenshot_scale = QSpinBox()
         self.screenshot_scale.setRange(1, 8)
         for label, widget in (
-            ("Background:", self.background),
-            ("Colorbar:", self.show_colorbar),
-            ("Legend:", self.show_legend),
-            ("Auto visual normalization:", self.auto_normalize),
-            ("X visual factor:", self.x_scale),
-            ("Y visual factor:", self.y_scale),
-            ("Z visual factor:", self.z_scale),
-            ("Screenshot scale:", self.screenshot_scale),
+            (tr("common.background"), self.background),
+            (tr("property.scene.colorbar"), self.show_colorbar),
+            (tr("property.scene.legend"), self.show_legend),
+            (tr("property.scene.normalize"), self.auto_normalize),
+            (tr("property.scene.x_factor"), self.x_scale),
+            (tr("property.scene.y_factor"), self.y_scale),
+            (tr("property.scene.z_factor"), self.z_scale),
+            (tr("property.scene.screenshot_scale"), self.screenshot_scale),
         ):
             form.addRow(label, widget)
         return page
@@ -234,95 +235,87 @@ class VtkPropertyDialog(QDialog):
         scroll.setWidget(content)
         selector = QHBoxLayout()
         layout.addLayout(selector)
-        self.show_axes = QCheckBox("Show cube axes")
+        self.show_axes = QCheckBox(tr("property.axes.show"))
         self.axis_combo = QComboBox()
-        self.axis_combo.addItems(["X Axis", "Y Axis", "Z Axis"])
+        self.axis_combo.addItems([tr("property.axes.x"), tr("property.axes.y"), tr("property.axes.z")])
         selector.addWidget(self.show_axes)
         selector.addStretch()
-        selector.addWidget(QLabel("Axis:"))
+        selector.addWidget(QLabel(tr("common.axis")))
         selector.addWidget(self.axis_combo)
-        visibility = QGroupBox("Visibility and title")
+        visibility = QGroupBox(tr("property.axes.visibility"))
         form = QFormLayout(visibility)
         layout.addWidget(visibility)
-        self.axis_visible = QCheckBox("Show axis")
-        self.title_visible = QCheckBox("Show title")
-        self.label_visible = QCheckBox("Show tick labels")
+        self.axis_visible = QCheckBox(tr("property.axes.show_axis"))
+        self.title_visible = QCheckBox(tr("property.axes.show_title"))
+        self.label_visible = QCheckBox(tr("property.axes.show_labels"))
         self.axis_title = QLineEdit()
-        form.addRow("Axis:", self.axis_visible)
-        form.addRow("Title:", self.title_visible)
-        form.addRow("Tick labels:", self.label_visible)
-        form.addRow("Title text:", self.axis_title)
-        self.title_font = VtkFontStyleEditor("Title font")
-        self.label_font = VtkFontStyleEditor("Tick-label font")
+        form.addRow(tr("common.axis"), self.axis_visible)
+        form.addRow(tr("common.title"), self.title_visible)
+        form.addRow(tr("property.axes.show_labels"), self.label_visible)
+        form.addRow(tr("property.axes.title_text"), self.axis_title)
+        self.title_font = VtkFontStyleEditor(tr("property.axes.title_font"))
+        self.label_font = VtkFontStyleEditor(tr("property.axes.label_font"))
         layout.addWidget(self.title_font)
         layout.addWidget(self.label_font)
-        ticks = QGroupBox("Ticks and numeric format")
+        ticks = QGroupBox(tr("property.axes.ticks"))
         form = QFormLayout(ticks)
         layout.addWidget(ticks)
-        self.major_ticks = QCheckBox("Show major ticks")
-        self.minor_ticks = QCheckBox("Show minor ticks")
+        self.major_ticks = QCheckBox(tr("property.axes.major"))
+        self.minor_ticks = QCheckBox(tr("property.axes.minor"))
         self.number_format = QComboBox()
-        self.number_format.addItems(["Auto", "Fixed", "Scientific"])
+        add_combo_items(self.number_format, [("common.auto", "Auto"), ("choice.fixed", "Fixed"), ("choice.scientific", "Scientific")])
         self.decimals = QSpinBox()
         self.decimals.setRange(0, 12)
-        form.addRow("Major ticks:", self.major_ticks)
-        form.addRow("Minor ticks:", self.minor_ticks)
-        form.addRow("Number format:", self.number_format)
-        form.addRow("Decimals:", self.decimals)
-        line = QGroupBox("Axis line")
+        form.addRow(tr("property.axes.major"), self.major_ticks)
+        form.addRow(tr("property.axes.minor"), self.minor_ticks)
+        form.addRow(tr("property.axes.format"), self.number_format)
+        form.addRow(tr("property.axes.decimals"), self.decimals)
+        line = QGroupBox(tr("property.axes.line"))
         form = QFormLayout(line)
         layout.addWidget(line)
         self.axis_line_color = ColorButton("#000000")
         self.axis_line_width = self._double(0.1, 10, 2)
-        form.addRow("Color:", self.axis_line_color)
-        form.addRow("Width:", self.axis_line_width)
-        grid = QGroupBox("Grid")
+        form.addRow(tr("common.color"), self.axis_line_color)
+        form.addRow(tr("common.width"), self.axis_line_width)
+        grid = QGroupBox(tr("property.axes.grid"))
         form = QFormLayout(grid)
         layout.addWidget(grid)
-        self.grid_visible = QCheckBox("Show grid lines")
+        self.grid_visible = QCheckBox(tr("property.axes.show_grid"))
         self.grid_color = ColorButton("#b0b0b0")
         self.grid_width = self._double(0.1, 10, 2)
-        form.addRow("Grid:", self.grid_visible)
-        form.addRow("Color:", self.grid_color)
-        form.addRow("Width:", self.grid_width)
-        bounds = QGroupBox("Bounds")
+        form.addRow(tr("property.axes.grid"), self.grid_visible)
+        form.addRow(tr("common.color"), self.grid_color)
+        form.addRow(tr("common.width"), self.grid_width)
+        bounds = QGroupBox(tr("property.axes.bounds"))
         form = QFormLayout(bounds)
         layout.addWidget(bounds)
-        self.auto_bounds = QCheckBox("Auto from visible data")
+        self.auto_bounds = QCheckBox(tr("property.axes.auto_bounds"))
         self.axis_min = self._double()
         self.axis_max = self._double()
-        form.addRow("Mode:", self.auto_bounds)
-        form.addRow("Minimum:", self.axis_min)
-        form.addRow("Maximum:", self.axis_max)
-        shared = QGroupBox("Axis layout")
+        form.addRow(tr("common.mode"), self.auto_bounds)
+        form.addRow(tr("common.minimum"), self.axis_min)
+        form.addRow(tr("common.maximum"), self.axis_max)
+        shared = QGroupBox(tr("property.axes.layout"))
         form = QFormLayout(shared)
         layout.addWidget(shared)
         self.tick_location = QComboBox()
-        self.tick_location.addItems(["Inside", "Outside", "Both"])
+        add_combo_items(self.tick_location, [("choice.inside", "Inside"), ("choice.outside", "Outside"), ("choice.both", "Both")])
         self.fly_mode = QComboBox()
-        self.fly_mode.addItems(
-            [
-                "Closest Triad",
-                "Furthest Triad",
-                "Outer Edges",
-                "Static Triad",
-                "Static Edges",
-            ]
-        )
+        add_combo_items(self.fly_mode, [("choice.closest_triad", "Closest Triad"), ("choice.furthest_triad", "Furthest Triad"), ("choice.outer_edges", "Outer Edges"), ("choice.static_triad", "Static Triad"), ("choice.static_edges", "Static Edges")])
         self.grid_location = QComboBox()
-        self.grid_location.addItems(["All", "Closest", "Furthest"])
+        add_combo_items(self.grid_location, [("choice.all", "All"), ("choice.closest", "Closest"), ("choice.furthest", "Furthest")])
         self.title_offset_x = self._double(-500, 500, 1)
         self.title_offset_y = self._double(-500, 500, 1)
         self.label_offset = self._double(-500, 500, 1)
         self.corner_offset = self._double(0, 1, 3)
         for label, widget in (
-            ("Tick location:", self.tick_location),
-            ("Fly mode:", self.fly_mode),
-            ("Grid location:", self.grid_location),
-            ("Title offset X:", self.title_offset_x),
-            ("Title offset Y:", self.title_offset_y),
-            ("Label offset:", self.label_offset),
-            ("Corner offset:", self.corner_offset),
+            (tr("property.axes.tick_location"), self.tick_location),
+            (tr("property.axes.fly_mode"), self.fly_mode),
+            (tr("property.axes.grid_location"), self.grid_location),
+            (tr("property.axes.title_offset_x"), self.title_offset_x),
+            (tr("property.axes.title_offset_y"), self.title_offset_y),
+            (tr("property.axes.label_offset"), self.label_offset),
+            (tr("property.axes.corner_offset"), self.corner_offset),
         ):
             form.addRow(label, widget)
         layout.addStretch()
@@ -332,7 +325,7 @@ class VtkPropertyDialog(QDialog):
     def _load_common(self):
         c = self.config
         self._loading = True
-        self.background.setCurrentText(c.background)
+        set_combo_value(self.background, c.background)
         self.show_axes.setChecked(c.show_axes)
         self.show_colorbar.setChecked(c.show_colorbar)
         self.show_legend.setChecked(c.show_legend)
@@ -342,9 +335,9 @@ class VtkPropertyDialog(QDialog):
         self.z_scale.setValue(c.z_scale)
         self.screenshot_scale.setValue(c.screenshot_scale)
         self.auto_bounds.setChecked(c.auto_bounds)
-        self.tick_location.setCurrentText(c.tick_location)
-        self.fly_mode.setCurrentText(c.fly_mode)
-        self.grid_location.setCurrentText(c.grid_line_location)
+        set_combo_value(self.tick_location, c.tick_location)
+        set_combo_value(self.fly_mode, c.fly_mode)
+        set_combo_value(self.grid_location, c.grid_line_location)
         self.title_offset_x.setValue(c.title_offset_x)
         self.title_offset_y.setValue(c.title_offset_y)
         self.label_offset.setValue(c.label_offset)
@@ -376,7 +369,7 @@ class VtkPropertyDialog(QDialog):
         self.axis_title.setText(axis.title)
         self.major_ticks.setChecked(axis.major_tick_visible)
         self.minor_ticks.setChecked(axis.minor_tick_visible)
-        self.number_format.setCurrentText(axis.format_mode)
+        set_combo_value(self.number_format, axis.format_mode)
         self.decimals.setValue(axis.decimals)
         self.axis_line_color.set_color(axis.line_color)
         self.axis_line_width.setValue(axis.line_width)
@@ -399,7 +392,7 @@ class VtkPropertyDialog(QDialog):
         axis.title = self.axis_title.text()
         axis.major_tick_visible = self.major_ticks.isChecked()
         axis.minor_tick_visible = self.minor_ticks.isChecked()
-        axis.format_mode = self.number_format.currentText()
+        axis.format_mode = combo_value(self.number_format)
         axis.decimals = self.decimals.value()
         axis.line_color = self.axis_line_color.color()
         axis.line_width = self.axis_line_width.value()
@@ -460,17 +453,17 @@ class VtkPropertyDialog(QDialog):
             else False
         )
         if not enabled:
-            self.position_label.setText("No On dataset")
+            self.position_label.setText(tr("property.no_enabled_dataset"))
 
     def _load_dataset(self):
         if not self.active_id:
             return
         self._loading = True
         d = self.datasets[self.active_id]
-        self.mode.setCurrentText(d.mode3d)
-        self.color_mode.setCurrentText(d.color_mode)
+        set_combo_value(self.mode, d.mode3d)
+        set_combo_value(self.color_mode, d.color_mode)
         self.color.set_color(d.color)
-        self.cmap.setCurrentText(d.colormap)
+        set_combo_value(self.cmap, d.colormap)
         self.auto_range.setChecked(d.auto_color_range)
         self.range_min.setValue(d.color_min)
         self.range_max.setValue(d.color_max)
@@ -479,7 +472,13 @@ class VtkPropertyDialog(QDialog):
         self.mesh_color.set_color(d.mesh_color)
         self.mesh_width.setValue(d.mesh_width)
         index = self.render_order.index(self.active_id)
-        self.position_label.setText(f"{index + 1}/{len(self.render_order)} (top first)")
+        self.position_label.setText(
+            tr(
+                "figure_property.position_top_first",
+                current=index + 1,
+                total=len(self.render_order),
+            )
+        )
         self.up_btn.setEnabled(index > 0)
         self.down_btn.setEnabled(index + 1 < len(self.render_order))
         self._loading = False
@@ -488,10 +487,10 @@ class VtkPropertyDialog(QDialog):
         if self._loading or not self.active_id:
             return
         d = self.datasets[self.active_id]
-        d.mode3d = self.mode.currentText()
-        d.color_mode = self.color_mode.currentText()
+        d.mode3d = combo_value(self.mode)
+        d.color_mode = combo_value(self.color_mode)
         d.color = self.color.color()
-        d.colormap = self.cmap.currentText()
+        d.colormap = combo_value(self.cmap)
         d.auto_color_range = self.auto_range.isChecked()
         d.color_min = self.range_min.value()
         d.color_max = self.range_max.value()
@@ -522,7 +521,7 @@ class VtkPropertyDialog(QDialog):
     def _save_common(self):
         self._save_axis()
         c = self.config
-        c.background = self.background.currentText()
+        c.background = combo_value(self.background)
         c.show_axes = self.show_axes.isChecked()
         c.show_colorbar = self.show_colorbar.isChecked()
         c.show_legend = self.show_legend.isChecked()
@@ -532,9 +531,9 @@ class VtkPropertyDialog(QDialog):
         c.z_scale = self.z_scale.value()
         c.screenshot_scale = self.screenshot_scale.value()
         c.auto_bounds = self.auto_bounds.isChecked()
-        c.tick_location = self.tick_location.currentText()
-        c.fly_mode = self.fly_mode.currentText()
-        c.grid_line_location = self.grid_location.currentText()
+        c.tick_location = combo_value(self.tick_location)
+        c.fly_mode = combo_value(self.fly_mode)
+        c.grid_line_location = combo_value(self.grid_location)
         c.title_offset_x = self.title_offset_x.value()
         c.title_offset_y = self.title_offset_y.value()
         c.label_offset = self.label_offset.value()
@@ -554,15 +553,15 @@ class VtkPropertyDialog(QDialog):
             c.x_min < c.x_max and c.y_min < c.y_max and c.z_min < c.z_max
         ):
             QMessageBox.warning(
-                self, "Invalid Bounds", "Each minimum must be smaller than its maximum."
+                self, tr("validation.invalid_bounds"), tr("validation.bounds")
             )
             return False
         for dataset in self.datasets.values():
             if not dataset.auto_color_range and dataset.color_min >= dataset.color_max:
                 QMessageBox.warning(
                     self,
-                    "Invalid Range",
-                    f"{dataset_display_name(dataset)}: color minimum must be smaller than maximum.",
+                    tr("validation.invalid_range"),
+                    tr("validation.color_range", name=dataset_display_name(dataset)),
                 )
                 return False
         return True

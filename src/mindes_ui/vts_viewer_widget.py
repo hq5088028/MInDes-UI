@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import queue
 import threading
-from typing import Callable
 from PySide6.QtWidgets import QWidget, QHBoxLayout
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QResizeEvent, QShowEvent
 import vtk
 from .vts_viewer.ui_vtk_view import VTKViewMixin
 from .vts_viewer.ui_control_panel import ControlPanelMixin
@@ -20,18 +21,15 @@ class VTSViewerWidget(
     VisualizationMixin,
     PlotOverLineMixin,
 ):
-    progress_callback: Callable[[str], None] | None
-
-    def __init__(
-        self,
-        parent: QWidget | None = None,
-        progress_callback: Callable[[str], None] | None = None,
-    ) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         vtk.vtkOutputWindow.SetInstance(vtk.vtkOutputWindow())  # 禁用vts的自动弹窗
         super().__init__(parent)
-        self.progress_callback = progress_callback
+        self._layout_render_timer = QTimer(self)
+        self._layout_render_timer.setSingleShot(True)
+        self._layout_render_timer.timeout.connect(
+            self._refresh_render_window_after_layout
+        )
         # ✅ 只在这里设置主布局
-        self._report_progress("   Creating VTS main layout...")
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -74,12 +72,10 @@ class VTSViewerWidget(
         self.plot_line_enabled = False
 
         # === Control Panel ===
-        self._report_progress("   Creating VTS control panel...")
         control_panel = self._create_control_panel()
         control_panel.setFixedWidth(self.control_panel_width)
 
         # === VTK + Plot Tabs ===
-        self._report_progress("   Creating VTK view and tabs...")
         self._create_vtk_and_tabs()  # 封装 VTK 和 Tab 创建逻辑
 
         self.tab_widget.setTabEnabled(1, False)  # 🔑 禁用/启用 tab
@@ -97,7 +93,6 @@ class VTSViewerWidget(
         self.is_sequential_playing = False
 
         # 构造后台加载，双缓冲式播放
-        self._report_progress("   Creating VTK render pipeline...")
         self.frame_buffer = queue.Queue(maxsize=2)  # 双缓冲
         self.playback_worker = None
         self.stop_playback_event = threading.Event()
@@ -171,6 +166,26 @@ class VTSViewerWidget(
         # 3. 重构 UI 设置
         self.update_colormap_preview()
 
-    def _report_progress(self, detail: str):
-        if self.progress_callback:
-            self.progress_callback(detail)
+    def schedule_render_refresh(self, delay_ms: int = 75) -> None:
+        """Coalesce layout changes into one final QVTK repaint request."""
+        self._layout_render_timer.start(max(0, int(delay_ms)))
+
+    def _refresh_render_window_after_layout(self) -> None:
+        vtk_widget = getattr(self, "vtk_widget", None)
+        if (
+            vtk_widget is None
+            or not self.isVisible()
+            or not vtk_widget.isVisible()
+            or vtk_widget.width() <= 0
+            or vtk_widget.height() <= 0
+        ):
+            return
+        vtk_widget.update()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.schedule_render_refresh()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self.schedule_render_refresh(0)
